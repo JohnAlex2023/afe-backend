@@ -1,65 +1,90 @@
-# app/models.py
-from sqlalchemy import Column, Integer, String, Date, DateTime, DECIMAL, Enum, Text, Boolean, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, BigInteger, Integer, String, Date, DECIMAL, Enum, Text, Boolean, ForeignKey, TIMESTAMP, JSON
 from sqlalchemy.orm import relationship
+from app.config import Base
 
-Base = declarative_base()
+class Role(Base):
+    __tablename__ = 'roles'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    nombre = Column(String(50), unique=True, nullable=False)
+    responsables = relationship("Responsable", back_populates="role")
 
 class Proveedor(Base):
     __tablename__ = 'proveedores'
-    id = Column(Integer, primary_key=True)
-    nit = Column(String(20), unique=True, nullable=False)
-    razon_social = Column(String(128))
-    area = Column(String(50))
-    contacto_email = Column(String(128))
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    nit = Column(String(64), unique=True, nullable=False)
+    razon_social = Column(String(255), nullable=False)
+    area = Column(String(100))
+    contacto_email = Column(String(255))
+    telefono = Column(String(50))
+    direccion = Column(String(255))
+    creado_en = Column(TIMESTAMP)
     facturas = relationship("Factura", back_populates="proveedor")
+
+class Cliente(Base):
+    __tablename__ = 'clientes'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    nit = Column(String(64), unique=True, nullable=False)
+    razon_social = Column(String(255), nullable=False)
+    contacto_email = Column(String(255))
+    telefono = Column(String(50))
+    direccion = Column(String(255))
+    creado_en = Column(TIMESTAMP)
+    facturas = relationship("Factura", back_populates="cliente")
 
 class Responsable(Base):
     __tablename__ = 'responsables'
-    id = Column(Integer, primary_key=True)
-    nombre = Column(String(128))
-    email = Column(String(128))
-    area = Column(String(50))
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    usuario = Column(String(100), unique=True, nullable=False)
+    nombre = Column(String(150))
+    email = Column(String(255), unique=True, nullable=False)
+    area = Column(String(100))
+    telefono = Column(String(50))
     activo = Column(Boolean, default=True)
-    role_id = Column(Integer, ForeignKey('roles.id'))
-    role = relationship("Role")
+    last_login = Column(TIMESTAMP)
+    role_id = Column(BigInteger, ForeignKey('roles.id'))
+    role = relationship("Role", back_populates="responsables")
     facturas = relationship("Factura", back_populates="responsable")
-class Role(Base):
-    __tablename__ = 'roles'
-    id = Column(Integer, primary_key=True)
-    nombre = Column(String(32), unique=True, nullable=False)
+
+class ResponsableProveedor(Base):
+    __tablename__ = 'responsable_proveedor'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    responsable_id = Column(BigInteger, ForeignKey('responsables.id'), nullable=False)
+    proveedor_id = Column(BigInteger, ForeignKey('proveedores.id'), nullable=False)
+    activo = Column(Boolean, default=True)
 
 class Factura(Base):
     __tablename__ = 'facturas'
-    id = Column(Integer, primary_key=True)
-    numero_factura = Column(String(50))
-    cufe = Column(String(128))
-    fecha_emision = Column(Date)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    numero_factura = Column(String(50), nullable=False)
+    fecha_emision = Column(Date, nullable=False)
+    cliente_id = Column(BigInteger, ForeignKey('clientes.id'))
+    proveedor_id = Column(BigInteger, ForeignKey('proveedores.id'))
+    subtotal = Column(DECIMAL(15,2))
+    iva = Column(DECIMAL(15,2))
+    total = Column(DECIMAL(15,2))
+    moneda = Column(String(10))
+    estado = Column(Enum('pendiente','en_revision','aprobada','rechazada','aprobada_auto'), default='pendiente')
     fecha_vencimiento = Column(Date)
-    nit_proveedor = Column(String(20))
-    razon_social_proveedor = Column(String(128))
-    nit_cliente = Column(String(20))
-    razon_social_cliente = Column(String(128))
-    subtotal = Column(DECIMAL(18,2))
-    iva = Column(DECIMAL(18,2))
-    total_a_pagar = Column(DECIMAL(18,2))
-    terminos_pago = Column(String(20))
-    estado_aprobacion = Column(Enum('pendiente','aprobada','rechazada','manual'), default='pendiente')
-    fecha_aprobacion = Column(DateTime)
-    responsable_id = Column(Integer, ForeignKey('responsables.id'))
     observaciones = Column(Text)
-    proveedor_id = Column(Integer, ForeignKey('proveedores.id'))
+    cufe = Column(String(100), unique=True, nullable=False)
+    total_a_pagar = Column(DECIMAL(15,2))
+    responsable_id = Column(BigInteger, ForeignKey('responsables.id'))
+    aprobada_automaticamente = Column(Boolean, default=False)
+    creado_por = Column(String(100))
+    creado_en = Column(TIMESTAMP)
+    actualizado_en = Column(TIMESTAMP)
     proveedor = relationship("Proveedor", back_populates="facturas")
+    cliente = relationship("Cliente", back_populates="facturas")
     responsable = relationship("Responsable", back_populates="facturas")
-    notificaciones = relationship("Notificacion", back_populates="factura")
 
-class Notificacion(Base):
-    __tablename__ = 'notificaciones'
-    id = Column(Integer, primary_key=True)
-    factura_id = Column(Integer, ForeignKey('facturas.id'))
-    responsable_id = Column(Integer, ForeignKey('responsables.id'))
-    tipo = Column(Enum('aprobada','pendiente','rechazada'))
-    fecha_envio = Column(DateTime)
-    estado = Column(Enum('enviada','vista','accionada'))
-    factura = relationship("Factura", back_populates="notificaciones")
-    responsable = relationship("Responsable")
+class AuditLog(Base):
+    __tablename__ = 'audit_log'
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    entidad = Column(String(64), nullable=False)
+    entidad_id = Column(BigInteger, nullable=False)
+    accion = Column(String(50), nullable=False)
+    usuario = Column(String(100), nullable=False)
+    detalle = Column(JSON)
+    creado_en = Column(TIMESTAMP)
+
+# Puedes agregar la clase Notificacion si la necesitas
