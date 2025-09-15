@@ -8,6 +8,7 @@ python-jose
 passlib[bcrypt]
 email-validator
 alembic
+mako
 pydantic-settings
 python-multipart
 httpx

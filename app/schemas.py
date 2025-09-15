@@ -52,8 +52,6 @@ class FacturaSchema(BaseModel):
     id: int
     numero_factura: str
     fecha_emision: date
-    cliente_id: Optional[int]
-    proveedor_id: Optional[int]
     subtotal: Optional[float]
     iva: Optional[float]
     total: Optional[float]
@@ -63,15 +61,18 @@ class FacturaSchema(BaseModel):
     observaciones: Optional[str]
     cufe: str
     total_a_pagar: Optional[float]
-    responsable_id: Optional[int]
     aprobada_automaticamente: Optional[bool]
     creado_por: Optional[str]
     creado_en: Optional[datetime]
     actualizado_en: Optional[datetime]
 
+    # Relaciones anidadas
+    cliente: Optional[ClienteSchema]
+    proveedor: Optional[ProveedorSchema]
+    responsable: Optional[ResponsableSchema]
+
     class Config:
         from_attributes = True
-
 class AuditLogSchema(BaseModel):
     id: int
     entidad: str

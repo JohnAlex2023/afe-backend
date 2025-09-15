@@ -50,7 +50,7 @@ def cargar_facturas_desde_directorio(output_dir: str) -> List[Dict]:
                     if isinstance(facturas, list):
                         facturas_total.extend(facturas)
             except (json.JSONDecodeError, OSError) as e:
-                logger.warning("⚠️ Error leyendo %s: %s", consolidado_path, e)
+                logger.warning(" Error leyendo %s: %s", consolidado_path, e)
 
     return deduplicate_facturas(facturas_total)
 
