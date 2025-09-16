@@ -1,16 +1,16 @@
+# app/schemas/proveedor.py
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
 
-class ProveedorSchema(BaseModel):
-    id: int
+class ProveedorBase(BaseModel):
     nit: str
     razon_social: str
-    area: Optional[str]
     contacto_email: Optional[str]
     telefono: Optional[str]
     direccion: Optional[str]
-    creado_en: Optional[datetime]
+    area: Optional[str]
 
+class ProveedorRead(ProveedorBase):
+    id: int
     class Config:
-        from_attributes = True
+    from_attributes = True

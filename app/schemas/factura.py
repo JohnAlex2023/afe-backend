@@ -1,34 +1,31 @@
-from pydantic import BaseModel
-from datetime import date, datetime
+# app/schemas/factura.py
+from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import date, datetime
 
-class FacturaSchema(BaseModel):
-    id: int
+class FacturaBase(BaseModel):
     numero_factura: str
-    cufe: str
-
-    # Fechas
     fecha_emision: date
-    fecha_vencimiento: Optional[date]
-
-    # Relaciones
-    cliente_id: int
-    proveedor_id: int
-    responsable_id: Optional[int]
-
-    # Montos
+    cliente_id: Optional[int] = None
+    proveedor_id: Optional[int] = None
     subtotal: float
     iva: float
-    total: Optional[float]        # 👈 aquí el cambio
-    total_a_pagar: Optional[float]
+    total: Optional[float] = None
+    moneda: Optional[str] = "COP"
+    fecha_vencimiento: Optional[date] = None
+    observaciones: Optional[str] = None
+    cufe: str
+    total_a_pagar: Optional[float] = None
 
-    # Estado y control
+class FacturaCreate(FacturaBase):
+    pass
+
+class FacturaRead(FacturaBase):
+    id: int
     estado: str
     aprobada_automaticamente: bool
-
-    # Auditoría
+    responsable_id: Optional[int]
     creado_en: datetime
-    actualizado_en: datetime
-
+    actualizado_en: Optional[datetime]
     class Config:
-        from_attributes = True
+    from_attributes = True

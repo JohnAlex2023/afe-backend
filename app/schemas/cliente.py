@@ -1,15 +1,15 @@
+# app/schemas/cliente.py
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
 
-class ClienteSchema(BaseModel):
-    id: int
+class ClienteBase(BaseModel):
     nit: str
     razon_social: str
     contacto_email: Optional[str]
     telefono: Optional[str]
     direccion: Optional[str]
-    creado_en: Optional[datetime]
 
+class ClienteRead(ClienteBase):
+    id: int
     class Config:
-        from_attributes = True
+    from_attributes = True

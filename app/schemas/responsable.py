@@ -1,13 +1,25 @@
-from pydantic import BaseModel
+# app/schemas/responsable.py
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
+from datetime import datetime
 
-class ResponsableSchema(BaseModel):
-    id: int
-    usuario: str
+class ResponsableBase(BaseModel):
+    usuario: str = Field(..., example="juan.perez@empresa.com")
+    email: EmailStr
     nombre: Optional[str]
-    email: str
-    area: Optional[str]
-    role_id: int
+
+class ResponsableCreate(ResponsableBase):
+    password: str = Field(..., min_length=8)
+
+class ResponsableRead(ResponsableBase):
+    id: int
+    activo: bool
+    role_id: Optional[int]
+    creado_en: Optional[datetime]
 
     class Config:
-        from_attributes = True
+    from_attributes = True
+
+class ResponsableLogin(BaseModel):
+    username: str
+    password: str
