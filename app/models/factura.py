@@ -5,10 +5,11 @@ import enum
 
 # Enum local para el estado de la factura
 class EstadoFactura(enum.Enum):
-    PENDIENTE = "PENDIENTE"
-    APROBADA = "APROBADA"
-    RECHAZADA = "RECHAZADA"
-    PAGADA = "PAGADA"
+    PENDIENTE = "pendiente"
+    EN_REVISION = "en_revision"
+    APROBADA = "aprobada"
+    RECHAZADA = "rechazada"
+    APROBADA_AUTO = "aprobada_auto"
 
 class Factura(Base):
     __tablename__ = "facturas"

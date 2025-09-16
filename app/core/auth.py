@@ -13,7 +13,7 @@ auth_router = APIRouter(tags=["Auth"])
 def login(form_data: OAuth2PasswordRequestForm = Depends()) -> Dict[str, Any]:
     """
     Endpoint de autenticación.
-    ⚠️ Actualmente simula un login hardcodeado. 
+    Actualmente simula un login hardcodeado. 
     En producción, validar credenciales contra la base de datos.
     """
     if form_data.username == "responsable" and form_data.password == "1234":

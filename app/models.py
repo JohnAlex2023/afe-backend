@@ -1,3 +1,5 @@
+#models.py
+
 from sqlalchemy import Column, BigInteger, Integer, String, Date, DECIMAL, Enum, Text, Boolean, ForeignKey, TIMESTAMP, JSON
 from sqlalchemy.orm import relationship
 from app.config import Base
@@ -52,30 +54,6 @@ class ResponsableProveedor(Base):
     proveedor_id = Column(BigInteger, ForeignKey('proveedores.id'), nullable=False)
     activo = Column(Boolean, default=True)
 
-class Factura(Base):
-    __tablename__ = 'facturas'
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    numero_factura = Column(String(50), nullable=False)
-    fecha_emision = Column(Date, nullable=False)
-    cliente_id = Column(BigInteger, ForeignKey('clientes.id'))
-    proveedor_id = Column(BigInteger, ForeignKey('proveedores.id'))
-    subtotal = Column(DECIMAL(15,2))
-    iva = Column(DECIMAL(15,2))
-    total = Column(DECIMAL(15,2))
-    moneda = Column(String(10))
-    estado = Column(Enum('pendiente','en_revision','aprobada','rechazada','aprobada_auto'), default='pendiente')
-    fecha_vencimiento = Column(Date)
-    observaciones = Column(Text)
-    cufe = Column(String(100), unique=True, nullable=False)
-    total_a_pagar = Column(DECIMAL(15,2))
-    responsable_id = Column(BigInteger, ForeignKey('responsables.id'))
-    aprobada_automaticamente = Column(Boolean, default=False)
-    creado_por = Column(String(100))
-    creado_en = Column(TIMESTAMP)
-    actualizado_en = Column(TIMESTAMP)
-    proveedor = relationship("Proveedor", back_populates="facturas")
-    cliente = relationship("Cliente", back_populates="facturas")
-    responsable = relationship("Responsable", back_populates="facturas")
 
 class AuditLog(Base):
     __tablename__ = 'audit_log'
