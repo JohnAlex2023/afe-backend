@@ -13,6 +13,7 @@ from app.crud.factura import (
     get_factura,
     find_by_cufe,
     get_factura_by_numero,
+    asignar_responsables_pendientes,
 )
 from app.utils.logger import logger
 
@@ -35,7 +36,6 @@ def list_all(
     nit: Optional[str] = None,
     numero_factura: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
 ):
     return list_facturas(
         db,
@@ -93,7 +93,6 @@ def create_invoice(
 def get_one(
     factura_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
 ):
     f = get_factura(db, factura_id)
     if not f:
@@ -118,7 +117,6 @@ def get_by_nit(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
 ):
     return list_facturas(db, skip=skip, limit=limit, nit=nit)
 
@@ -136,7 +134,6 @@ def get_by_nit(
 def get_by_cufe(
     cufe: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
 ):
     f = find_by_cufe(db, cufe)
     if not f:
@@ -160,7 +157,6 @@ def get_by_cufe(
 def get_by_numero(
     numero_factura: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
 ):
     f = get_factura_by_numero(db, numero_factura)
     if not f:

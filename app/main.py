@@ -5,6 +5,7 @@ from app.core.lifespan import lifespan
 from app.utils.cors import setup_cors
 
 
+
 def create_app() -> FastAPI:
     app = FastAPI(
         title="AFE Backend",

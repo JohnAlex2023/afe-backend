@@ -3,8 +3,10 @@ from typing import List, Optional
 from sqlalchemy import and_
 
 from app.models.factura import Factura
-from app.models.proveedor import Proveedor   # <-- IMPORTAR PROVEEDOR CORRECTO
+from app.models.proveedor import Proveedor
+from app.models.responsable import Responsable
 from app.models.cliente import Cliente
+from app.models.responsable import ResponsableNit
 
 
 # -----------------------------------------------------
@@ -66,24 +68,54 @@ def find_by_numero_proveedor(db: Session, numero: str, proveedor_id: int) -> Opt
     )
 
 
+
 # -----------------------------------------------------
-# Crear factura
+# Crear factura con asignación automática de responsable
 # -----------------------------------------------------
 def create_factura(db: Session, data: dict) -> Factura:
     obj = Factura(**data)
+
+    # --- asignar responsable automáticamente ---
+    if obj.proveedor_id:
+        proveedor = db.query(Proveedor).filter(Proveedor.id == obj.proveedor_id).first()
+        if proveedor and proveedor.nit:
+            resp_nit = db.query(ResponsableNit).filter(ResponsableNit.nit == proveedor.nit).first()
+            if resp_nit:
+                obj.responsable_id = resp_nit.responsable_id
+
     db.add(obj)
     db.commit()
     db.refresh(obj)
     return obj
 
 
+
+
 # -----------------------------------------------------
-# Actualizar factura
+# Actualizar factura y re-asignar responsable
 # -----------------------------------------------------
 def update_factura(db: Session, factura: Factura, fields: dict) -> Factura:
     for k, v in fields.items():
         setattr(factura, k, v)
+
+    # --- reasignar responsable si cambia proveedor ---
+    if factura.proveedor_id:
+        proveedor = db.query(Proveedor).filter(Proveedor.id == factura.proveedor_id).first()
+        if proveedor and proveedor.nit:
+            resp_nit = db.query(ResponsableNit).filter(ResponsableNit.nit == proveedor.nit).first()
+            if resp_nit:
+                factura.responsable_id = resp_nit.responsable_id
+
     db.add(factura)
     db.commit()
     db.refresh(factura)
     return factura
+
+# -----------------------------------------------------
+# Asignar responsables pendientes (stub temporal)
+# -----------------------------------------------------
+def asignar_responsables_pendientes(db: Session) -> int:
+    # Implementación real pendiente
+    return 0
+
+

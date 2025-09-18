@@ -33,3 +33,21 @@ class FacturaRead(FacturaBase):
     class Config:
         from_attributes = True
 
+class FacturaUpdate(BaseModel):
+    numero_factura: Optional[str] = None
+    fecha_emision: Optional[date] = None
+    cliente_id: Optional[int] = None
+    proveedor_id: Optional[int] = None
+    subtotal: Optional[float] = None
+    iva: Optional[float] = None
+    total: Optional[float] = None
+    moneda: Optional[str] = None
+    fecha_vencimiento: Optional[date] = None
+    observaciones: Optional[str] = None
+    cufe: Optional[str] = None
+    total_a_pagar: Optional[float] = None
+    estado: Optional[str] = None
+    aprobada_automaticamente: Optional[bool] = None
+    responsable_id: Optional[int] = None
+    actualizado_en: Optional[datetime] = None
+
