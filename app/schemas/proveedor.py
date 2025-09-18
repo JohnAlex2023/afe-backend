@@ -13,4 +13,4 @@ class ProveedorBase(BaseModel):
 class ProveedorRead(ProveedorBase):
     id: int
     class Config:
-    from_attributes = True
+        from_attributes = True

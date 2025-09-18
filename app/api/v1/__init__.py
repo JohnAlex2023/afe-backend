@@ -1,3 +1,3 @@
-# app/api/v1/__init__.py
-# No se importan users ni invoices porque no existen esos módulos
-from . import auth
+from app.api.v1.routers import api_router
+
+__all__ = ["api_router"]

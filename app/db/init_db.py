@@ -1,4 +1,4 @@
-
+# app/db/init_db.py
 from sqlalchemy.orm import Session
 from app.models.role import Role
 from app.models.responsable import Responsable
@@ -13,7 +13,12 @@ def create_default_roles_and_admin(db: Session):
 		db.add(Role(nombre="responsable"))
 	db.commit()
 
-	# crear admin responsable si no existe
+
+
+	# crear admin responsable si no existe--------------------------------------------
+ 
+
+ 
 	admin = db.query(Responsable).filter(Responsable.usuario == "admin").first()
 	if not admin:
 		admin = Responsable(

@@ -18,5 +18,6 @@ class Responsable(Base):
     hashed_password = Column(String(255), nullable=True)  # añadido para auth
 
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
-    role_obj = relationship("Role", lazy="joined")
+    # Relación con el rol, siempre cargada (joined)
+    role_obj = relationship("Role", back_populates="responsables", lazy="joined")
     facturas = relationship("Factura", back_populates="responsable", lazy="selectin")

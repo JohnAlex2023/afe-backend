@@ -18,7 +18,7 @@ class ResponsableRead(ResponsableBase):
     creado_en: Optional[datetime]
 
     class Config:
-    from_attributes = True
+        from_attributes = True
 
 class ResponsableLogin(BaseModel):
     username: str

@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from app.crud.responsable import get_responsable_by_id
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -42,17 +43,27 @@ def get_current_responsable(token: str = Depends(oauth2_scheme), db: Session = D
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
-    user = get_responsable_by_id(db, int(user_id))
+
+    # Try numeric id first, fallback to username if conversion fails
+    user = None
+    try:
+        user = get_responsable_by_id(db, int(user_id))
+    except (ValueError, TypeError):
+        # fallback: sub could be username
+        from app.crud.responsable import get_responsable_by_usuario
+        user = get_responsable_by_usuario(db, user_id)
+
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
     return user
 
-def require_role(role_name: str):
+
+def require_role(*role_names: str):
     def inner(current_user = Depends(get_current_responsable)):
         # current_user has role relationship
         if getattr(current_user, "role_obj", None):
             rname = getattr(current_user.role_obj, "nombre", None)
-            if rname == role_name:
+            if rname in role_names:
                 return current_user
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permisos insuficientes")
     return inner

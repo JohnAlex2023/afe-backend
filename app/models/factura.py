@@ -35,6 +35,7 @@ class Factura(Base):
     actualizado_en = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     cliente = relationship("Cliente", back_populates="facturas", lazy="joined")
+    
     proveedor = relationship("Proveedor", back_populates="facturas", lazy="joined")
     responsable = relationship("Responsable", back_populates="facturas", lazy="joined")
     __table_args__ = (UniqueConstraint("numero_factura", "proveedor_id", name="uix_num_prov"),)

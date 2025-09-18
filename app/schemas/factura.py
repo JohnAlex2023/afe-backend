@@ -3,6 +3,8 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import date, datetime
 
+
+#mostrar datos de las facturas
 class FacturaBase(BaseModel):
     numero_factura: str
     fecha_emision: date
@@ -23,9 +25,11 @@ class FacturaCreate(FacturaBase):
 class FacturaRead(FacturaBase):
     id: int
     estado: str
-    aprobada_automaticamente: bool
+    aprobada_automaticamente: Optional[bool] = None  
     responsable_id: Optional[int]
     creado_en: datetime
     actualizado_en: Optional[datetime]
+
     class Config:
-    from_attributes = True
+        from_attributes = True
+
