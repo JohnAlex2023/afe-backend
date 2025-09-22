@@ -1,3 +1,4 @@
+# app/core/config.py
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from typing import List

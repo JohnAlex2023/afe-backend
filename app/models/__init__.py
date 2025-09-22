@@ -1,9 +1,10 @@
-# app/models/__init__.py
-# importar para que Alembic vea metadata
-from .factura import Factura
-from .cliente import Cliente
-from .proveedor import Proveedor
-from .responsable import Responsable
-from .role import Role
-from .audit_log import AuditLog
-from .responsable_proveedor import ResponsableProveedor
+from app.db.base import Base
+
+# Importa todos los modelos para que se registren en Base.metadata
+from .cliente import Cliente  # noqa
+from .proveedor import Proveedor  # noqa
+from .factura import Factura  # noqa
+from .responsable_proveedor import ResponsableProveedor  # noqa
+from .responsable import Responsable  # noqa
+from .role import Role  # noqa
+from .audit_log import AuditLog  # noqa
