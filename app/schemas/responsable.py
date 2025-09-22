@@ -38,6 +38,19 @@ class ResponsableUpdate(BaseModel):
     usuario: Optional[str] = None
     email: Optional[EmailStr] = None
     nombre: Optional[str] = None
+
+
+# Schema para asignar proveedores a un responsable
+from typing import List
+
+class ResponsableProveedorAssign(BaseModel):
+    responsable_id: int
+    nits_proveedores: List[str] = Field(..., example=["890929073", "901261003"])
+
+
+# Nuevo schema para PUT (solo lista de NITs)
+class ResponsableProveedorUpdate(BaseModel):
+    nits_proveedores: List[str] = Field(..., example=["890929073", "901261003"])
     area: Optional[str] = None
     telefono: Optional[str] = None
     activo: Optional[bool] = None
