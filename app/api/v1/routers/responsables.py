@@ -4,14 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.responsable import ResponsableCreate, ResponsableRead
+from app.schemas.responsable import ResponsableCreate, ResponsableRead, ResponsableUpdate
 from app.schemas.common import ErrorResponse
-from app.crud.responsable import get_responsable_by_usuario, create_responsable
+from app.crud.responsable import get_responsable_by_usuario, create_responsable, update_responsable, delete_responsable
 from app.utils.logger import logger
 
 router = APIRouter(tags=["Responsables"])
 
-
+#crear responsable
 @router.post(
     "/",
     response_model=ResponsableRead,
@@ -30,7 +30,7 @@ def create_responsable_endpoint(
     logger.info("Responsable creado", extra={"id": r.id, "usuario": r.usuario})
     return r
 
-
+#listar responsables
 
 @router.get(
     "/",
@@ -43,3 +43,43 @@ def list_responsables(
 ):
     from app.models.responsable import Responsable
     return db.query(Responsable).all()
+
+
+
+#actualizar responsable
+@router.put(
+    "/{id}",
+    response_model=ResponsableRead,
+    responses={404: {"model": ErrorResponse}},
+    summary="Actualizar responsable",
+    description="Actualiza los datos de un responsable por su ID."
+)
+def update_responsable_endpoint(
+    id: int,
+    payload: ResponsableUpdate,
+    db: Session = Depends(get_db),
+):
+    r = update_responsable(db, id, payload)
+    if not r:
+        raise HTTPException(status_code=404, detail="Responsable no encontrado")
+    logger.info("Responsable actualizado", extra={"id": r.id, "usuario": r.usuario})
+    return r
+
+#eliminar responsable
+
+@router.delete(
+    "/{id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={404: {"model": ErrorResponse}},
+    summary="Eliminar responsable",
+    description="Elimina un responsable por su ID."
+)
+def delete_responsable_endpoint(
+    id: int,
+    db: Session = Depends(get_db),
+):
+    ok = delete_responsable(db, id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Responsable no encontrado")
+    logger.info("Responsable eliminado", extra={"id": id})
+    return None

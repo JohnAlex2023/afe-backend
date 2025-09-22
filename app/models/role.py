@@ -5,6 +5,9 @@ from app.db.base import Base
 
 class Role(Base):
     __tablename__ = "roles"
-    id = Column(BigInteger, primary_key=True)
-    nombre = Column(String(50))
-    responsables = relationship("Responsable", back_populates="role_obj")
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    nombre = Column(String(100), unique=True, nullable=False)
+
+    # Relación inversa
+    responsables = relationship("Responsable", back_populates="role", lazy="selectin")

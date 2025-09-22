@@ -61,8 +61,8 @@ def get_current_responsable(token: str = Depends(oauth2_scheme), db: Session = D
 def require_role(*role_names: str):
     def inner(current_user = Depends(get_current_responsable)):
         # current_user has role relationship
-        if getattr(current_user, "role_obj", None):
-            rname = getattr(current_user.role_obj, "nombre", None)
+        if getattr(current_user, "role", None):
+            rname = getattr(current_user.role, "nombre", None)
             if rname in role_names:
                 return current_user
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permisos insuficientes")

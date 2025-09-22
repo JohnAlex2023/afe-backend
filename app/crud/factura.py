@@ -1,9 +1,10 @@
+#app/crud/factura.py
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from sqlalchemy import and_
 
 from app.models.factura import Factura
-from app.models.proveedor import Proveedor   # <-- IMPORTAR PROVEEDOR CORRECTO
+from app.models.proveedor import Proveedor  
 from app.models.cliente import Cliente
 
 
