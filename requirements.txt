@@ -30,3 +30,4 @@ mypy>=1.0.0,<2.0.0
 types-PyMySQL>=1.1.0.20240106
 pip-tools>=7.0.0,<8.0.0
 ipython>=8.0.0,<9.0.0
+email-validator
