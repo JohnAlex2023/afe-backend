@@ -15,6 +15,7 @@ from app.crud.responsable_proveedor import (
 )
 from sqlalchemy import delete
 from app.services.responsable_proveedor_service import asignar_proveedores_a_responsable
+from app.core.security import get_current_responsable, require_role
 from app.utils.logger import logger
 
 router = APIRouter(tags=["Responsables"])
@@ -31,6 +32,7 @@ router = APIRouter(tags=["Responsables"])
 def create_responsable_endpoint(
     payload: ResponsableCreate,
     db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin")),
 ):
     if get_responsable_by_usuario(db, payload.usuario):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Usuario ya existe")
@@ -44,7 +46,11 @@ def create_responsable_endpoint(
     "/{responsable_id}/proveedores",
     summary="Listar proveedores asignados a un responsable"
 )
-def listar_proveedores_por_responsable(responsable_id: int, db: Session = Depends(get_db)):
+def listar_proveedores_por_responsable(
+    responsable_id: int, 
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin", "responsable"))
+):
     relaciones = get_proveedores_by_responsable(db, responsable_id)
     return [{"proveedor_id": r.proveedor_id, "activo": r.activo, "creado_en": r.creado_en} for r in relaciones]
 
@@ -53,7 +59,11 @@ def listar_proveedores_por_responsable(responsable_id: int, db: Session = Depend
     "/proveedor/{proveedor_id}/responsables",
     summary="Listar responsables asignados a un proveedor"
 )
-def listar_responsables_por_proveedor(proveedor_id: int, db: Session = Depends(get_db)):
+def listar_responsables_por_proveedor(
+    proveedor_id: int, 
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin", "responsable"))
+):
     relaciones = get_responsables_by_proveedor(db, proveedor_id)
     return [{"responsable_id": r.responsable_id, "activo": r.activo, "creado_en": r.creado_en} for r in relaciones]
 
@@ -62,7 +72,12 @@ def listar_responsables_por_proveedor(proveedor_id: int, db: Session = Depends(g
     "/{responsable_id}/proveedores/{proveedor_id}",
     summary="Desactivar relación responsable-proveedor"
 )
-def desactivar_relacion_responsable_proveedor(responsable_id: int, proveedor_id: int, db: Session = Depends(get_db)):
+def desactivar_relacion_responsable_proveedor(
+    responsable_id: int, 
+    proveedor_id: int, 
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin"))
+):
     ok = desactivar_responsable_proveedor(db, responsable_id, proveedor_id)
     if ok:
         return {"msg": "Relación desactivada"}
@@ -75,7 +90,12 @@ def desactivar_relacion_responsable_proveedor(responsable_id: int, proveedor_id:
     summary="Eliminar completamente la relación responsable-proveedor",
     description="Elimina la fila de la relación responsable-proveedor de la base de datos.",
 )
-def eliminar_relacion_responsable_proveedor(responsable_id: int, proveedor_id: int, db: Session = Depends(get_db)):
+def eliminar_relacion_responsable_proveedor(
+    responsable_id: int, 
+    proveedor_id: int, 
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin"))
+):
     from app.models.responsable_proveedor import ResponsableProveedor
     from app.models.factura import Factura
     logger.info(f"Intentando eliminar responsable_id={responsable_id}, proveedor_id={proveedor_id}")
@@ -122,6 +142,7 @@ def eliminar_relacion_responsable_proveedor(responsable_id: int, proveedor_id: i
 )
 def list_responsables(
     db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin", "responsable")),
 ):
     from app.models.responsable import Responsable
     return db.query(Responsable).all()
@@ -137,6 +158,7 @@ def list_responsables(
 def asignar_proveedores_endpoint(
     payload: ResponsableProveedorAssign,
     db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin")),
 ):
     try:
         resultado = asignar_proveedores_a_responsable(db, payload.responsable_id, payload.nits_proveedores)
@@ -155,6 +177,7 @@ def actualizar_proveedores_responsable(
     responsable_id: int,
     payload: ResponsableProveedorUpdate,
     db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin")),
 ):
     # Obtener todos los proveedores actualmente asignados
     actuales = get_proveedores_by_responsable(db, responsable_id)
@@ -184,6 +207,7 @@ def update_responsable_endpoint(
     id: int,
     payload: ResponsableUpdate,
     db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin")),
 ):
     r = update_responsable(db, id, payload)
     if not r:
@@ -203,6 +227,7 @@ def update_responsable_endpoint(
 def delete_responsable_endpoint(
     id: int,
     db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin")),
 ):
     ok = delete_responsable(db, id)
     if not ok:

@@ -14,11 +14,11 @@ class Responsable(Base):
     telefono = Column(String(50))
     activo = Column(Boolean, server_default=text("1"), nullable=False)
     last_login = Column(DateTime(timezone=True), nullable=True)
-    role_id = Column(BigInteger, ForeignKey("roles.id"), nullable=True)
+    role_id = Column(BigInteger, ForeignKey("roles.id", onupdate="CASCADE", ondelete="RESTRICT"), nullable=False)
     hashed_password = Column(String(255), nullable=False)
-    must_change_password = Column(Boolean, server_default=text("1"), nullable=False)
+    must_change_password = Column(Boolean, server_default=text("1"), nullable=False) # obliga a cambiar la contraseña en el primer login
 
-    creado_en = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    creado_en = Column(DateTime(timezone=True), server_default=func.now(), nullable=False) # fecha de creación
 
     # Relaciones
     role = relationship("Role", back_populates="responsables", lazy="joined")

@@ -7,5 +7,4 @@ db_data/
 .vscode/
 .DS_Store
 *.sqlite3
-afe-backend/
 
