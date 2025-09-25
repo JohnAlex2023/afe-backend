@@ -8,6 +8,7 @@ from app.api.v1.routers import (
     responsables,
     roles,
     facturas,
+    automation,
 )
 
 # Router principal con prefijo global
@@ -25,3 +26,4 @@ api_router.include_router(clientes.router, prefix="/clientes", tags=["Clientes"]
 api_router.include_router(proveedores.router, prefix="/proveedores", tags=["Proveedores"])
 api_router.include_router(roles.router, prefix="/roles", tags=["Roles"])
 api_router.include_router(facturas.router, prefix="/facturas", tags=["Facturas"])
+api_router.include_router(automation.router, prefix="/automation", tags=["Automatización"])

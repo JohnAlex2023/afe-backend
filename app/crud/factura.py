@@ -88,3 +88,195 @@ def update_factura(db: Session, factura: Factura, fields: dict) -> Factura:
     db.commit()
     db.refresh(factura)
     return factura
+
+
+# ✨ FUNCIONES PARA AUTOMATIZACIÓN DE FACTURAS RECURRENTES ✨
+
+# -----------------------------------------------------
+# Buscar facturas por concepto normalizado y proveedor
+# -----------------------------------------------------
+def find_facturas_by_concepto_proveedor(
+    db: Session, 
+    proveedor_id: int, 
+    concepto_normalizado: str,
+    limit: int = 12
+) -> List[Factura]:
+    """
+    Busca facturas históricas del mismo proveedor con concepto similar
+    para detectar patrones de recurrencia
+    """
+    return (
+        db.query(Factura)
+        .filter(
+            and_(
+                Factura.proveedor_id == proveedor_id,
+                Factura.concepto_normalizado == concepto_normalizado
+            )
+        )
+        .order_by(Factura.fecha_emision.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+# -----------------------------------------------------
+# Buscar facturas por hash de concepto
+# -----------------------------------------------------
+def find_facturas_by_concepto_hash(
+    db: Session, 
+    concepto_hash: str,
+    proveedor_id: Optional[int] = None,
+    limit: int = 10
+) -> List[Factura]:
+    """
+    Búsqueda rápida por hash de concepto para matching exacto
+    """
+    query = db.query(Factura).filter(Factura.concepto_hash == concepto_hash)
+    
+    if proveedor_id:
+        query = query.filter(Factura.proveedor_id == proveedor_id)
+    
+    return query.order_by(Factura.fecha_emision.desc()).limit(limit).all()
+
+
+# -----------------------------------------------------
+# Buscar facturas por orden de compra
+# -----------------------------------------------------
+def find_facturas_by_orden_compra(
+    db: Session,
+    orden_compra_numero: str,
+    proveedor_id: Optional[int] = None
+) -> List[Factura]:
+    """
+    Busca facturas con la misma orden de compra para detectar recurrencia
+    """
+    query = db.query(Factura).filter(Factura.orden_compra_numero == orden_compra_numero)
+    
+    if proveedor_id:
+        query = query.filter(Factura.proveedor_id == proveedor_id)
+        
+    return query.order_by(Factura.fecha_emision.desc()).all()
+
+
+# -----------------------------------------------------
+# Obtener facturas pendientes para procesamiento automático
+# -----------------------------------------------------
+def get_facturas_pendientes_procesamiento(db: Session, limit: int = 50) -> List[Factura]:
+    """
+    Obtiene facturas en estado 'pendiente' que aún no han sido procesadas
+    por el sistema de automatización
+    """
+    return (
+        db.query(Factura)
+        .filter(
+            and_(
+                Factura.estado == "pendiente",
+                Factura.fecha_procesamiento_auto.is_(None)
+            )
+        )
+        .order_by(Factura.creado_en.asc())  # Procesar las más antiguas primero
+        .limit(limit)
+        .all()
+    )
+
+
+# -----------------------------------------------------
+# Marcar factura como procesada automáticamente
+# -----------------------------------------------------
+def marcar_como_procesada_automaticamente(
+    db: Session,
+    factura: Factura,
+    decision_data: dict
+) -> Factura:
+    """
+    Actualiza una factura con los resultados del procesamiento automático
+    """
+    from datetime import datetime
+    
+    campos_actualizacion = {
+        "patron_recurrencia": decision_data.get("patron_recurrencia"),
+        "confianza_automatica": decision_data.get("confianza"),
+        "factura_referencia_id": decision_data.get("factura_referencia_id"),
+        "motivo_decision": decision_data.get("motivo_decision"),
+        "procesamiento_info": decision_data.get("procesamiento_info", {}),
+        "fecha_procesamiento_auto": datetime.utcnow(),
+        "version_algoritmo": decision_data.get("version_algoritmo", "1.0")
+    }
+    
+    # Solo actualizar estado si se recomienda aprobación automática
+    if decision_data.get("estado_sugerido") == "aprobada_auto":
+        campos_actualizacion["estado"] = "aprobada_auto"
+        campos_actualizacion["aprobada_automaticamente"] = True
+    elif decision_data.get("estado_sugerido") == "en_revision":
+        campos_actualizacion["estado"] = "en_revision"
+    
+    return update_factura(db, factura, campos_actualizacion)
+
+
+# -----------------------------------------------------
+# Obtener facturas procesadas automáticamente
+# -----------------------------------------------------
+def get_facturas_procesadas_automaticamente(
+    db: Session,
+    fecha_desde: Optional[object] = None,
+    estado: Optional[str] = None,
+    proveedor_id: Optional[int] = None,
+    limit: int = 100
+) -> List[Factura]:
+    """
+    Obtiene facturas que han sido procesadas por el sistema automático
+    """
+    from datetime import datetime
+    
+    query = db.query(Factura).filter(
+        Factura.fecha_procesamiento_auto.isnot(None)
+    )
+    
+    if fecha_desde:
+        query = query.filter(Factura.fecha_procesamiento_auto >= fecha_desde)
+    
+    if estado:
+        query = query.filter(Factura.estado == estado)
+        
+    if proveedor_id:
+        query = query.filter(Factura.proveedor_id == proveedor_id)
+    
+    return (
+        query
+        .order_by(Factura.fecha_procesamiento_auto.desc())
+        .limit(limit)
+        .all()
+    )
+
+
+# -----------------------------------------------------
+# Obtener facturas por proveedor y rango de fechas
+# -----------------------------------------------------
+def get_facturas_by_proveedor_fecha(
+    db: Session,
+    proveedor_id: int,
+    fecha_desde: object,
+    fecha_hasta: Optional[object] = None,
+    limit: int = 200
+) -> List[Factura]:
+    """
+    Obtiene facturas de un proveedor específico en un rango de fechas
+    """
+    from datetime import datetime
+    
+    query = db.query(Factura).filter(
+        and_(
+            Factura.proveedor_id == proveedor_id,
+            Factura.fecha_emision >= fecha_desde
+        )
+    )
+    
+    if fecha_hasta:
+        query = query.filter(Factura.fecha_emision <= fecha_hasta)
+    
+    return (
+        query
+        .order_by(Factura.fecha_emision.desc())
+        .limit(limit)
+        .all()
+    )

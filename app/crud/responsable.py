@@ -82,3 +82,39 @@ def delete_responsable(db: Session, r_id: int) -> bool:
     db.commit()
     return True
 
+
+# -----------------------------------------------------
+# Funciones adicionales para automatización
+# -----------------------------------------------------
+def get_responsable(db: Session, responsable_id: int) -> Optional[Responsable]:
+    """Alias de get_responsable_by_id para compatibilidad"""
+    return get_responsable_by_id(db, responsable_id)
+
+
+def get_responsables_activos(db: Session) -> List[Responsable]:
+    """Obtiene todos los responsables activos"""
+    return (
+        db.query(Responsable)
+        .filter(Responsable.activo == True)
+        .all()
+    )
+
+
+def get_responsables_por_rol(db: Session, rol_nombre: str) -> List[Responsable]:
+    """
+    Obtiene responsables por rol específico
+    NOTA: Esta función requiere que el modelo tenga relación con roles
+    """
+    # Implementación básica - ajustar según estructura de roles
+    return (
+        db.query(Responsable)
+        .filter(
+            and_(
+                Responsable.activo == True,
+                # Aquí iría la lógica de filtrado por rol
+                # Por ahora devolvemos responsables activos
+            )
+        )
+        .all()
+    )
+
