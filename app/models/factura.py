@@ -74,6 +74,14 @@ class Factura(Base):
     version_algoritmo = Column(String(20), nullable=True, server_default="1.0",
                               comment="Versión del algoritmo de automatización")
 
+    # ✨ CAMPOS PARA CLASIFICACIÓN POR PERÍODOS ✨
+    año_factura = Column(BigInteger, nullable=True, index=True,
+                        comment="Año de la factura extraído de fecha_emision")
+    mes_factura = Column(BigInteger, nullable=True, index=True,
+                        comment="Mes de la factura extraído de fecha_emision")
+    periodo_factura = Column(String(7), nullable=True, index=True,
+                            comment="Período en formato YYYY-MM para agrupación rápida")
+
     cliente = relationship("Cliente", back_populates="facturas", lazy="joined")
     proveedor = relationship("Proveedor", back_populates="facturas", lazy="joined")
     responsable = relationship("Responsable", back_populates="facturas", lazy="joined")

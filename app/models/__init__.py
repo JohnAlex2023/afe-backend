@@ -8,6 +8,15 @@ from .responsable import Responsable
 from .responsable_proveedor import ResponsableProveedor
 from .role import Role
 from .audit_log import AuditLog
+from .usuario import Usuario
+from .importacion_presupuesto import ImportacionPresupuesto
+from .presupuesto import LineaPresupuesto, EjecucionPresupuestal
+from .workflow_aprobacion import (
+    WorkflowAprobacionFactura,
+    AsignacionNitResponsable,
+    NotificacionWorkflow,
+    ConfiguracionCorreo
+)
 
 __all__ = [
     "Cliente",
@@ -17,5 +26,13 @@ __all__ = [
     "ResponsableProveedor",
     "Role",
     "AuditLog",
+    "Usuario",
+    "ImportacionPresupuesto",
+    "LineaPresupuesto",
+    "EjecucionPresupuestal",
+    "WorkflowAprobacionFactura",
+    "AsignacionNitResponsable",
+    "NotificacionWorkflow",
+    "ConfiguracionCorreo",
     "Base",
 ]

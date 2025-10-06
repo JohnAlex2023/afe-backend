@@ -4,6 +4,9 @@ from app.crud.factura import create_factura, find_by_cufe, find_by_numero_provee
 from app.crud.audit import create_audit
 from app.schemas.factura import FacturaCreate
 from typing import Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by: str) -> Tuple[dict, str]:
     data = payload.dict()
@@ -42,27 +45,48 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
                     "conflict",
                     created_by,
                     {
-                    "msg": "numero/proveedor exists with different cufe",
-                    "existing_cufe": existing2.cufe,
-                    "incoming_cufe": data["cufe"],
+                        "msg": "numero/proveedor exists with different cufe",
+                        "existing_cufe": existing2.cufe,
+                        "incoming_cufe": data["cufe"],
                     },
-                    )
+                )
                 return {"id": existing2.id, "action": "conflict"}, "conflict"
             return {"id": existing2.id, "action": "ignored"}, "ignored"
 
     # Crear nueva factura
     inv = create_factura(db, data)
     create_audit(
-    db,
-    "factura",
-    existing2.id,
-    "conflict",
-    created_by,
-    {
-        "msg": "numero/proveedor exists with different cufe",
-        "existing_cufe": existing2.cufe,
-        "incoming_cufe": data["cufe"],
-    },
+        db,
+        "factura",
+        inv.id,
+        "create",
+        created_by,
+        {"msg": "Nueva factura creada desde Microsoft Graph"}
     )
+
+    # 🚀 ACTIVAR WORKFLOW AUTOMÁTICO PARA LA NUEVA FACTURA
+    try:
+        from app.services.workflow_automatico import WorkflowAutomaticoService
+        workflow_service = WorkflowAutomaticoService(db)
+        workflow_resultado = workflow_service.procesar_factura_nueva(inv.id)
+
+        if workflow_resultado.get("exito"):
+            logger.info(f"✅ Workflow creado para factura {inv.id}: {workflow_resultado.get('tipo_aprobacion', 'N/A')}")
+        else:
+            logger.warning(f"⚠️ Workflow creado con advertencia para factura {inv.id}: {workflow_resultado.get('mensaje', 'Sin mensaje')}")
+
+    except Exception as e:
+        logger.error(f"❌ Error al crear workflow para factura {inv.id}: {str(e)}")
+        # No falla la creación de la factura si el workflow falla
+        create_audit(
+            db,
+            "workflow",
+            inv.id,
+            "error",
+            "SISTEMA",
+            {"error": str(e), "msg": "Error al crear workflow automático"}
+        )
+
+    return {"id": inv.id, "action": "created"}, "created"
 
 

@@ -15,11 +15,14 @@ def setup_cors(app: FastAPI) -> None:
         else:
             origins = list(settings.backend_cors_origins)
 
-    if origins:
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=origins,
-            allow_methods=["*"],
-            allow_headers=["*"],
-            allow_credentials=True,
-        )
+    # En desarrollo, permitir todos los orígenes si no hay configuración
+    if not origins or settings.environment == "development":
+        origins = ["*"]
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        allow_credentials=True,
+    )

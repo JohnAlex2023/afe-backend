@@ -13,6 +13,12 @@ from app.crud.factura import (
     get_factura,
     find_by_cufe,
     get_factura_by_numero,
+    get_facturas_resumen_por_mes,
+    get_facturas_por_periodo,
+    count_facturas_por_periodo,
+    get_estadisticas_periodo,
+    get_años_disponibles,
+    get_jerarquia_facturas,
 )
 from app.utils.logger import logger
 
@@ -169,3 +175,276 @@ def get_by_numero(
             detail="Factura no encontrada"
         )
     return f
+
+
+# ✨ ENDPOINTS PARA CLASIFICACIÓN POR PERÍODOS MENSUALES ✨
+
+# -----------------------------------------------------
+# Obtener resumen de facturas agrupadas por mes
+# -----------------------------------------------------
+@router.get(
+    "/periodos/resumen",
+    tags=["Reportes - Períodos Mensuales"],
+    summary="Resumen de facturas por mes",
+    description="Obtiene un resumen de facturas agrupadas por mes/año con totales agregados. Ideal para dashboards y reportes mensuales."
+)
+def get_resumen_por_mes(
+    año: Optional[int] = None,
+    proveedor_id: Optional[int] = None,
+    estado: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable),
+):
+    """
+    Retorna facturas agrupadas por período (mes/año) con:
+    - Total de facturas por mes
+    - Monto total por mes
+    - Subtotal e IVA por mes
+
+    Ejemplo de respuesta:
+    [
+        {
+            "periodo": "2025-07",
+            "año": 2025,
+            "mes": 7,
+            "total_facturas": 6,
+            "monto_total": 17126907.00,
+            "subtotal_total": 14000000.00,
+            "iva_total": 3126907.00
+        },
+        ...
+    ]
+    """
+    return get_facturas_resumen_por_mes(
+        db=db,
+        año=año,
+        proveedor_id=proveedor_id,
+        estado=estado
+    )
+
+
+# -----------------------------------------------------
+# Obtener facturas de un período específico
+# -----------------------------------------------------
+@router.get(
+    "/periodos/{periodo}",
+    response_model=List[FacturaRead],
+    tags=["Reportes - Períodos Mensuales"],
+    summary="Facturas de un período específico",
+    description="Obtiene todas las facturas de un mes/año específico (formato: YYYY-MM)"
+)
+def get_facturas_periodo(
+    periodo: str,
+    skip: int = 0,
+    limit: int = 100,
+    proveedor_id: Optional[int] = None,
+    estado: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable),
+):
+    """
+    Obtiene facturas de un período específico.
+
+    Args:
+        periodo: Formato "YYYY-MM" (ej: "2025-07" para julio 2025)
+        skip: Registros a saltar (paginación)
+        limit: Máximo de registros a retornar
+        proveedor_id: Filtrar por proveedor (opcional)
+        estado: Filtrar por estado (opcional)
+
+    Returns:
+        Lista de facturas del período
+    """
+    # Validar formato de período
+    if len(periodo) != 7 or periodo[4] != '-':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato de período inválido. Use YYYY-MM (ej: 2025-07)"
+        )
+
+    facturas = get_facturas_por_periodo(
+        db=db,
+        periodo=periodo,
+        skip=skip,
+        limit=limit,
+        proveedor_id=proveedor_id,
+        estado=estado
+    )
+
+    return facturas
+
+
+# -----------------------------------------------------
+# Obtener estadísticas de un período
+# -----------------------------------------------------
+@router.get(
+    "/periodos/{periodo}/estadisticas",
+    tags=["Reportes - Períodos Mensuales"],
+    summary="Estadísticas de un período",
+    description="Obtiene estadísticas detalladas de un período específico incluyendo desglose por estado"
+)
+def get_stats_periodo(
+    periodo: str,
+    proveedor_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable),
+):
+    """
+    Retorna estadísticas completas de un período:
+    - Total de facturas
+    - Monto total, subtotal, IVA
+    - Promedio por factura
+    - Desglose por estado (pendiente, aprobada, etc.)
+
+    Ejemplo de respuesta:
+    {
+        "periodo": "2025-07",
+        "total_facturas": 6,
+        "monto_total": 17126907.00,
+        "subtotal": 14000000.00,
+        "iva": 3126907.00,
+        "promedio": 2854484.50,
+        "por_estado": [
+            {"estado": "en_revision", "cantidad": 6, "monto": 17126907.00}
+        ]
+    }
+    """
+    # Validar formato
+    if len(periodo) != 7 or periodo[4] != '-':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato de período inválido. Use YYYY-MM"
+        )
+
+    return get_estadisticas_periodo(
+        db=db,
+        periodo=periodo,
+        proveedor_id=proveedor_id
+    )
+
+
+# -----------------------------------------------------
+# Contar facturas de un período
+# -----------------------------------------------------
+@router.get(
+    "/periodos/{periodo}/count",
+    tags=["Reportes - Períodos Mensuales"],
+    summary="Contar facturas de un período",
+    description="Retorna el número total de facturas en un período"
+)
+def count_periodo(
+    periodo: str,
+    proveedor_id: Optional[int] = None,
+    estado: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable),
+):
+    """
+    Cuenta facturas de un período específico.
+    Útil para paginación y reportes rápidos.
+    """
+    if len(periodo) != 7 or periodo[4] != '-':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato de período inválido. Use YYYY-MM"
+        )
+
+    count = count_facturas_por_periodo(
+        db=db,
+        periodo=periodo,
+        proveedor_id=proveedor_id,
+        estado=estado
+    )
+
+    return {"periodo": periodo, "total": count}
+
+
+# -----------------------------------------------------
+# Obtener años disponibles
+# -----------------------------------------------------
+@router.get(
+    "/periodos/años/disponibles",
+    tags=["Reportes - Períodos Mensuales"],
+    summary="Años con facturas",
+    description="Retorna lista de años que tienen facturas registradas"
+)
+def get_años(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable),
+):
+    """
+    Retorna años disponibles en orden descendente.
+    Útil para filtros en frontend.
+
+    Ejemplo: [2025, 2024, 2023]
+    """
+    años = get_años_disponibles(db)
+    return {"años": años}
+
+
+# -----------------------------------------------------
+# Jerarquía empresarial: Año → Mes → Facturas
+# -----------------------------------------------------
+@router.get(
+    "/periodos/jerarquia",
+    tags=["Reportes - Períodos Mensuales"],
+    summary="Vista jerárquica año→mes→facturas",
+    description="Retorna facturas organizadas jerárquicamente por año y mes. Ideal para dashboards con drill-down."
+)
+def get_jerarquia(
+    año: Optional[int] = None,
+    mes: Optional[int] = None,
+    proveedor_id: Optional[int] = None,
+    estado: Optional[str] = None,
+    limit_por_mes: int = 100,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable),
+):
+    """
+    **Vista Jerárquica Empresarial** para organización cronológica de facturas.
+
+    Retorna estructura anidada:
+    ```json
+    {
+        "2025": {
+            "10": {
+                "total_facturas": 4,
+                "monto_total": 12500.00,
+                "subtotal": 10500.00,
+                "iva": 2000.00,
+                "facturas": [
+                    {
+                        "id": 123,
+                        "numero_factura": "FACT-001",
+                        "fecha_emision": "2025-10-15",
+                        "total": 5000.00,
+                        "estado": "aprobada"
+                    },
+                    ...
+                ]
+            },
+            "09": {...}
+        },
+        "2024": {...}
+    }
+    ```
+
+    **Filtros disponibles:**
+    - `año`: Filtrar por año específico (ej: 2025)
+    - `mes`: Filtrar por mes específico (1-12)
+    - `proveedor_id`: Filtrar por proveedor
+    - `estado`: Filtrar por estado
+    - `limit_por_mes`: Límite de facturas por mes (default: 100)
+
+    **Orden:** Año DESC → Mes DESC → Fecha DESC (más recientes primero)
+
+    **Performance:** Usa índice `idx_facturas_orden_cronologico` para queries ultra-rápidas
+    """
+    return get_jerarquia_facturas(
+        db=db,
+        año=año,
+        mes=mes,
+        proveedor_id=proveedor_id,
+        estado=estado,
+        limit_por_mes=limit_por_mes
+    )

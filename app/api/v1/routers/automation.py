@@ -24,7 +24,81 @@ from app.schemas.common import ResponseBase
 from pydantic import BaseModel, Field
 
 
-router = APIRouter(tags=["automatización"])
+router = APIRouter(tags=["Automatización"])
+
+
+# ==================== ENDPOINT DE INICIALIZACIÓN ENTERPRISE ====================
+
+@router.post("/inicializar-sistema", summary="🚀 Inicialización Enterprise del Sistema Completo")
+def inicializar_sistema_completo(
+    archivo_presupuesto: Optional[str] = None,
+    año_fiscal: int = 2025,
+    responsable_default_id: int = 1,
+    ejecutar_vinculacion: bool = True,
+    ejecutar_workflow: bool = True,
+    dry_run: bool = False,
+    db: Session = Depends(get_db)
+):
+    """
+    **INICIALIZACIÓN COMPLETA DEL SISTEMA ENTERPRISE**
+
+    Ejecuta la inicialización orquestada de todo el sistema:
+
+    1. ✅ **Verificación de Estado**: Analiza el estado actual
+    2. ✅ **Validación de Pre-requisitos**: Valida datos y configuraciones
+    3. ✅ **Importación de Presupuesto**: Importa desde Excel (si se proporciona)
+    4. ✅ **Auto-configuración NIT-Responsable**: Crea asignaciones automáticamente
+    5. ✅ **Vinculación de Facturas**: Vincula facturas existentes con presupuesto
+    6. ✅ **Activación de Workflow**: Activa workflow de aprobación
+    7. ✅ **Reporte Ejecutivo**: Genera reporte completo
+
+    **Características Enterprise:**
+    - Transacciones atómicas (todo o nada)
+    - Rollback automático en errores
+    - Idempotente (se puede ejecutar múltiples veces)
+    - Logging detallado
+    - Dry-run para simulación
+
+    **Parámetros:**
+    - `archivo_presupuesto`: Ruta al Excel de presupuesto (opcional)
+    - `año_fiscal`: Año a procesar (default: 2025)
+    - `responsable_default_id`: ID del responsable por defecto
+    - `ejecutar_vinculacion`: Si debe vincular facturas (default: true)
+    - `ejecutar_workflow`: Si debe activar workflow (default: true)
+    - `dry_run`: Si true, solo simula sin hacer cambios (default: false)
+
+    **Ejemplo de uso:**
+    ```bash
+    # Simular (dry-run)
+    POST /api/v1/automation/inicializar-sistema?dry_run=true
+
+    # Ejecutar completo
+    POST /api/v1/automation/inicializar-sistema?archivo_presupuesto=presupuesto.xlsx
+    ```
+    """
+    from app.services.inicializacion_sistema import InicializacionSistemaService
+
+    servicio = InicializacionSistemaService(db)
+
+    resultado = servicio.inicializar_sistema_completo(
+        archivo_presupuesto=archivo_presupuesto,
+        año_fiscal=año_fiscal,
+        responsable_default_id=responsable_default_id,
+        ejecutar_vinculacion=ejecutar_vinculacion,
+        ejecutar_workflow=ejecutar_workflow,
+        dry_run=dry_run
+    )
+
+    if not resultado.get("exito"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "mensaje": "Error en la inicialización del sistema",
+                "errores": resultado.get("errores", [])
+            }
+        )
+
+    return resultado
 
 
 # Esquemas de respuesta
