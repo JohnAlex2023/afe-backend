@@ -17,6 +17,7 @@ from .workflow_aprobacion import (
     NotificacionWorkflow,
     ConfiguracionCorreo
 )
+from .historial_pagos import HistorialPagos, TipoPatron
 
 __all__ = [
     "Cliente",
@@ -34,5 +35,7 @@ __all__ = [
     "AsignacionNitResponsable",
     "NotificacionWorkflow",
     "ConfiguracionCorreo",
+    "HistorialPagos",
+    "TipoPatron",
     "Base",
 ]

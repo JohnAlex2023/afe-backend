@@ -16,6 +16,14 @@ class ResponsableCreate(ResponsableBase):
     telefono: Optional[str] = None
 
 
+class RoleRead(BaseModel):
+    id: int
+    nombre: str
+
+    class Config:
+        from_attributes = True
+
+
 class ResponsableRead(ResponsableBase):
     id: int
     activo: bool
@@ -24,6 +32,7 @@ class ResponsableRead(ResponsableBase):
     creado_en: datetime
     area: Optional[str]
     telefono: Optional[str]
+    role: Optional[RoleRead] = None
 
     class Config:
         from_attributes = True
@@ -38,6 +47,11 @@ class ResponsableUpdate(BaseModel):
     usuario: Optional[str] = None
     email: Optional[EmailStr] = None
     nombre: Optional[str] = None
+    area: Optional[str] = None
+    telefono: Optional[str] = None
+    activo: Optional[bool] = None
+    role_id: Optional[int] = None
+    password: Optional[str] = Field(None, min_length=8)
 
 
 # Schema para asignar proveedores a un responsable
@@ -51,8 +65,3 @@ class ResponsableProveedorAssign(BaseModel):
 # Nuevo schema para PUT (solo lista de NITs)
 class ResponsableProveedorUpdate(BaseModel):
     nits_proveedores: List[str] = Field(..., example=["890929073", "901261003"])
-    area: Optional[str] = None
-    telefono: Optional[str] = None
-    activo: Optional[bool] = None
-    role_id: Optional[int] = None
-    password: Optional[str] = Field(None, min_length=8)

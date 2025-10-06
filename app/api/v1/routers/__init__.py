@@ -11,6 +11,7 @@ from app.api.v1.routers import (
     automation,
     presupuesto,
     workflow,
+    responsable_proveedor,
 )
 
 # Router principal con prefijo global
@@ -31,3 +32,4 @@ api_router.include_router(facturas.router, prefix="/facturas", tags=["Facturas"]
 api_router.include_router(automation.router, prefix="/automation", tags=["Automatización"])
 api_router.include_router(presupuesto.router, tags=["Presupuesto"])
 api_router.include_router(workflow.router, tags=["Workflow Aprobación"])
+api_router.include_router(responsable_proveedor.router, tags=["Responsable-Proveedor"])

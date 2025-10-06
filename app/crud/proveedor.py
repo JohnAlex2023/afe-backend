@@ -16,3 +16,21 @@ def create_proveedor(db: Session, data: ProveedorBase) -> Proveedor:
     db.commit()
     db.refresh(obj)
     return obj
+
+def update_proveedor(db: Session, proveedor_id: int, data: ProveedorBase) -> Optional[Proveedor]:
+    proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
+    if not proveedor:
+        return None
+    for key, value in data.dict(exclude_unset=True).items():
+        setattr(proveedor, key, value)
+    db.commit()
+    db.refresh(proveedor)
+    return proveedor
+
+def delete_proveedor(db: Session, proveedor_id: int) -> bool:
+    proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
+    if not proveedor:
+        return False
+    db.delete(proveedor)
+    db.commit()
+    return True

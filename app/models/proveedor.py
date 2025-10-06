@@ -1,5 +1,5 @@
 # app/models/proveedor.py
-from sqlalchemy import Column, BigInteger, String, DateTime, Boolean
+from sqlalchemy import Column, BigInteger, String, DateTime, Boolean, text
 from sqlalchemy.sql import func
 from app.db.base import Base
 from sqlalchemy.orm import relationship
@@ -13,5 +13,6 @@ class Proveedor(Base):
     contacto_email = Column(String(255))
     telefono = Column(String(50))
     direccion = Column(String(255))
+    activo = Column(Boolean, server_default=text("1"), nullable=False)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
     facturas = relationship("Factura", back_populates="proveedor", lazy="selectin")

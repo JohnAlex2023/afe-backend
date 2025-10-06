@@ -7,7 +7,7 @@ from passlib.context import CryptContext
 import jwt
 
 from app.core.database import get_db
-from app.models.usuario import Usuario
+from app.models.responsable import Responsable
 from app.schemas.auth import LoginRequest, TokenResponse, UsuarioResponse
 
 router = APIRouter()
@@ -37,16 +37,16 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     """
     print(f"🔐 Login attempt for user: {credentials.usuario}")
 
-    # Buscar usuario
-    usuario = db.query(Usuario).filter(Usuario.usuario == credentials.usuario).first()
+    # Buscar usuario en tabla responsables
+    usuario = db.query(Responsable).filter(Responsable.usuario == credentials.usuario).first()
 
     print(f"   Usuario encontrado: {usuario is not None}")
     if usuario:
         print(f"   Usuario ID: {usuario.id}, Activo: {usuario.activo}")
-        password_valid = verify_password(credentials.password, usuario.password_hash)
+        password_valid = verify_password(credentials.password, usuario.hashed_password)
         print(f"   Contraseña válida: {password_valid}")
 
-    if not usuario or not verify_password(credentials.password, usuario.password_hash):
+    if not usuario or not verify_password(credentials.password, usuario.hashed_password):
         print(f"   ❌ Login failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -70,8 +70,8 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
             email=usuario.email,
             usuario=usuario.usuario,
             area=usuario.area,
-            rol=usuario.rol,
+            rol=usuario.role.nombre if usuario.role else "usuario",
             activo=usuario.activo,
-            created_at=usuario.created_at
+            created_at=usuario.creado_en
         )
     )

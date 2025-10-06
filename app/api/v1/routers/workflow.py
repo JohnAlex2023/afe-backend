@@ -579,6 +579,7 @@ def obtener_factura_con_workflow(
     Útil para mostrar toda la información en un dashboard o modal de aprobación.
     """
     from app.models.factura import Factura
+    from app.services.analisis_patrones import AnalizadorPatrones
 
     factura = db.query(Factura).filter(Factura.id == factura_id).first()
     if not factura:
@@ -609,7 +610,9 @@ def obtener_factura_con_workflow(
         "moneda": factura.moneda,
         "estado": factura.estado.value,
         "observaciones": factura.observaciones,
-        "periodo_factura": factura.periodo_factura
+        "periodo_factura": factura.periodo_factura,
+        "concepto_principal": factura.concepto_principal,
+        "concepto_normalizado": factura.concepto_normalizado
     }
 
     workflow_info = None
@@ -643,8 +646,143 @@ def obtener_factura_con_workflow(
             } if factura_anterior else None
         }
 
+    # ✨ NUEVO: Análisis de patrones históricos
+    contexto_historico = None
+    if factura.concepto_normalizado and factura.proveedor_id:
+        analizador = AnalizadorPatrones(db)
+        historial, recomendacion = analizador.evaluar_factura_nueva(factura)
+
+        if historial:
+            contexto_historico = {
+                "tipo_patron": historial.tipo_patron.value,
+                "recomendacion": recomendacion["recomendacion"],
+                "motivo": recomendacion["motivo"],
+                "confianza": recomendacion["confianza"],
+                "estadisticas": {
+                    "pagos_analizados": historial.pagos_analizados,
+                    "meses_con_pagos": historial.meses_con_pagos,
+                    "monto_promedio": float(historial.monto_promedio),
+                    "monto_minimo": float(historial.monto_minimo),
+                    "monto_maximo": float(historial.monto_maximo),
+                    "coeficiente_variacion": float(historial.coeficiente_variacion),
+                },
+                "rango_esperado": {
+                    "inferior": float(historial.rango_inferior) if historial.rango_inferior else None,
+                    "superior": float(historial.rango_superior) if historial.rango_superior else None,
+                } if historial.rango_inferior else None,
+                "ultimo_pago": {
+                    "fecha": str(historial.ultimo_pago_fecha) if historial.ultimo_pago_fecha else None,
+                    "monto": float(historial.ultimo_pago_monto) if historial.ultimo_pago_monto else None,
+                } if historial.ultimo_pago_fecha else None,
+                "pagos_historicos": historial.pagos_detalle[:6] if historial.pagos_detalle else [],
+                "contexto_adicional": recomendacion["contexto"]
+            }
+
     return {
         "factura": factura_detalle,
         "workflow": workflow_info,
+        "contexto_historico": contexto_historico,
         "tiene_workflow": workflow is not None
     }
+
+
+@router.post("/analizar-patrones/{proveedor_id}")
+def analizar_patron_proveedor(
+    proveedor_id: int,
+    concepto: str = Query(..., description="Concepto normalizado a analizar"),
+    db: Session = Depends(get_db)
+):
+    """
+    Analiza el patrón histórico de pagos para un proveedor y concepto específico.
+
+    Genera estadísticas y clasificación (Tipo A, B, C) basado en los últimos 12 meses.
+    """
+    from app.services.analisis_patrones import AnalizadorPatrones
+
+    analizador = AnalizadorPatrones(db)
+    concepto_normalizado = analizador.normalizar_concepto(concepto)
+
+    historial = analizador.analizar_proveedor_concepto(
+        proveedor_id,
+        concepto_normalizado,
+        guardar=True
+    )
+
+    if not historial:
+        return {
+            "tipo_patron": "TIPO_C",
+            "mensaje": "Sin historial de pagos para este proveedor y concepto",
+            "pagos_analizados": 0
+        }
+
+    return {
+        "tipo_patron": historial.tipo_patron.value,
+        "concepto_normalizado": historial.concepto_normalizado,
+        "estadisticas": {
+            "pagos_analizados": historial.pagos_analizados,
+            "meses_con_pagos": historial.meses_con_pagos,
+            "monto_promedio": float(historial.monto_promedio),
+            "monto_minimo": float(historial.monto_minimo),
+            "monto_maximo": float(historial.monto_maximo),
+            "desviacion_estandar": float(historial.desviacion_estandar),
+            "coeficiente_variacion": float(historial.coeficiente_variacion),
+        },
+        "rango_esperado": {
+            "inferior": float(historial.rango_inferior) if historial.rango_inferior else None,
+            "superior": float(historial.rango_superior) if historial.rango_superior else None,
+        } if historial.rango_inferior else None,
+        "puede_aprobar_automaticamente": bool(historial.puede_aprobar_auto),
+        "pagos_historicos": historial.pagos_detalle[:12] if historial.pagos_detalle else [],
+        "fecha_analisis": str(historial.fecha_analisis),
+    }
+
+
+@router.post("/regenerar-patrones")
+def regenerar_todos_patrones(
+    limit: Optional[int] = Query(None, description="Límite de combinaciones a procesar"),
+    db: Session = Depends(get_db)
+):
+    """
+    Regenera todos los patrones históricos del sistema.
+
+    Útil para:
+    - Inicialización del sistema
+    - Recalibración después de cambios en algoritmo
+    - Actualización masiva de patrones
+    """
+    from app.services.analisis_patrones import AnalizadorPatrones
+
+    analizador = AnalizadorPatrones(db)
+
+    try:
+        analizador.regenerar_todos_patrones(limit=limit)
+
+        # Contar patrones generados
+        from app.models.historial_pagos import HistorialPagos, TipoPatron
+
+        total = db.query(HistorialPagos).count()
+        tipo_a = db.query(HistorialPagos).filter(
+            HistorialPagos.tipo_patron == TipoPatron.TIPO_A
+        ).count()
+        tipo_b = db.query(HistorialPagos).filter(
+            HistorialPagos.tipo_patron == TipoPatron.TIPO_B
+        ).count()
+        tipo_c = db.query(HistorialPagos).filter(
+            HistorialPagos.tipo_patron == TipoPatron.TIPO_C
+        ).count()
+
+        return {
+            "exito": True,
+            "mensaje": "Patrones regenerados exitosamente",
+            "total_patrones": total,
+            "distribucion": {
+                "tipo_a_fijo": tipo_a,
+                "tipo_b_fluctuante": tipo_b,
+                "tipo_c_excepcional": tipo_c
+            }
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error regenerando patrones: {str(e)}"
+        )
