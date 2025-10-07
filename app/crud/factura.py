@@ -6,6 +6,7 @@ from sqlalchemy import and_, func, desc
 from app.models.factura import Factura
 from app.models.proveedor import Proveedor
 from app.models.cliente import Cliente
+from app.models.responsable_proveedor import ResponsableProveedor
 
 
 # -----------------------------------------------------
@@ -24,14 +25,31 @@ def list_facturas(
     limit: int = 100,
     nit: Optional[str] = None,
     numero_factura: Optional[str] = None,
+    responsable_id: Optional[int] = None,
 ) -> List[Factura]:
     """
     Lista facturas con orden cronológico empresarial por defecto:
     Año DESC → Mes DESC → Fecha DESC (más recientes primero)
 
+    Si se proporciona responsable_id, solo muestra facturas de proveedores
+    asignados a ese responsable.
+
     Usa índice: idx_facturas_orden_cronologico para performance óptima
     """
     query = db.query(Factura)
+
+    # Filtrar por responsable (solo facturas de sus proveedores asignados)
+    if responsable_id:
+        # Subconsulta para obtener IDs de proveedores asignados al responsable
+        proveedores_asignados = db.query(ResponsableProveedor.proveedor_id).filter(
+            and_(
+                ResponsableProveedor.responsable_id == responsable_id,
+                ResponsableProveedor.activo == True
+            )
+        )
+
+        # Filtrar facturas solo de esos proveedores
+        query = query.filter(Factura.proveedor_id.in_(proveedores_asignados))
 
     if nit:
         # Hacemos JOIN con Proveedor y filtramos por NIT

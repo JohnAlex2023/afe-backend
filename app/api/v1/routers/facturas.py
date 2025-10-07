@@ -33,22 +33,44 @@ router = APIRouter(tags=["Facturas"])
     "/",
     response_model=List[FacturaRead],
     summary="Listar facturas",
-    description="Obtiene una lista paginada de facturas. Se puede filtrar por NIT o número de factura."
+    description="Obtiene facturas. Admin puede ver todas o solo asignadas, Responsable solo sus proveedores."
 )
 def list_all(
     skip: int = 0,
     limit: int = 100,
     nit: Optional[str] = None,
     numero_factura: Optional[str] = None,
+    solo_asignadas: bool = False,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_responsable),
 ):
+    """
+    Lista facturas con control de acceso basado en roles:
+    - Admin: Ve TODAS las facturas (o solo asignadas si solo_asignadas=true)
+    - Responsable: Solo ve facturas de proveedores (NITs) que tiene asignados
+    """
+    # Determinar si se debe filtrar por responsable
+    responsable_id = None
+    if hasattr(current_user, 'role') and current_user.role.nombre == 'responsable':
+        # Si es responsable, SIEMPRE filtrar solo sus proveedores asignados
+        responsable_id = current_user.id
+        logger.info(
+            f"Responsable {current_user.usuario} (ID: {current_user.id}) accediendo a sus facturas asignadas"
+        )
+    elif solo_asignadas:
+        # Si es admin y solicita solo asignadas, filtrar por sus proveedores
+        responsable_id = current_user.id
+        logger.info(f"Admin {current_user.usuario} viendo solo facturas asignadas")
+    else:
+        logger.info(f"Admin {current_user.usuario} viendo todas las facturas")
+
     return list_facturas(
         db,
         skip=skip,
         limit=limit,
         nit=nit,
-        numero_factura=numero_factura
+        numero_factura=numero_factura,
+        responsable_id=responsable_id
     )
 
 
@@ -175,6 +197,113 @@ def get_by_numero(
             detail="Factura no encontrada"
         )
     return f
+
+
+# -----------------------------------------------------
+# Aprobar factura
+# -----------------------------------------------------
+@router.post(
+    "/{factura_id}/aprobar",
+    response_model=FacturaRead,
+    summary="Aprobar factura",
+    description="Aprueba una factura cambiando su estado a 'aprobado'"
+)
+def aprobar_factura(
+    factura_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable),
+):
+    """
+    Aprueba una factura y registra quién la aprobó.
+
+    Parámetros esperados en payload:
+    - aprobado_por: Usuario que aprueba
+    - observaciones (opcional): Comentarios adicionales
+    """
+    from app.models.factura import Factura
+    from app.models.estado_factura import EstadoFactura
+    from datetime import datetime
+
+    factura = db.query(Factura).filter(Factura.id == factura_id).first()
+    if not factura:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Factura no encontrada"
+        )
+
+    # Actualizar estado
+    factura.estado = EstadoFactura.aprobada
+    factura.aprobado_por = payload.get("aprobado_por", current_user.usuario)
+    factura.fecha_aprobacion = datetime.now()
+    if payload.get("observaciones"):
+        factura.observaciones = payload.get("observaciones")
+
+    db.commit()
+    db.refresh(factura)
+
+    logger.info(
+        f"Factura {factura.numero_factura} aprobada por {current_user.usuario}",
+        extra={"factura_id": factura_id, "usuario": current_user.usuario}
+    )
+
+    return factura
+
+
+# -----------------------------------------------------
+# Rechazar factura
+# -----------------------------------------------------
+@router.post(
+    "/{factura_id}/rechazar",
+    response_model=FacturaRead,
+    summary="Rechazar factura",
+    description="Rechaza una factura cambiando su estado a 'rechazado'"
+)
+def rechazar_factura(
+    factura_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable),
+):
+    """
+    Rechaza una factura y registra el motivo.
+
+    Parámetros esperados en payload:
+    - rechazado_por: Usuario que rechaza
+    - motivo: Razón del rechazo (requerido)
+    """
+    from app.models.factura import Factura
+    from app.models.estado_factura import EstadoFactura
+    from datetime import datetime
+
+    factura = db.query(Factura).filter(Factura.id == factura_id).first()
+    if not factura:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Factura no encontrada"
+        )
+
+    if not payload.get("motivo"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El motivo de rechazo es requerido"
+        )
+
+    # Actualizar estado
+    factura.estado = EstadoFactura.rechazada
+    factura.rechazado_por = payload.get("rechazado_por", current_user.usuario)
+    factura.fecha_rechazo = datetime.now()
+    factura.motivo_rechazo = payload.get("motivo")
+
+    db.commit()
+    db.refresh(factura)
+
+    logger.info(
+        f"Factura {factura.numero_factura} rechazada por {current_user.usuario}. Motivo: {payload.get('motivo')}",
+        extra={"factura_id": factura_id, "usuario": current_user.usuario}
+    )
+
+    return factura
 
 
 # ✨ ENDPOINTS PARA CLASIFICACIÓN POR PERÍODOS MENSUALES ✨

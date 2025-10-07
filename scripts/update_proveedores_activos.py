@@ -11,7 +11,7 @@ try:
     updated = db.query(Proveedor).update({Proveedor.activo: True})
     db.commit()
 
-    print(f"✅ {updated} proveedores actualizados a activo = True")
+    print(f" {updated} proveedores actualizados a activo = True")
 
     # Verificar
     proveedores = db.query(Proveedor).all()
@@ -20,7 +20,7 @@ try:
         print(f"  - {p.nit} | {p.razon_social} | Activo: {p.activo}")
 
 except Exception as e:
-    print(f"❌ Error: {e}")
+    print(f" Error: {e}")
     db.rollback()
 finally:
     db.close()

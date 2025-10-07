@@ -33,6 +33,18 @@ class Factura(Base):
     creado_por = Column(String(100), nullable=True)
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
     actualizado_en = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # ✨ CAMPOS PARA APROBACIÓN/RECHAZO MANUAL ✨
+    aprobado_por = Column(String(100), nullable=True,
+                         comment="Usuario que aprobó la factura manualmente")
+    fecha_aprobacion = Column(DateTime(timezone=True), nullable=True,
+                             comment="Fecha y hora de aprobación")
+    rechazado_por = Column(String(100), nullable=True,
+                          comment="Usuario que rechazó la factura")
+    fecha_rechazo = Column(DateTime(timezone=True), nullable=True,
+                          comment="Fecha y hora de rechazo")
+    motivo_rechazo = Column(String(1000), nullable=True,
+                           comment="Motivo del rechazo de la factura")
     
     # ✨ CAMPOS PARA AUTOMATIZACIÓN DE FACTURAS RECURRENTES ✨
     

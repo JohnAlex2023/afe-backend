@@ -317,7 +317,7 @@ class ExcelFacturaImporter:
         report.append(f"\nFecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
         # Resumen general
-        report.append("📊 RESUMEN GENERAL")
+        report.append(" RESUMEN GENERAL")
         report.append("-"*80)
         report.append(f"Líneas presupuestales: {comparison['total_lineas_excel']}")
         report.append(f"Facturas en BD: {comparison['total_facturas_db']}")
@@ -334,7 +334,7 @@ class ExcelFacturaImporter:
 
         # Facturas faltantes
         if comparison['facturas_faltantes']:
-            report.append("⚠️ FACTURAS FALTANTES EN BD")
+            report.append(" FACTURAS FALTANTES EN BD")
             report.append("-"*80)
             for f in comparison['facturas_faltantes'][:10]:  # Top 10
                 report.append(f"  - {f['numero_factura']:<20} | {f['linea_presupuestal']}")
@@ -343,7 +343,7 @@ class ExcelFacturaImporter:
 
         # Desviaciones mayores
         if comparison['desviaciones_presupuesto']:
-            report.append("📈 TOP 10 DESVIACIONES PRESUPUESTALES")
+            report.append(" TOP 10 DESVIACIONES PRESUPUESTALES")
             report.append("-"*80)
             for d in comparison['desviaciones_presupuesto'][:10]:
                 report.append(f"  {d['linea'][:40]:<40} | {d['mes']:<5} | ${d['desviacion']:>15,.2f} ({d['porcentaje']:>6.1f}%)")
@@ -359,7 +359,7 @@ if __name__ == "__main__":
     importer = ExcelFacturaImporter(file_path)
     data = importer.extract_presupuesto_data()
 
-    print(f"\n✅ Procesadas {len(data)} líneas")
+    print(f"\n Procesadas {len(data)} líneas")
     print(f"\nEjemplo de primera línea:")
     if data:
         linea = data[0]
