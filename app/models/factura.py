@@ -11,6 +11,7 @@ class EstadoFactura(enum.Enum):
     aprobada = "aprobada"
     rechazada = "rechazada"
     aprobada_auto = "aprobada_auto"
+    pagada = "pagada"
 
 class Factura(Base):
     __tablename__ = "facturas"
