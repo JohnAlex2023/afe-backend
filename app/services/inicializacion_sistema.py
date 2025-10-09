@@ -88,13 +88,13 @@ class InicializacionSistemaService:
 
         try:
             # PASO 1: Verificar estado actual
-            logger.info("\n📊 PASO 1: Verificando estado actual del sistema...")
+            logger.info("\n PASO 1: Verificando estado actual del sistema...")
             estado_inicial = self._verificar_estado_sistema()
             self.resultados["estado_inicial"] = estado_inicial
             self._log_paso_completado("Verificación de estado")
 
             # PASO 2: Validar pre-requisitos
-            logger.info("\n✅ PASO 2: Validando pre-requisitos...")
+            logger.info("\n PASO 2: Validando pre-requisitos...")
             validacion = self._validar_prerequisitos(
                 archivo_presupuesto,
                 responsable_default_id
@@ -105,7 +105,7 @@ class InicializacionSistemaService:
 
             # PASO 3: Importar presupuesto
             if archivo_presupuesto and estado_inicial["lineas_presupuesto"] == 0:
-                logger.info("\n📁 PASO 3: Importando presupuesto desde Excel...")
+                logger.info("\n PASO 3: Importando presupuesto desde Excel...")
                 resultado_import = self._importar_presupuesto(
                     archivo_presupuesto,
                     año_fiscal,
@@ -115,11 +115,11 @@ class InicializacionSistemaService:
                 self.resultados["importacion_presupuesto"] = resultado_import
                 self._log_paso_completado("Importación de presupuesto")
             else:
-                logger.info("\n⏭️  PASO 3: Saltando importación (ya existen datos o no hay archivo)")
+                logger.info("\n  PASO 3: Saltando importación (ya existen datos o no hay archivo)")
                 self.resultados["warnings"].append("Importación de presupuesto omitida")
 
             # PASO 4: Auto-configurar asignaciones NIT-Responsable
-            logger.info("\n🔧 PASO 4: Auto-configurando asignaciones NIT-Responsable...")
+            logger.info("\n PASO 4: Auto-configurando asignaciones NIT-Responsable...")
             resultado_asignaciones = self._autoconfigurar_asignaciones(
                 responsable_default_id,
                 dry_run
@@ -129,7 +129,7 @@ class InicializacionSistemaService:
 
             # PASO 5: Vincular facturas con presupuesto
             if ejecutar_vinculacion:
-                logger.info("\n🔗 PASO 5: Vinculando facturas existentes con presupuesto...")
+                logger.info("\n PASO 5: Vinculando facturas existentes con presupuesto...")
                 resultado_vinculacion = self._vincular_facturas_masivo(
                     año_fiscal,
                     dry_run
@@ -137,19 +137,19 @@ class InicializacionSistemaService:
                 self.resultados["vinculacion"] = resultado_vinculacion
                 self._log_paso_completado("Vinculación de facturas")
             else:
-                logger.info("\n⏭️  PASO 5: Saltando vinculación (deshabilitado)")
+                logger.info("\n  PASO 5: Saltando vinculación (deshabilitado)")
 
             # PASO 6: Activar workflow de aprobación
             if ejecutar_workflow:
-                logger.info("\n⚙️  PASO 6: Activando workflow de aprobación...")
+                logger.info("\n  PASO 6: Activando workflow de aprobación...")
                 resultado_workflow = self._activar_workflow_masivo(dry_run)
                 self.resultados["workflow"] = resultado_workflow
                 self._log_paso_completado("Activación de workflow")
             else:
-                logger.info("\n⏭️  PASO 6: Saltando workflow (deshabilitado)")
+                logger.info("\n  PASO 6: Saltando workflow (deshabilitado)")
 
             # PASO 7: Generar reporte ejecutivo
-            logger.info("\n📊 PASO 7: Generando reporte ejecutivo...")
+            logger.info("\n PASO 7: Generando reporte ejecutivo...")
             estado_final = self._verificar_estado_sistema()
             self.resultados["estado_final"] = estado_final
             self.resultados["fin"] = datetime.now()
@@ -161,15 +161,15 @@ class InicializacionSistemaService:
             # Commit final si no es dry_run
             if not dry_run:
                 self.db.commit()
-                logger.info("\n✅ Cambios guardados en la base de datos")
+                logger.info("\n Cambios guardados en la base de datos")
             else:
                 self.db.rollback()
-                logger.info("\n🔄 DRY RUN: Cambios revertidos (modo simulación)")
+                logger.info("\n DRY RUN: Cambios revertidos (modo simulación)")
 
             return self._generar_reporte_exitoso()
 
         except Exception as e:
-            logger.error(f"\n❌ ERROR CRÍTICO: {str(e)}")
+            logger.error(f"\n ERROR CRÍTICO: {str(e)}")
             self.db.rollback()
             self.resultados["errores"].append({
                 "tipo": "error_critico",
@@ -202,11 +202,11 @@ class InicializacionSistemaService:
         # Contar workflows
         estado["workflows_creados"] = self.db.query(func.count(WorkflowAprobacionFactura.id)).scalar() or 0
 
-        logger.info(f"   📊 Facturas totales: {estado['total_facturas']}")
-        logger.info(f"   📊 Líneas de presupuesto: {estado['lineas_presupuesto']}")
-        logger.info(f"   📊 Ejecuciones presupuestales: {estado['ejecuciones_presupuestales']}")
-        logger.info(f"   📊 Asignaciones NIT-Responsable: {estado['asignaciones_nit']}")
-        logger.info(f"   📊 Workflows creados: {estado['workflows_creados']}")
+        logger.info(f"    Facturas totales: {estado['total_facturas']}")
+        logger.info(f"    Líneas de presupuesto: {estado['lineas_presupuesto']}")
+        logger.info(f"    Ejecuciones presupuestales: {estado['ejecuciones_presupuestales']}")
+        logger.info(f"    Asignaciones NIT-Responsable: {estado['asignaciones_nit']}")
+        logger.info(f"    Workflows creados: {estado['workflows_creados']}")
 
         return estado
 
@@ -230,12 +230,12 @@ class InicializacionSistemaService:
                 errores.append(f"Archivo de presupuesto no encontrado: {archivo_presupuesto}")
 
         if errores:
-            logger.error("   ❌ Pre-requisitos no cumplidos:")
+            logger.error("    Pre-requisitos no cumplidos:")
             for error in errores:
                 logger.error(f"      - {error}")
             return {"valido": False, "errores": errores}
 
-        logger.info("   ✅ Todos los pre-requisitos cumplidos")
+        logger.info("    Todos los pre-requisitos cumplidos")
         return {"valido": True, "errores": []}
 
     def _importar_presupuesto(
@@ -261,18 +261,18 @@ class InicializacionSistemaService:
                 fila_inicio=7
             )
 
-            logger.info(f"   ✅ Líneas creadas: {resultado.get('lineas_creadas', 0)}")
-            logger.info(f"   ✅ Líneas actualizadas: {resultado.get('lineas_actualizadas', 0)}")
+            logger.info(f"    Líneas creadas: {resultado.get('lineas_creadas', 0)}")
+            logger.info(f"    Líneas actualizadas: {resultado.get('lineas_actualizadas', 0)}")
 
             if resultado.get("errores"):
-                logger.warning(f"   ⚠️  Errores: {len(resultado['errores'])}")
+                logger.warning(f"     Errores: {len(resultado['errores'])}")
                 for error in resultado["errores"][:5]:
                     logger.warning(f"      - {error}")
 
             return resultado
 
         except Exception as e:
-            logger.error(f"   ❌ Error en importación: {str(e)}")
+            logger.error(f"    Error en importación: {str(e)}")
             raise
 
     def _autoconfigurar_asignaciones(
@@ -319,7 +319,7 @@ class InicializacionSistemaService:
                 self.db.add(nueva_asignacion)
                 asignaciones_creadas += 1
 
-                logger.info(f"   ✅ Asignación creada: {proveedor.nit} - {proveedor.razon_social[:50]}")
+                logger.info(f"    Asignación creada: {proveedor.nit} - {proveedor.razon_social[:50]}")
             else:
                 # En dry-run, solo contar
                 asignaciones_creadas += 1
@@ -328,8 +328,8 @@ class InicializacionSistemaService:
         if not dry_run:
             self.db.flush()
 
-        logger.info(f"   📊 Asignaciones creadas: {asignaciones_creadas}")
-        logger.info(f"   📊 Asignaciones existentes: {asignaciones_existentes}")
+        logger.info(f"    Asignaciones creadas: {asignaciones_creadas}")
+        logger.info(f"    Asignaciones existentes: {asignaciones_existentes}")
 
         return {
             "creadas": asignaciones_creadas,
@@ -371,12 +371,12 @@ class InicializacionSistemaService:
             limite=None  # Todas las facturas
         )
 
-        logger.info(f"   📊 Total procesadas: {resultado['total_procesadas']}")
-        logger.info(f"   ✅ Vinculadas exitosamente: {resultado['total_vinculadas']}")
-        logger.info(f"   ⚠️  Sin vincular: {resultado['total_sin_vincular']}")
+        logger.info(f"    Total procesadas: {resultado['total_procesadas']}")
+        logger.info(f"    Vinculadas exitosamente: {resultado['total_vinculadas']}")
+        logger.info(f"     Sin vincular: {resultado['total_sin_vincular']}")
 
         if resultado['errores']:
-            logger.warning(f"   ❌ Errores: {len(resultado['errores'])}")
+            logger.warning(f"    Errores: {len(resultado['errores'])}")
 
         return resultado
 
@@ -403,11 +403,11 @@ class InicializacionSistemaService:
                 else:
                     workflows_creados += 1  # Simular
             except Exception as e:
-                logger.error(f"   ❌ Error procesando factura {factura.id}: {str(e)}")
+                logger.error(f"    Error procesando factura {factura.id}: {str(e)}")
                 errores += 1
 
-        logger.info(f"   ✅ Workflows creados: {workflows_creados}")
-        logger.info(f"   ❌ Errores: {errores}")
+        logger.info(f"    Workflows creados: {workflows_creados}")
+        logger.info(f"    Errores: {errores}")
 
         return {
             "workflows_creados": workflows_creados,
@@ -421,12 +421,12 @@ class InicializacionSistemaService:
             "paso": paso,
             "timestamp": datetime.now()
         })
-        logger.info(f"   ✅ {paso} completado")
+        logger.info(f"    {paso} completado")
 
     def _generar_reporte_exitoso(self) -> Dict[str, Any]:
         """Genera reporte de éxito."""
         logger.info("\n" + "=" * 80)
-        logger.info("✅ INICIALIZACIÓN COMPLETADA EXITOSAMENTE")
+        logger.info(" INICIALIZACIÓN COMPLETADA EXITOSAMENTE")
         logger.info("=" * 80)
         logger.info(f"Duración total: {self.resultados['duracion_segundos']:.2f} segundos")
         logger.info(f"Pasos completados: {len(self.resultados['pasos_completados'])}")
@@ -439,7 +439,7 @@ class InicializacionSistemaService:
     def _generar_reporte_error(self, errores: List[str]) -> Dict[str, Any]:
         """Genera reporte de error."""
         logger.error("\n" + "=" * 80)
-        logger.error("❌ INICIALIZACIÓN FALLIDA")
+        logger.error(" INICIALIZACIÓN FALLIDA")
         logger.error("=" * 80)
         for error in errores:
             logger.error(f"   - {error}")
