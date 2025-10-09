@@ -4,6 +4,7 @@ from app.db.base import Base
 from .cliente import Cliente
 from .proveedor import Proveedor
 from .factura import Factura
+from .factura_item import FacturaItem
 from .responsable import Responsable
 from .responsable_proveedor import ResponsableProveedor
 from .role import Role
@@ -20,6 +21,7 @@ __all__ = [
     "Cliente",
     "Proveedor",
     "Factura",
+    "FacturaItem",
     "Responsable",
     "ResponsableProveedor",
     "Role",

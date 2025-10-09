@@ -98,8 +98,17 @@ class Factura(Base):
     cliente = relationship("Cliente", back_populates="facturas", lazy="joined")
     proveedor = relationship("Proveedor", back_populates="facturas", lazy="joined")
     responsable = relationship("Responsable", back_populates="facturas", lazy="joined")
-    
+
     # Relationship para factura de referencia (para automatización)
     factura_referencia = relationship("Factura", remote_side=[id], backref="facturas_relacionadas")
+
+    # ✨ NUEVA RELACIÓN: Items de la factura (líneas individuales)
+    items = relationship(
+        "FacturaItem",
+        back_populates="factura",
+        lazy="selectin",  # Carga eficiente de items
+        cascade="all, delete-orphan",  # Si se borra factura, se borran items
+        order_by="FacturaItem.numero_linea"  # Ordenados por línea
+    )
     
     __table_args__ = (UniqueConstraint("numero_factura", "proveedor_id", name="uix_num_prov"),)
