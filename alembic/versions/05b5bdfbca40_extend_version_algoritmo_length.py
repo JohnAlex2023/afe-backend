@@ -1,6 +1,6 @@
 """Extend version_algoritmo field length
 
-Revision ID: fix_version_algoritmo_length
+Revision ID: 05b5bdfbca40
 Revises: ab8f4888b5b5
 Create Date: 2025-10-08 09:45:00.000000
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'fix_version_algoritmo_length'
+revision: str = '05b5bdfbca40'
 down_revision: Union[str, Sequence[str], None] = 'ab8f4888b5b5'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
