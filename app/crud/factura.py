@@ -1,9 +1,10 @@
 #app/crud/factura.py
 from sqlalchemy.orm import Session
-from typing import List, Optional, Dict, Any
-from sqlalchemy import and_, func, desc
+from typing import List, Optional, Dict, Any, Tuple
+from sqlalchemy import and_, func, desc, or_
+from datetime import datetime, date
 
-from app.models.factura import Factura
+from app.models.factura import Factura, EstadoFactura
 from app.models.proveedor import Proveedor
 from app.models.cliente import Cliente
 from app.models.responsable_proveedor import ResponsableProveedor
@@ -17,12 +18,46 @@ def get_factura(db: Session, factura_id: int) -> Optional[Factura]:
 
 
 # -----------------------------------------------------
+# Contar facturas totales (para paginación)
+# -----------------------------------------------------
+def count_facturas(
+    db: Session,
+    nit: Optional[str] = None,
+    numero_factura: Optional[str] = None,
+    responsable_id: Optional[int] = None,
+) -> int:
+    """
+    Cuenta el total de facturas que coinciden con los filtros.
+    Usado para metadata de paginación.
+    """
+    query = db.query(func.count(Factura.id))
+
+    # Filtrar por responsable (solo facturas de sus proveedores asignados)
+    if responsable_id:
+        proveedores_asignados = db.query(ResponsableProveedor.proveedor_id).filter(
+            and_(
+                ResponsableProveedor.responsable_id == responsable_id,
+                ResponsableProveedor.activo == True
+            )
+        )
+        query = query.filter(Factura.proveedor_id.in_(proveedores_asignados))
+
+    if nit:
+        query = query.join(Proveedor).filter(Proveedor.nit == nit)
+
+    if numero_factura:
+        query = query.filter(Factura.numero_factura == numero_factura)
+
+    return query.scalar()
+
+
+# -----------------------------------------------------
 # Listar facturas (con filtros opcionales)
 # -----------------------------------------------------
 def list_facturas(
     db: Session,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 500,  # Aumentado a 500 para contexto empresarial
     nit: Optional[str] = None,
     numero_factura: Optional[str] = None,
     responsable_id: Optional[int] = None,
@@ -65,6 +100,161 @@ def list_facturas(
         desc(Factura.fecha_emision),
         desc(Factura.id)
     ).offset(skip).limit(limit).all()
+
+
+# ✨ CURSOR-BASED PAGINATION (Para grandes volúmenes) ✨
+
+def list_facturas_cursor(
+    db: Session,
+    limit: int = 500,
+    cursor_timestamp: Optional[datetime] = None,
+    cursor_id: Optional[int] = None,
+    direction: str = "next",  # "next" o "prev"
+    nit: Optional[str] = None,
+    numero_factura: Optional[str] = None,
+    responsable_id: Optional[int] = None,
+) -> Tuple[List[Factura], bool]:
+    """
+    Lista facturas usando cursor-based pagination para escalabilidad empresarial.
+
+    Este método es O(1) constante independiente del tamaño del dataset.
+    Perfecto para scroll infinito y datasets de 10k+ registros.
+
+    Args:
+        db: Sesión de base de datos
+        limit: Máximo de registros a retornar (default: 500)
+        cursor_timestamp: Fecha del último registro visto
+        cursor_id: ID del último registro visto
+        direction: "next" para adelante, "prev" para atrás
+        nit: Filtro opcional por NIT
+        numero_factura: Filtro opcional por número
+        responsable_id: Filtro por responsable (permisos)
+
+    Returns:
+        Tupla (facturas, has_more)
+    """
+    query = db.query(Factura)
+
+    # Filtrar por responsable (solo facturas de sus proveedores asignados)
+    if responsable_id:
+        proveedores_asignados = db.query(ResponsableProveedor.proveedor_id).filter(
+            and_(
+                ResponsableProveedor.responsable_id == responsable_id,
+                ResponsableProveedor.activo == True
+            )
+        )
+        query = query.filter(Factura.proveedor_id.in_(proveedores_asignados))
+
+    if nit:
+        query = query.join(Proveedor).filter(Proveedor.nit == nit)
+
+    if numero_factura:
+        query = query.filter(Factura.numero_factura == numero_factura)
+
+    # Aplicar cursor para navegación
+    if cursor_timestamp and cursor_id:
+        if direction == "next":
+            # Obtener registros DESPUÉS del cursor
+            query = query.filter(
+                or_(
+                    Factura.fecha_emision < cursor_timestamp,
+                    and_(
+                        Factura.fecha_emision == cursor_timestamp,
+                        Factura.id < cursor_id
+                    )
+                )
+            )
+        else:  # prev
+            # Obtener registros ANTES del cursor
+            query = query.filter(
+                or_(
+                    Factura.fecha_emision > cursor_timestamp,
+                    and_(
+                        Factura.fecha_emision == cursor_timestamp,
+                        Factura.id > cursor_id
+                    )
+                )
+            )
+
+    # Ordenar (siempre más recientes primero)
+    if direction == "prev":
+        # Para navegación hacia atrás, invertir orden temporalmente
+        query = query.order_by(
+            Factura.fecha_emision.asc(),
+            Factura.id.asc()
+        )
+    else:
+        query = query.order_by(
+            desc(Factura.fecha_emision),
+            desc(Factura.id)
+        )
+
+    # Traer limit + 1 para saber si hay más
+    facturas = query.limit(limit + 1).all()
+
+    # Detectar si hay más registros
+    has_more = len(facturas) > limit
+
+    # Retornar solo los primeros 'limit' registros
+    result_facturas = facturas[:limit]
+
+    # Si es navegación hacia atrás, revertir el orden al original
+    if direction == "prev":
+        result_facturas = list(reversed(result_facturas))
+
+    return result_facturas, has_more
+
+
+# ✨ ENDPOINT PARA DASHBOARD EMPRESARIAL - SIN LÍMITES ✨
+# -----------------------------------------------------
+# Obtener TODAS las facturas (Solo para admins con dashboard completo)
+# -----------------------------------------------------
+def list_all_facturas_for_dashboard(
+    db: Session,
+    responsable_id: Optional[int] = None,
+) -> List[Factura]:
+    """
+    **ENDPOINT EMPRESARIAL PARA DASHBOARDS**
+
+    Retorna TODAS las facturas sin límites de paginación.
+    Optimizado para dashboards administrativos que requieren vista completa.
+
+    ⚠️ USAR CON PRECAUCIÓN:
+    - Solo para usuarios admin
+    - Optimizado con lazy loading de relaciones
+    - Para datasets >50k, considerar agregar filtros de fecha
+
+    Args:
+        db: Sesión de base de datos
+        responsable_id: Si se proporciona, filtra por proveedores asignados
+
+    Returns:
+        Lista completa de facturas ordenadas cronológicamente
+
+    Performance:
+    - Usa índice idx_facturas_orden_cronologico
+    - Sin OFFSET (evita deep pagination problem)
+    - Lazy loading de relaciones para minimizar memoria
+    """
+    query = db.query(Factura)
+
+    # Filtrar por responsable si se especifica
+    if responsable_id:
+        proveedores_asignados = db.query(ResponsableProveedor.proveedor_id).filter(
+            and_(
+                ResponsableProveedor.responsable_id == responsable_id,
+                ResponsableProveedor.activo == True
+            )
+        )
+        query = query.filter(Factura.proveedor_id.in_(proveedores_asignados))
+
+    # Orden cronológico empresarial: más recientes primero
+    return query.order_by(
+        desc(Factura.año_factura),
+        desc(Factura.mes_factura),
+        desc(Factura.fecha_emision),
+        desc(Factura.id)
+    ).all()
 
 
 # -----------------------------------------------------
@@ -591,3 +781,136 @@ def get_jerarquia_facturas(
 
     # Convertir defaultdict a dict normal para JSON
     return {año: dict(meses) for año, meses in jerarquia.items()}
+
+
+# -----------------------------------------------------
+# Buscar factura del mes anterior (para automatización)
+# -----------------------------------------------------
+def find_factura_mes_anterior(
+    db: Session,
+    proveedor_id: int,
+    fecha_actual: date,
+    concepto_normalizado: Optional[str] = None,
+    concepto_hash: Optional[str] = None,
+    numero_factura: Optional[str] = None
+) -> Optional[Factura]:
+    """
+    Busca la factura del mes anterior del mismo proveedor con el mismo concepto.
+
+    Esta función es crucial para el sistema de automatización que compara
+    mes a mes para aprobación automática.
+
+    Args:
+        db: Sesión de base de datos
+        proveedor_id: ID del proveedor
+        fecha_actual: Fecha de la factura actual
+        concepto_normalizado: Concepto normalizado (opcional)
+        concepto_hash: Hash del concepto (opcional)
+        numero_factura: Número de factura (para facturas recurrentes con mismo número)
+
+    Returns:
+        Factura del mes anterior si existe, None en caso contrario
+
+    Estrategia de búsqueda:
+    1. Calcula el periodo del mes anterior (ej: si actual es 2025-10, busca 2025-09)
+    2. Busca facturas del mismo proveedor en ese periodo
+    3. Filtra por concepto (hash o normalizado) si está disponible
+    4. Retorna la más reciente si hay múltiples
+    """
+    from dateutil.relativedelta import relativedelta
+
+    # Calcular fecha del mes anterior
+    fecha_mes_anterior = fecha_actual - relativedelta(months=1)
+
+    # Construir query base: mismo proveedor, mes anterior
+    query = db.query(Factura).filter(
+        and_(
+            Factura.proveedor_id == proveedor_id,
+            Factura.año_factura == fecha_mes_anterior.year,
+            Factura.mes_factura == fecha_mes_anterior.month,
+            # Solo considerar facturas aprobadas o aprobadas automáticamente
+            or_(
+                Factura.estado == EstadoFactura.aprobada,
+                Factura.estado == EstadoFactura.aprobada_auto
+            )
+        )
+    )
+
+    # Filtrar por concepto si está disponible
+    if concepto_hash:
+        # Preferir búsqueda por hash (más preciso)
+        query = query.filter(Factura.concepto_hash == concepto_hash)
+    elif concepto_normalizado:
+        # Búsqueda por concepto normalizado
+        query = query.filter(Factura.concepto_normalizado.ilike(f"%{concepto_normalizado}%"))
+    elif numero_factura:
+        # Para facturas con número recurrente (ej: "FACTURA-MENSUAL-001")
+        # Extraer prefijo del número (hasta el último guion o número)
+        import re
+        prefijo = re.sub(r'\d+$', '', numero_factura).strip('-_')
+        if prefijo:
+            query = query.filter(Factura.numero_factura.ilike(f"{prefijo}%"))
+
+    # Ordenar por fecha descendente y tomar la más reciente
+    factura_anterior = query.order_by(desc(Factura.fecha_emision)).first()
+
+    return factura_anterior
+
+
+# -----------------------------------------------------
+# Buscar todas las facturas del mismo concepto en meses anteriores
+# -----------------------------------------------------
+def find_facturas_mismo_concepto_ultimos_meses(
+    db: Session,
+    proveedor_id: int,
+    fecha_actual: date,
+    concepto_hash: Optional[str] = None,
+    concepto_normalizado: Optional[str] = None,
+    meses_atras: int = 6,
+    limit: int = 12
+) -> List[Factura]:
+    """
+    Busca facturas del mismo concepto en los últimos N meses.
+
+    Útil para detectar patrones de recurrencia más complejos.
+
+    Args:
+        db: Sesión de base de datos
+        proveedor_id: ID del proveedor
+        fecha_actual: Fecha de referencia
+        concepto_hash: Hash del concepto
+        concepto_normalizado: Concepto normalizado
+        meses_atras: Cantidad de meses hacia atrás a buscar
+        limit: Límite de resultados
+
+    Returns:
+        Lista de facturas históricas ordenadas por fecha descendente
+    """
+    from dateutil.relativedelta import relativedelta
+
+    # Calcular fecha límite
+    fecha_limite = fecha_actual - relativedelta(months=meses_atras)
+
+    # Query base
+    query = db.query(Factura).filter(
+        and_(
+            Factura.proveedor_id == proveedor_id,
+            Factura.fecha_emision >= fecha_limite,
+            Factura.fecha_emision < fecha_actual,
+            or_(
+                Factura.estado == EstadoFactura.aprobada,
+                Factura.estado == EstadoFactura.aprobada_auto
+            )
+        )
+    )
+
+    # Filtrar por concepto
+    if concepto_hash:
+        query = query.filter(Factura.concepto_hash == concepto_hash)
+    elif concepto_normalizado:
+        query = query.filter(Factura.concepto_normalizado.ilike(f"%{concepto_normalizado}%"))
+
+    # Ordenar y limitar
+    facturas = query.order_by(desc(Factura.fecha_emision)).limit(limit).all()
+
+    return facturas

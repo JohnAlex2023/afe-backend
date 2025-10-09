@@ -18,6 +18,12 @@ from .workflow_aprobacion import (
     ConfiguracionCorreo
 )
 from .historial_pagos import HistorialPagos, TipoPatron
+from .automation_audit import (
+    AutomationAudit,
+    AutomationMetrics,
+    ConfiguracionAutomatizacion,
+    ProveedorTrust
+)
 
 __all__ = [
     "Cliente",
@@ -37,5 +43,9 @@ __all__ = [
     "ConfiguracionCorreo",
     "HistorialPagos",
     "TipoPatron",
+    "AutomationAudit",
+    "AutomationMetrics",
+    "ConfiguracionAutomatizacion",
+    "ProveedorTrust",
     "Base",
 ]

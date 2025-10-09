@@ -399,3 +399,116 @@ class PatternDetector:
             return patron_temporal.confianza
         else:
             return 0.0
+
+    def comparar_con_mes_anterior(
+        self,
+        factura_nueva: Factura,
+        factura_mes_anterior: Optional[Factura],
+        tolerancia_porcentaje: float = 5.0
+    ) -> Dict[str, Any]:
+        """
+        Compara una factura nueva con la del mes anterior para aprobación automática.
+
+        Esta es la lógica clave para el sistema de aprobación automática:
+        Si la factura del mes actual tiene el MISMO MONTO que la del mes anterior,
+        se aprueba automáticamente. Si hay diferencia, pasa a revisión.
+
+        Args:
+            factura_nueva: Factura a evaluar
+            factura_mes_anterior: Factura del mes anterior (puede ser None)
+            tolerancia_porcentaje: % de tolerancia en variación (default: 5%)
+
+        Returns:
+            Dict con:
+            - tiene_mes_anterior: bool
+            - montos_coinciden: bool
+            - diferencia_porcentaje: float
+            - diferencia_absoluta: Decimal
+            - decision_sugerida: 'aprobar_auto' | 'revision_manual'
+            - razon: str
+            - confianza: float
+        """
+        # Si no hay factura del mes anterior, requiere revisión manual
+        if not factura_mes_anterior:
+            return {
+                'tiene_mes_anterior': False,
+                'montos_coinciden': False,
+                'diferencia_porcentaje': 100.0,
+                'diferencia_absoluta': factura_nueva.total_a_pagar,
+                'decision_sugerida': 'revision_manual',
+                'razon': 'No existe factura del mes anterior para comparar',
+                'confianza': 0.0,
+                'monto_actual': float(factura_nueva.total_a_pagar or 0),
+                'monto_anterior': 0.0
+            }
+
+        # Obtener montos
+        monto_nuevo = factura_nueva.total_a_pagar or Decimal('0')
+        monto_anterior = factura_mes_anterior.total_a_pagar or Decimal('0')
+
+        # Validar que los montos sean válidos
+        if monto_anterior == 0:
+            return {
+                'tiene_mes_anterior': True,
+                'montos_coinciden': False,
+                'diferencia_porcentaje': 100.0,
+                'diferencia_absoluta': monto_nuevo,
+                'decision_sugerida': 'revision_manual',
+                'razon': 'Factura del mes anterior tiene monto 0 o inválido',
+                'confianza': 0.0,
+                'monto_actual': float(monto_nuevo),
+                'monto_anterior': float(monto_anterior)
+            }
+
+        # Calcular diferencia
+        diferencia_absoluta = abs(monto_nuevo - monto_anterior)
+        diferencia_porcentaje = (float(diferencia_absoluta) / float(monto_anterior)) * 100
+
+        # Determinar si los montos coinciden dentro de la tolerancia
+        montos_coinciden = diferencia_porcentaje <= tolerancia_porcentaje
+
+        # Calcular confianza basada en la similitud de montos
+        if diferencia_porcentaje == 0:
+            confianza = 1.0
+        elif diferencia_porcentaje <= 1:
+            confianza = 0.95
+        elif diferencia_porcentaje <= 3:
+            confianza = 0.85
+        elif diferencia_porcentaje <= 5:
+            confianza = 0.75
+        elif diferencia_porcentaje <= 10:
+            confianza = 0.60
+        else:
+            confianza = 0.40
+
+        # Decisión y razón
+        if montos_coinciden:
+            decision = 'aprobar_auto'
+            if diferencia_porcentaje == 0:
+                razon = f'Monto idéntico al mes anterior (${monto_anterior:,.2f})'
+            else:
+                razon = (
+                    f'Monto similar al mes anterior: ${monto_anterior:,.2f} → ${monto_nuevo:,.2f} '
+                    f'({diferencia_porcentaje:.2f}% diferencia, dentro de tolerancia {tolerancia_porcentaje}%)'
+                )
+        else:
+            decision = 'revision_manual'
+            razon = (
+                f'Monto difiere del mes anterior: ${monto_anterior:,.2f} → ${monto_nuevo:,.2f} '
+                f'({diferencia_porcentaje:.2f}% diferencia, supera tolerancia {tolerancia_porcentaje}%)'
+            )
+
+        return {
+            'tiene_mes_anterior': True,
+            'montos_coinciden': montos_coinciden,
+            'diferencia_porcentaje': diferencia_porcentaje,
+            'diferencia_absoluta': diferencia_absoluta,
+            'decision_sugerida': decision,
+            'razon': razon,
+            'confianza': confianza,
+            'monto_actual': float(monto_nuevo),
+            'monto_anterior': float(monto_anterior),
+            'factura_anterior_id': factura_mes_anterior.id,
+            'factura_anterior_numero': factura_mes_anterior.numero_factura,
+            'factura_anterior_fecha': factura_mes_anterior.fecha_emision.isoformat() if factura_mes_anterior.fecha_emision else None
+        }

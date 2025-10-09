@@ -82,11 +82,12 @@ class DecisionEngine:
         }
     
     def tomar_decision(
-        self, 
-        factura: Factura, 
+        self,
+        factura: Factura,
         resultado_patron: ResultadoAnalisisPatron,
         facturas_historicas: List[Factura],
-        metadata_adicional: Optional[Dict[str, Any]] = None
+        metadata_adicional: Optional[Dict[str, Any]] = None,
+        comparacion_mes_anterior: Optional[Dict[str, Any]] = None
     ) -> ResultadoDecision:
         """
         Toma la decisión final sobre una factura basándose en múltiples criterios.
@@ -100,14 +101,41 @@ class DecisionEngine:
         Returns:
             Resultado de la decisión con explicación detallada
         """
-        # Evaluar todos los criterios
+        # 🔑 PRIORIDAD MÁXIMA: Si hay comparación con mes anterior, usarla primero
+        if comparacion_mes_anterior and comparacion_mes_anterior.get('tiene_mes_anterior'):
+            # Si el monto coincide con el mes anterior, aprobar automáticamente
+            if comparacion_mes_anterior.get('decision_sugerida') == 'aprobar_auto':
+                return ResultadoDecision(
+                    decision=TipoDecision.APROBACION_AUTOMATICA,
+                    confianza=comparacion_mes_anterior.get('confianza', 0.95),
+                    motivo=comparacion_mes_anterior.get('razon'),
+                    criterios=[
+                        CriterioValidacion(
+                            nombre="comparacion_mes_anterior",
+                            cumplido=True,
+                            peso=1.0,
+                            descripcion="Monto coincide con factura del mes anterior",
+                            valor_obtenido=comparacion_mes_anterior.get('diferencia_porcentaje'),
+                            valor_requerido=5.0
+                        )
+                    ],
+                    requiere_accion_manual=False,
+                    factura_referencia_id=comparacion_mes_anterior.get('factura_anterior_id'),
+                    metadata={
+                        'metodo_aprobacion': 'comparacion_mes_anterior',
+                        'comparacion_detalle': comparacion_mes_anterior
+                    }
+                )
+
+        # Evaluar todos los criterios (lógica original para casos sin mes anterior)
         criterios = self._evaluar_criterios(
-            factura, resultado_patron, facturas_historicas, metadata_adicional or {}
+            factura, resultado_patron, facturas_historicas,
+            metadata_adicional or {}, comparacion_mes_anterior
         )
-        
+
         # Calcular puntuación ponderada
         puntuacion_total = self._calcular_puntuacion_ponderada(criterios)
-        
+
         # Tomar decisión basada en puntuación y criterios críticos
         decision, motivo, requiere_accion = self._determinar_decision_final(
             puntuacion_total, criterios, resultado_patron
@@ -129,11 +157,12 @@ class DecisionEngine:
         )
 
     def _evaluar_criterios(
-        self, 
-        factura: Factura, 
+        self,
+        factura: Factura,
         resultado_patron: ResultadoAnalisisPatron,
         facturas_historicas: List[Factura],
-        metadata: Dict[str, Any]
+        metadata: Dict[str, Any],
+        comparacion_mes_anterior: Optional[Dict[str, Any]] = None
     ) -> List[CriterioValidacion]:
         """
         Evalúa todos los criterios de validación.

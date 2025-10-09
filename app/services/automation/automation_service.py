@@ -5,14 +5,20 @@ Servicio principal de automatización de facturas recurrentes.
 Este es el punto de entrada principal para todo el sistema de automatización.
 Orquesta todos los componentes (detector de patrones, generador de fingerprints,
 motor de decisiones) para procesar facturas pendientes de forma inteligente.
+
+✨ INTEGRACIÓN CON HISTORIAL_PAGOS:
+- Consulta patrones históricos antes de tomar decisiones
+- Ajusta scores de confianza según tipo de patrón (TIPO_A/B/C)
+- Prioriza auto-aprobación para patrones TIPO_A (fijos)
 """
 
 import logging
 from datetime import datetime, timedelta
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 
 from app.models.factura import Factura, EstadoFactura
+from app.models.historial_pagos import HistorialPagos, TipoPatron
 from app.crud import factura as crud_factura
 from app.crud import audit as crud_audit
 
@@ -134,15 +140,24 @@ class AutomationService:
             
             # 3. Buscar facturas históricas similares
             facturas_historicas = self._buscar_facturas_historicas(db, factura)
-            
-            # 4. Analizar patrones de recurrencia
+
+            # 3.5. 🔑 NUEVA LÓGICA: Comparar con mes anterior (prioridad máxima)
+            factura_mes_anterior = facturas_historicas[0] if facturas_historicas else None
+            comparacion_mes_anterior = self.pattern_detector.comparar_con_mes_anterior(
+                factura_nueva=factura,
+                factura_mes_anterior=factura_mes_anterior,
+                tolerancia_porcentaje=5.0  # 5% de tolerancia configurable
+            )
+
+            # 4. Analizar patrones de recurrencia (análisis adicional)
             resultado_patron = self.pattern_detector.analizar_patron_recurrencia(
                 factura, facturas_historicas
             )
-            
-            # 5. Tomar decisión final
+
+            # 5. Tomar decisión final (incorporando comparación mes anterior)
             resultado_decision = self.decision_engine.tomar_decision(
-                factura, resultado_patron, facturas_historicas
+                factura, resultado_patron, facturas_historicas,
+                comparacion_mes_anterior=comparacion_mes_anterior
             )
             
             # 6. Aplicar la decisión a la base de datos
@@ -205,14 +220,28 @@ class AutomationService:
         Busca facturas históricas similares para análisis de patrones.
         """
         facturas_historicas = []
-        
+
+        # ✨ PRIORIDAD 1: Buscar factura del mes anterior (lógica principal de aprobación)
+        factura_mes_anterior = crud_factura.find_factura_mes_anterior(
+            db=db,
+            proveedor_id=factura.proveedor_id,
+            fecha_actual=factura.fecha_emision,
+            concepto_hash=factura.concepto_hash,
+            concepto_normalizado=factura.concepto_normalizado,
+            numero_factura=factura.numero_factura
+        )
+
+        # Si encontramos factura del mes anterior, agregarla primero (máxima prioridad)
+        if factura_mes_anterior:
+            facturas_historicas.append(factura_mes_anterior)
+
         # Buscar por concepto normalizado si existe
         if factura.concepto_normalizado:
             facturas_por_concepto = crud_factura.find_facturas_by_concepto_proveedor(
                 db, factura.proveedor_id, factura.concepto_normalizado, limit=12
             )
             facturas_historicas.extend(facturas_por_concepto)
-        
+
         # Buscar por hash de concepto si existe
         if factura.concepto_hash:
             facturas_por_hash = crud_factura.find_facturas_by_concepto_hash(
@@ -223,7 +252,7 @@ class AutomationService:
             facturas_historicas.extend([
                 f for f in facturas_por_hash if f.id not in ids_existentes
             ])
-        
+
         # Buscar por orden de compra si existe
         if factura.orden_compra_numero:
             facturas_por_oc = crud_factura.find_facturas_by_orden_compra(
@@ -233,13 +262,13 @@ class AutomationService:
             facturas_historicas.extend([
                 f for f in facturas_por_oc if f.id not in ids_existentes
             ])
-        
+
         # Filtrar facturas futuras y la misma factura
         facturas_filtradas = [
-            f for f in facturas_historicas 
+            f for f in facturas_historicas
             if f.fecha_emision < factura.fecha_emision and f.id != factura.id
         ]
-        
+
         # Ordenar por fecha descendente y limitar
         facturas_filtradas.sort(key=lambda x: x.fecha_emision, reverse=True)
         return facturas_filtradas[:10]  # Máximo 10 facturas históricas

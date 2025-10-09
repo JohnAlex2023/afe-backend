@@ -1,15 +1,27 @@
 # app/api/v1/routers/facturas.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import datetime
+from io import StringIO
 
 from app.db.session import get_db
 from app.schemas.factura import FacturaCreate, FacturaRead
-from app.schemas.common import ErrorResponse
+from app.schemas.common import (
+    ErrorResponse,
+    PaginatedResponse,
+    PaginationMetadata,
+    CursorPaginatedResponse,
+    CursorPaginationMetadata
+)
 from app.services.invoice_service import process_and_persist_invoice
 from app.core.security import get_current_responsable, require_role
 from app.crud.factura import (
     list_facturas,
+    list_facturas_cursor,
+    list_all_facturas_for_dashboard,
+    count_facturas,
     get_factura,
     find_by_cufe,
     get_factura_by_numero,
@@ -21,23 +33,26 @@ from app.crud.factura import (
     get_jerarquia_facturas,
 )
 from app.utils.logger import logger
+from app.utils.cursor_pagination import decode_cursor, build_cursor_from_factura
+import math
 
 
 router = APIRouter(tags=["Facturas"])
 
 
+# ✨ ENDPOINT PRINCIPAL PARA GRANDES VOLÚMENES ✨
 # -----------------------------------------------------
-# Listar todas las facturas (con filtros opcionales)
+# Listar facturas con CURSOR PAGINATION (Scroll Infinito)
 # -----------------------------------------------------
 @router.get(
-    "/",
-    response_model=List[FacturaRead],
-    summary="Listar facturas",
-    description="Obtiene facturas. Admin puede ver todas o solo asignadas, Responsable solo sus proveedores."
+    "/cursor",
+    response_model=CursorPaginatedResponse[FacturaRead],
+    summary="Listar facturas con cursor (scroll infinito)",
+    description="Endpoint optimizado para grandes volúmenes (10k+ facturas). Usa cursor-based pagination para performance constante O(1)."
 )
-def list_all(
-    skip: int = 0,
-    limit: int = 100,
+def list_with_cursor(
+    limit: int = 500,
+    cursor: Optional[str] = None,
     nit: Optional[str] = None,
     numero_factura: Optional[str] = None,
     solo_asignadas: bool = False,
@@ -45,10 +60,284 @@ def list_all(
     current_user=Depends(get_current_responsable),
 ):
     """
-    Lista facturas con control de acceso basado en roles:
+    **Endpoint empresarial para scroll infinito con performance constante.**
+
+    Ventajas sobre paginación offset:
+    - ✅ Performance constante O(1) sin importar el tamaño del dataset
+    - ✅ No hay "deep pagination problem" (página 10,000 es instantánea)
+    - ✅ Ideal para scroll infinito en frontend
+    - ✅ Usado por: Stripe, Twitter, GitHub, Facebook
+
+    **Cómo usar:**
+
+    1. Primera carga (sin cursor):
+    ```
+    GET /facturas/cursor?limit=500
+    ```
+
+    2. Siguientes páginas (usar next_cursor de respuesta anterior):
+    ```
+    GET /facturas/cursor?limit=500&cursor=MjAyNS0xMC0wOFQxMDowMDowMHwxMjM0NQ==
+    ```
+
+    **Respuesta:**
+    ```json
+    {
+        "data": [...500 facturas...],
+        "cursor": {
+            "has_more": true,
+            "next_cursor": "MjAyNS0xMC0wOFQxMDowMDowMHwxMjM0NQ==",
+            "prev_cursor": null,
+            "count": 500
+        }
+    }
+    ```
+
+    **Frontend (ejemplo React):**
+    ```javascript
+    const [facturas, setFacturas] = useState([]);
+    const [nextCursor, setNextCursor] = useState(null);
+
+    const loadMore = async () => {
+        const url = nextCursor
+            ? `/facturas/cursor?cursor=${nextCursor}&limit=500`
+            : `/facturas/cursor?limit=500`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        setFacturas([...facturas, ...data.data]);
+        setNextCursor(data.cursor.next_cursor);
+    };
+    ```
+    """
+    # Validar límite
+    if limit < 1 or limit > 2000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El parámetro 'limit' debe estar entre 1 y 2000"
+        )
+
+    # Determinar permisos
+    responsable_id = None
+    if hasattr(current_user, 'role') and current_user.role.nombre == 'responsable':
+        responsable_id = current_user.id
+        logger.info(
+            f"Responsable {current_user.usuario} (ID: {current_user.id}) usando cursor pagination"
+        )
+    elif solo_asignadas:
+        responsable_id = current_user.id
+        logger.info(f"Admin {current_user.usuario} usando cursor pagination (solo asignadas)")
+    else:
+        logger.info(f"Admin {current_user.usuario} usando cursor pagination (todas)")
+
+    # Decodificar cursor si existe
+    cursor_timestamp = None
+    cursor_id = None
+    if cursor:
+        decoded = decode_cursor(cursor)
+        if not decoded:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cursor inválido"
+            )
+        cursor_timestamp, cursor_id = decoded
+
+    # Obtener facturas con cursor
+    facturas, has_more = list_facturas_cursor(
+        db=db,
+        limit=limit,
+        cursor_timestamp=cursor_timestamp,
+        cursor_id=cursor_id,
+        direction="next",
+        nit=nit,
+        numero_factura=numero_factura,
+        responsable_id=responsable_id
+    )
+
+    # Construir cursores para siguiente/anterior
+    next_cursor = None
+    prev_cursor = None
+
+    if facturas:
+        if has_more:
+            # Cursor para siguiente página (última factura de la lista actual)
+            last_factura = facturas[-1]
+            next_cursor = build_cursor_from_factura(last_factura)
+
+        if cursor:  # Si venimos de una página anterior
+            # Cursor para página anterior (primera factura de la lista actual)
+            first_factura = facturas[0]
+            prev_cursor = build_cursor_from_factura(first_factura)
+
+    # Construir respuesta
+    cursor_metadata = CursorPaginationMetadata(
+        has_more=has_more,
+        next_cursor=next_cursor,
+        prev_cursor=prev_cursor,
+        count=len(facturas)
+    )
+
+    return CursorPaginatedResponse(
+        data=facturas,
+        cursor=cursor_metadata
+    )
+
+
+# ✨ ENDPOINT COMPLETO PARA DASHBOARD ADMINISTRATIVO ✨
+# -----------------------------------------------------
+# Obtener TODAS las facturas sin límites (Dashboard completo)
+# -----------------------------------------------------
+@router.get(
+    "/all",
+    response_model=List[FacturaRead],
+    summary="Obtener TODAS las facturas (Dashboard administrativo)",
+    description="Retorna todas las facturas sin límites de paginación. Exclusivo para dashboards administrativos que requieren vista completa del sistema."
+)
+def list_all_for_dashboard(
+    solo_asignadas: bool = False,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable),
+):
+    """
+    **🚀 ENDPOINT EMPRESARIAL PARA DASHBOARD COMPLETO**
+
+    Retorna TODAS las facturas del sistema sin límites de paginación.
+    Diseñado específicamente para dashboards administrativos que necesitan
+    vista completa de todas las operaciones.
+
+    **Casos de uso:**
+    - 📊 Dashboards administrativos con vista completa
+    - 📈 Análisis de tendencias sobre todo el dataset
+    - 🔍 Reportes ejecutivos que requieren datos completos
+    - 💼 Vistas gerenciales sin restricciones de paginación
+
+    **Control de acceso:**
+    - Admin sin `solo_asignadas`: Ve TODAS las facturas del sistema
+    - Admin con `solo_asignadas=true`: Ve solo sus facturas asignadas
+    - Responsable: Automáticamente ve solo sus proveedores asignados
+
+    **Performance:**
+    - ✅ Usa índice `idx_facturas_orden_cronologico` para queries optimizadas
+    - ✅ Sin OFFSET (evita deep pagination problem)
+    - ✅ Lazy loading de relaciones para minimizar memoria
+    - ⚠️ Para datasets >50k facturas, considerar usar `/facturas/cursor` con scroll infinito
+
+    **Orden de resultados:**
+    Cronológico descendente: Año ↓ → Mes ↓ → Fecha ↓ (más recientes primero)
+
+    **Ejemplo de respuesta:**
+    ```json
+    [
+        {
+            "id": 1,
+            "numero_factura": "FACT-001",
+            "cufe": "abc123...",
+            "fecha_emision": "2025-10-08",
+            "total": 15000.00,
+            "estado": "aprobada",
+            "proveedor": {...},
+            "cliente": {...}
+        },
+        ...
+    ]
+    ```
+
+    **Recomendaciones de uso:**
+    - Use este endpoint cuando necesite vista completa sin scroll/paginación
+    - Para UIs con scroll infinito, prefiera `/facturas/cursor`
+    - Para reportes paginados, use `/facturas/` con parámetros page/per_page
+    """
+    # Determinar permisos según rol
+    responsable_id = None
+
+    if hasattr(current_user, 'role') and current_user.role.nombre == 'responsable':
+        # Responsables SIEMPRE ven solo sus proveedores asignados
+        responsable_id = current_user.id
+        logger.info(
+            f"[DASHBOARD COMPLETO] Responsable {current_user.usuario} (ID: {current_user.id}) "
+            f"cargando todas sus facturas asignadas"
+        )
+    elif solo_asignadas:
+        # Admin solicitó solo sus facturas asignadas
+        responsable_id = current_user.id
+        logger.info(
+            f"[DASHBOARD COMPLETO] Admin {current_user.usuario} cargando facturas asignadas"
+        )
+    else:
+        # Admin cargando TODAS las facturas del sistema
+        logger.info(
+            f"[DASHBOARD COMPLETO] Admin {current_user.usuario} cargando TODAS las facturas del sistema"
+        )
+
+    # Obtener TODAS las facturas (sin límites)
+    facturas = list_all_facturas_for_dashboard(
+        db=db,
+        responsable_id=responsable_id
+    )
+
+    logger.info(
+        f"[DASHBOARD COMPLETO] Retornando {len(facturas)} facturas a {current_user.usuario}"
+    )
+
+    return facturas
+
+
+# -----------------------------------------------------
+# Listar todas las facturas (con paginación empresarial)
+# -----------------------------------------------------
+@router.get(
+    "/",
+    response_model=PaginatedResponse[FacturaRead],
+    summary="Listar facturas con paginación",
+    description="Obtiene facturas con metadata de paginación empresarial. Admin puede ver todas o solo asignadas, Responsable solo sus proveedores."
+)
+def list_all(
+    page: int = 1,
+    per_page: int = 500,
+    nit: Optional[str] = None,
+    numero_factura: Optional[str] = None,
+    solo_asignadas: bool = False,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable),
+):
+    """
+    Lista facturas con control de acceso basado en roles y paginación empresarial:
     - Admin: Ve TODAS las facturas (o solo asignadas si solo_asignadas=true)
     - Responsable: Solo ve facturas de proveedores (NITs) que tiene asignados
+
+    **Parámetros de paginación:**
+    - page: Página actual (base 1, default: 1)
+    - per_page: Registros por página (default: 500, máximo: 2000)
+
+    **Respuesta:**
+    ```json
+    {
+        "data": [...facturas...],
+        "pagination": {
+            "total": 5420,
+            "page": 1,
+            "per_page": 500,
+            "total_pages": 11,
+            "has_next": true,
+            "has_prev": false
+        }
+    }
+    ```
     """
+    # Validar parámetros de paginación
+    if page < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El parámetro 'page' debe ser mayor o igual a 1"
+        )
+
+    if per_page < 1 or per_page > 2000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El parámetro 'per_page' debe estar entre 1 y 2000"
+        )
+
     # Determinar si se debe filtrar por responsable
     responsable_id = None
     if hasattr(current_user, 'role') and current_user.role.nombre == 'responsable':
@@ -64,13 +353,42 @@ def list_all(
     else:
         logger.info(f"Admin {current_user.usuario} viendo todas las facturas")
 
-    return list_facturas(
+    # Obtener total de facturas
+    total = count_facturas(
         db,
-        skip=skip,
-        limit=limit,
         nit=nit,
         numero_factura=numero_factura,
         responsable_id=responsable_id
+    )
+
+    # Calcular skip
+    skip = (page - 1) * per_page
+
+    # Obtener facturas paginadas
+    facturas = list_facturas(
+        db,
+        skip=skip,
+        limit=per_page,
+        nit=nit,
+        numero_factura=numero_factura,
+        responsable_id=responsable_id
+    )
+
+    # Calcular metadata de paginación
+    total_pages = math.ceil(total / per_page) if total > 0 else 1
+
+    pagination = PaginationMetadata(
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages,
+        has_next=page < total_pages,
+        has_prev=page > 1
+    )
+
+    return PaginatedResponse(
+        data=facturas,
+        pagination=pagination
     )
 
 
@@ -133,22 +451,62 @@ def get_one(
 
 
 # -----------------------------------------------------
-# Obtener facturas por NIT
+# Obtener facturas por NIT (con paginación)
 # -----------------------------------------------------
 @router.get(
     "/nit/{nit}",
-    response_model=List[FacturaRead],
+    response_model=PaginatedResponse[FacturaRead],
     summary="Listar facturas por NIT",
-    description="Obtiene todas las facturas asociadas a un proveedor por NIT."
+    description="Obtiene todas las facturas asociadas a un proveedor por NIT con paginación."
 )
 def get_by_nit(
     nit: str,
-    skip: int = 0,
-    limit: int = 100,
+    page: int = 1,
+    per_page: int = 500,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_responsable),
 ):
-    return list_facturas(db, skip=skip, limit=limit, nit=nit)
+    """
+    Obtiene facturas de un proveedor específico con paginación empresarial.
+    """
+    # Validar parámetros
+    if page < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El parámetro 'page' debe ser mayor o igual a 1"
+        )
+
+    if per_page < 1 or per_page > 2000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El parámetro 'per_page' debe estar entre 1 y 2000"
+        )
+
+    # Obtener total
+    total = count_facturas(db, nit=nit)
+
+    # Calcular skip
+    skip = (page - 1) * per_page
+
+    # Obtener facturas
+    facturas = list_facturas(db, skip=skip, limit=per_page, nit=nit)
+
+    # Metadata
+    total_pages = math.ceil(total / per_page) if total > 0 else 1
+
+    pagination = PaginationMetadata(
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages,
+        has_next=page < total_pages,
+        has_prev=page > 1
+    )
+
+    return PaginatedResponse(
+        data=facturas,
+        pagination=pagination
+    )
 
 
 # -----------------------------------------------------
@@ -353,36 +711,36 @@ def get_resumen_por_mes(
 
 
 # -----------------------------------------------------
-# Obtener facturas de un período específico
+# Obtener facturas de un período específico (con paginación)
 # -----------------------------------------------------
 @router.get(
     "/periodos/{periodo}",
-    response_model=List[FacturaRead],
+    response_model=PaginatedResponse[FacturaRead],
     tags=["Reportes - Períodos Mensuales"],
     summary="Facturas de un período específico",
-    description="Obtiene todas las facturas de un mes/año específico (formato: YYYY-MM)"
+    description="Obtiene todas las facturas de un mes/año específico (formato: YYYY-MM) con paginación"
 )
 def get_facturas_periodo(
     periodo: str,
-    skip: int = 0,
-    limit: int = 100,
+    page: int = 1,
+    per_page: int = 500,
     proveedor_id: Optional[int] = None,
     estado: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_responsable),
 ):
     """
-    Obtiene facturas de un período específico.
+    Obtiene facturas de un período específico con paginación empresarial.
 
     Args:
         periodo: Formato "YYYY-MM" (ej: "2025-07" para julio 2025)
-        skip: Registros a saltar (paginación)
-        limit: Máximo de registros a retornar
+        page: Página actual (base 1, default: 1)
+        per_page: Registros por página (default: 500, máximo: 2000)
         proveedor_id: Filtrar por proveedor (opcional)
         estado: Filtrar por estado (opcional)
 
     Returns:
-        Lista de facturas del período
+        Respuesta paginada con facturas del período
     """
     # Validar formato de período
     if len(periodo) != 7 or periodo[4] != '-':
@@ -391,16 +749,56 @@ def get_facturas_periodo(
             detail="Formato de período inválido. Use YYYY-MM (ej: 2025-07)"
         )
 
-    facturas = get_facturas_por_periodo(
+    # Validar parámetros de paginación
+    if page < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El parámetro 'page' debe ser mayor o igual a 1"
+        )
+
+    if per_page < 1 or per_page > 2000:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El parámetro 'per_page' debe estar entre 1 y 2000"
+        )
+
+    # Obtener total del período
+    total = count_facturas_por_periodo(
         db=db,
         periodo=periodo,
-        skip=skip,
-        limit=limit,
         proveedor_id=proveedor_id,
         estado=estado
     )
 
-    return facturas
+    # Calcular skip
+    skip = (page - 1) * per_page
+
+    # Obtener facturas del período
+    facturas = get_facturas_por_periodo(
+        db=db,
+        periodo=periodo,
+        skip=skip,
+        limit=per_page,
+        proveedor_id=proveedor_id,
+        estado=estado
+    )
+
+    # Metadata de paginación
+    total_pages = math.ceil(total / per_page) if total > 0 else 1
+
+    pagination = PaginationMetadata(
+        total=total,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages,
+        has_next=page < total_pages,
+        has_prev=page > 1
+    )
+
+    return PaginatedResponse(
+        data=facturas,
+        pagination=pagination
+    )
 
 
 # -----------------------------------------------------
@@ -577,3 +975,143 @@ def get_jerarquia(
         estado=estado,
         limit_por_mes=limit_por_mes
     )
+
+
+# ✨ ENDPOINT DE EXPORTACIÓN PARA REPORTES COMPLETOS ✨
+# -----------------------------------------------------
+# Exportar facturas a CSV
+# -----------------------------------------------------
+@router.get(
+    "/export/csv",
+    tags=["Exportación"],
+    summary="Exportar facturas a CSV",
+    description="Genera archivo CSV con todas las facturas filtradas. Ideal para reportes y análisis en Excel."
+)
+def export_to_csv(
+    fecha_desde: Optional[datetime] = Query(None, description="Fecha inicial (YYYY-MM-DD)"),
+    fecha_hasta: Optional[datetime] = Query(None, description="Fecha final (YYYY-MM-DD)"),
+    nit: Optional[str] = None,
+    estado: Optional[str] = None,
+    solo_asignadas: bool = False,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable),
+):
+    """
+    **Exportación empresarial de facturas a CSV.**
+
+    Permite descargar reportes completos sin límites de paginación.
+
+    **Casos de uso:**
+    - 📊 Análisis en Excel/Google Sheets
+    - 📈 Reportes financieros para gerencia
+    - 🔍 Auditorías contables
+    - 💾 Backup de datos
+
+    **Recomendaciones:**
+    - Use filtros de fecha para limitar el dataset
+    - Para datasets >50k registros, considere exportar por períodos
+    - El archivo se genera en tiempo real (puede tardar en datasets grandes)
+
+    **Ejemplo:**
+    ```
+    GET /facturas/export/csv?fecha_desde=2025-01-01&fecha_hasta=2025-12-31&estado=aprobada
+    ```
+    """
+    from app.services.export_service import export_facturas_to_csv
+
+    # Determinar permisos
+    responsable_id = None
+    if hasattr(current_user, 'role') and current_user.role.nombre == 'responsable':
+        responsable_id = current_user.id
+        logger.info(f"Responsable {current_user.usuario} exportando facturas asignadas")
+    elif solo_asignadas:
+        responsable_id = current_user.id
+        logger.info(f"Admin {current_user.usuario} exportando facturas asignadas")
+    else:
+        logger.info(f"Admin {current_user.usuario} exportando todas las facturas")
+
+    # Generar CSV
+    try:
+        csv_content = export_facturas_to_csv(
+            db=db,
+            nit=nit,
+            responsable_id=responsable_id,
+            fecha_desde=fecha_desde,
+            fecha_hasta=fecha_hasta,
+            estado=estado
+        )
+
+        # Generar nombre de archivo con timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"facturas_export_{timestamp}.csv"
+
+        # Retornar como descarga
+        return StreamingResponse(
+            iter([csv_content]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Type": "text/csv; charset=utf-8"
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error al exportar facturas: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al generar exportación: {str(e)}"
+        )
+
+
+# -----------------------------------------------------
+# Metadata de exportación
+# -----------------------------------------------------
+@router.get(
+    "/export/metadata",
+    tags=["Exportación"],
+    summary="Obtener metadata de exportación",
+    description="Retorna información sobre el dataset a exportar (total registros, rangos, etc.)"
+)
+def get_export_info(
+    fecha_desde: Optional[datetime] = Query(None, description="Fecha inicial (YYYY-MM-DD)"),
+    fecha_hasta: Optional[datetime] = Query(None, description="Fecha final (YYYY-MM-DD)"),
+    solo_asignadas: bool = False,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable),
+):
+    """
+    Obtiene información sobre el dataset a exportar antes de generar el archivo.
+
+    Útil para:
+    - Validar tamaño del dataset antes de exportar
+    - Mostrar preview de lo que se va a descargar
+    - Estimar tiempo de generación
+
+    **Respuesta:**
+    ```json
+    {
+        "total_registros": 15420,
+        "fecha_desde": "2025-01-01",
+        "fecha_hasta": "2025-12-31",
+        "timestamp_generacion": "2025-10-08T10:30:00"
+    }
+    ```
+    """
+    from app.services.export_service import get_export_metadata
+
+    # Determinar permisos
+    responsable_id = None
+    if hasattr(current_user, 'role') and current_user.role.nombre == 'responsable':
+        responsable_id = current_user.id
+    elif solo_asignadas:
+        responsable_id = current_user.id
+
+    # Obtener metadata
+    metadata = get_export_metadata(
+        db=db,
+        responsable_id=responsable_id,
+        fecha_desde=fecha_desde,
+        fecha_hasta=fecha_hasta
+    )
+
+    return metadata
