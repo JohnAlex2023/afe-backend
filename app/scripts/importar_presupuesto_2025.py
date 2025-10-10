@@ -20,7 +20,6 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from app.db.session import get_db
 from app.core.database import engine
-from app.services.excel_to_presupuesto import ExcelPresupuestoImporter
 from app.services.auto_vinculacion import AutoVinculador
 from app.crud import presupuesto as crud_presupuesto
 
@@ -38,117 +37,23 @@ def importar_presupuesto():
         print("=" * 80)
         print()
 
-        # PASO 1: Importar desde Excel
-        print("📁 PASO 1: Importando datos desde Excel...")
-        print("-" * 80)
+        # NOTA: El servicio de importación de Excel ha sido deprecado.
+        # Usa la API REST para crear líneas de presupuesto manualmente
+        # o migra los datos mediante scripts SQL directos.
 
-        # AJUSTA ESTA RUTA A TU ARCHIVO EXCEL
-        archivo_excel = r"AVD PPTO TI 2025 - Presentación JZ - OPEX y Menor Cuantia - Copia(TI DSZF).csv"
-
-        # Si el archivo está en otra ubicación, ajusta la ruta completa
-        # archivo_excel = r"C:\ruta\completa\al\archivo.csv"
-
-        if not Path(archivo_excel).exists():
-            print(f"❌ ERROR: No se encontró el archivo: {archivo_excel}")
-            print()
-            print("Por favor, ajusta la ruta en el script o copia el archivo a la carpeta raíz del proyecto.")
-            return
-
-        # Configuración de mapeo de columnas (ajustar según tu Excel)
-        mapeo_columnas = {
-            "codigo": "ID",  # Columna con el código de la línea
-            "nombre": "Nombre cuenta",  # Columna con el nombre
-            "descripcion": "Descripción",
-            "centro_costo": "Centro de Costo",
-            "subcategoria": "Subcategoría",
-            "proveedor_preferido": "Proveedor",
-            # Presupuestos mensuales - AJUSTAR SEGÚN LOS NOMBRES EN TU EXCEL
-            "presupuesto_ene": "Jan-25",  # O "Ene-25" si está en español
-            "presupuesto_feb": "Feb-25",
-            "presupuesto_mar": "Mar-25",
-            "presupuesto_abr": "Apr-25",  # O "Abr-25" si está en español
-            "presupuesto_may": "May-25",
-            "presupuesto_jun": "Jun-25",
-            "presupuesto_jul": "Jul-25",
-            "presupuesto_ago": "Aug-25",  # O "Ago-25" si está en español
-            "presupuesto_sep": "Sep-25",
-            "presupuesto_oct": "Oct-25",
-            "presupuesto_nov": "Nov-25",
-            "presupuesto_dic": "Dec-25",  # O "Dic-25" si está en español
-        }
-
-        # Obtener un responsable existente (ajustar según tu BD)
-        # Aquí debes poner el ID de un responsable válido de tu tabla responsables
-        responsable_id = 1  # CAMBIAR POR UN ID VÁLIDO
-
-        importer = ExcelPresupuestoImporter(db)
-        resultado = importer.importar_desde_excel(
-            file_path=archivo_excel,
-            año_fiscal=2025,
-            responsable_id=responsable_id,
-            categoria="TI",
-            creado_por="ADMIN",
-            hoja=0,  # Primera hoja
-            fila_inicio=7,  # Ajustar según donde empiecen tus datos
-            mapeo_columnas=mapeo_columnas
-        )
-
-        if resultado.get("exito"):
-            print(f"✅ Importación exitosa!")
-            print(f"   Líneas creadas: {resultado['lineas_creadas']}")
-            print(f"   Líneas actualizadas: {resultado['lineas_actualizadas']}")
-            print(f"   Total procesadas: {resultado['total_procesadas']}")
-
-            if resultado.get("errores"):
-                print(f"   ⚠️  Errores: {len(resultado['errores'])}")
-                for error in resultado['errores'][:5]:  # Mostrar solo primeros 5
-                    print(f"      - {error}")
-
-            if resultado.get("advertencias"):
-                print(f"   ⚠️  Advertencias: {len(resultado['advertencias'])}")
-                for adv in resultado['advertencias'][:5]:
-                    print(f"      - {adv}")
-        else:
-            print(f"❌ Error en importación: {resultado.get('error')}")
-            return
-
+        print("⚠️  Este script está deprecado.")
+        print("El servicio ExcelPresupuestoImporter ha sido eliminado.")
+        print()
+        print("Para importar presupuesto, usa una de estas alternativas:")
+        print("1. API REST: POST /api/v1/presupuesto/lineas")
+        print("2. Script SQL directo para migración de datos")
+        print("3. Interfaz de administración web")
+        print()
+        print("Continuando solo con vinculación de facturas existentes...")
         print()
 
-        # PASO 2: Aprobar líneas
-        print("✅ PASO 2: Aprobando líneas presupuestales...")
-        print("-" * 80)
-
-        lineas_importadas = resultado.get('ids_creados', []) + resultado.get('ids_actualizados', [])
-        lineas_aprobadas = 0
-
-        for linea_id in lineas_importadas:
-            linea = crud_presupuesto.aprobar_linea_presupuesto(
-                db=db,
-                linea_id=linea_id,
-                aprobador="admin@afe.com",
-                observaciones="Aprobación automática - Importación inicial"
-            )
-            if linea:
-                lineas_aprobadas += 1
-
-        print(f"✅ {lineas_aprobadas} líneas aprobadas")
-        print()
-
-        # PASO 3: Activar líneas
-        print("🚀 PASO 3: Activando líneas presupuestales...")
-        print("-" * 80)
-
-        lineas_activadas = 0
-        for linea_id in lineas_importadas:
-            linea = crud_presupuesto.activar_linea_presupuesto(db, linea_id)
-            if linea:
-                lineas_activadas += 1
-
-        print(f"✅ {lineas_activadas} líneas activadas")
-        print()
-
-        # PASO 4: Vincular facturas automáticamente
-        print("🔗 PASO 4: Vinculando facturas existentes con presupuesto...")
+        # PASO 1: Vincular facturas automáticamente
+        print("🔗 PASO 1: Vinculando facturas existentes con presupuesto...")
         print("-" * 80)
 
         vinculador = AutoVinculador(db)
@@ -168,8 +73,8 @@ def importar_presupuesto():
 
         print()
 
-        # PASO 5: Mostrar dashboard
-        print("📊 PASO 5: Dashboard de presupuesto...")
+        # PASO 2: Mostrar dashboard
+        print("📊 PASO 2: Dashboard de presupuesto...")
         print("-" * 80)
 
         dashboard = crud_presupuesto.get_dashboard_presupuesto(db, año_fiscal=2025)
