@@ -13,4 +13,3 @@ class Cliente(Base):
     telefono = Column(String(50))
     direccion = Column(String(255))
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
-    facturas = relationship("Factura", back_populates="cliente", lazy="selectin")

@@ -95,8 +95,6 @@ def list_facturas(
 
     # Orden cronológico empresarial: más recientes primero
     return query.order_by(
-        desc(Factura.año_factura),
-        desc(Factura.mes_factura),
         desc(Factura.fecha_emision),
         desc(Factura.id)
     ).offset(skip).limit(limit).all()
@@ -250,8 +248,6 @@ def list_all_facturas_for_dashboard(
 
     # Orden cronológico empresarial: más recientes primero
     return query.order_by(
-        desc(Factura.año_factura),
-        desc(Factura.mes_factura),
         desc(Factura.fecha_emision),
         desc(Factura.id)
     ).all()
@@ -310,79 +306,12 @@ def update_factura(db: Session, factura: Factura, fields: dict) -> Factura:
     return factura
 
 
-# ✨ FUNCIONES PARA AUTOMATIZACIÓN DE FACTURAS RECURRENTES ✨
-
-# -----------------------------------------------------
-# Buscar facturas por concepto normalizado y proveedor
-# -----------------------------------------------------
-def find_facturas_by_concepto_proveedor(
-    db: Session,
-    proveedor_id: int,
-    concepto_normalizado: str,
-    limit: int = 12
-) -> List[Factura]:
-    """
-    Busca facturas históricas del mismo proveedor con concepto similar
-    para detectar patrones de recurrencia.
-
-    Orden cronológico: más recientes primero
-    Usa índice: idx_facturas_proveedor_cronologico
-    """
-    return (
-        db.query(Factura)
-        .filter(
-            and_(
-                Factura.proveedor_id == proveedor_id,
-                Factura.concepto_normalizado == concepto_normalizado
-            )
-        )
-        .order_by(
-            desc(Factura.año_factura),
-            desc(Factura.mes_factura),
-            desc(Factura.fecha_emision)
-        )
-        .limit(limit)
-        .all()
-    )
-
-
-# -----------------------------------------------------
-# Buscar facturas por hash de concepto
-# -----------------------------------------------------
-def find_facturas_by_concepto_hash(
-    db: Session, 
-    concepto_hash: str,
-    proveedor_id: Optional[int] = None,
-    limit: int = 10
-) -> List[Factura]:
-    """
-    Búsqueda rápida por hash de concepto para matching exacto
-    """
-    query = db.query(Factura).filter(Factura.concepto_hash == concepto_hash)
-    
-    if proveedor_id:
-        query = query.filter(Factura.proveedor_id == proveedor_id)
-    
-    return query.order_by(Factura.fecha_emision.desc()).limit(limit).all()
-
-
-# -----------------------------------------------------
-# Buscar facturas por orden de compra
-# -----------------------------------------------------
-def find_facturas_by_orden_compra(
-    db: Session,
-    orden_compra_numero: str,
-    proveedor_id: Optional[int] = None
-) -> List[Factura]:
-    """
-    Busca facturas con la misma orden de compra para detectar recurrencia
-    """
-    query = db.query(Factura).filter(Factura.orden_compra_numero == orden_compra_numero)
-    
-    if proveedor_id:
-        query = query.filter(Factura.proveedor_id == proveedor_id)
-        
-    return query.order_by(Factura.fecha_emision.desc()).all()
+# ============================================================================
+# FUNCIONES PARA AUTOMATIZACIÓN DE FACTURAS RECURRENTES (Refactorizadas)
+# ============================================================================
+# NOTA: Las funciones basadas en conceptos se eliminaron porque esos campos
+# ya no existen en la tabla facturas. Usar factura_items en su lugar.
+# ============================================================================
 
 
 # -----------------------------------------------------
@@ -522,23 +451,24 @@ def get_facturas_resumen_por_mes(
 ) -> List[Dict[str, Any]]:
     """
     Obtiene un resumen de facturas agrupadas por mes/año con totales.
-    Optimizado con índices en periodo_factura.
+    Ahora calcula año/mes desde fecha_emision (campos eliminados de BD).
 
     Returns:
         Lista de diccionarios con: periodo, año, mes, total_facturas, monto_total
     """
+    from sqlalchemy import extract
+
     query = db.query(
-        Factura.periodo_factura,
-        Factura.año_factura,
-        Factura.mes_factura,
+        extract('year', Factura.fecha_emision).label('año'),
+        extract('month', Factura.fecha_emision).label('mes'),
         func.count(Factura.id).label('total_facturas'),
-        func.sum(Factura.total).label('monto_total'),
+        func.sum(Factura.total_a_pagar).label('monto_total'),
         func.sum(Factura.subtotal).label('subtotal_total'),
         func.sum(Factura.iva).label('iva_total')
-    ).filter(Factura.periodo_factura.isnot(None))
+    ).filter(Factura.fecha_emision.isnot(None))
 
     if año:
-        query = query.filter(Factura.año_factura == año)
+        query = query.filter(extract('year', Factura.fecha_emision) == año)
 
     if proveedor_id:
         query = query.filter(Factura.proveedor_id == proveedor_id)
@@ -547,16 +477,18 @@ def get_facturas_resumen_por_mes(
         query = query.filter(Factura.estado == estado)
 
     result = query.group_by(
-        Factura.periodo_factura,
-        Factura.año_factura,
-        Factura.mes_factura
-    ).order_by(desc(Factura.periodo_factura)).all()
+        extract('year', Factura.fecha_emision),
+        extract('month', Factura.fecha_emision)
+    ).order_by(
+        desc('año'),
+        desc('mes')
+    ).all()
 
     return [
         {
-            "periodo": row.periodo_factura,
-            "año": row.año_factura,
-            "mes": row.mes_factura,
+            "periodo": f"{int(row.año)}-{int(row.mes):02d}",
+            "año": int(row.año),
+            "mes": int(row.mes),
             "total_facturas": row.total_facturas,
             "monto_total": float(row.monto_total) if row.monto_total else 0.0,
             "subtotal_total": float(row.subtotal_total) if row.subtotal_total else 0.0,
@@ -579,12 +511,20 @@ def get_facturas_por_periodo(
 ) -> List[Factura]:
     """
     Obtiene facturas de un período específico (mes/año).
-    Usa índice en periodo_factura para búsqueda rápida.
+    Ahora filtra por fecha_emision (periodo_factura eliminado de BD).
 
     Args:
         periodo: Período en formato "YYYY-MM" (ej: "2025-07")
     """
-    query = db.query(Factura).filter(Factura.periodo_factura == periodo)
+    from sqlalchemy import extract
+
+    # Parsear periodo "YYYY-MM"
+    año, mes = map(int, periodo.split('-'))
+
+    query = db.query(Factura).filter(
+        extract('year', Factura.fecha_emision) == año,
+        extract('month', Factura.fecha_emision) == mes
+    )
 
     if proveedor_id:
         query = query.filter(Factura.proveedor_id == proveedor_id)
@@ -606,8 +546,17 @@ def count_facturas_por_periodo(
 ) -> int:
     """
     Cuenta facturas de un período específico.
+    Ahora usa fecha_emision (periodo_factura eliminado de BD).
     """
-    query = db.query(func.count(Factura.id)).filter(Factura.periodo_factura == periodo)
+    from sqlalchemy import extract
+
+    # Parsear periodo "YYYY-MM"
+    año, mes = map(int, periodo.split('-'))
+
+    query = db.query(func.count(Factura.id)).filter(
+        extract('year', Factura.fecha_emision) == año,
+        extract('month', Factura.fecha_emision) == mes
+    )
 
     if proveedor_id:
         query = query.filter(Factura.proveedor_id == proveedor_id)
@@ -628,8 +577,20 @@ def get_estadisticas_periodo(
 ) -> Dict[str, Any]:
     """
     Obtiene estadísticas detalladas de un período específico.
+    Ahora usa fecha_emision (periodo_factura eliminado de BD).
     """
-    query = db.query(Factura).filter(Factura.periodo_factura == periodo)
+    from sqlalchemy import extract
+
+    # Parsear periodo "YYYY-MM"
+    año, mes = map(int, periodo.split('-'))
+
+    # Filtros base
+    periodo_filter = and_(
+        extract('year', Factura.fecha_emision) == año,
+        extract('month', Factura.fecha_emision) == mes
+    )
+
+    query = db.query(Factura).filter(periodo_filter)
 
     if proveedor_id:
         query = query.filter(Factura.proveedor_id == proveedor_id)
@@ -638,8 +599,8 @@ def get_estadisticas_periodo(
     stats_by_estado = db.query(
         Factura.estado,
         func.count(Factura.id).label('cantidad'),
-        func.sum(Factura.total).label('monto')
-    ).filter(Factura.periodo_factura == periodo)
+        func.sum(Factura.total_a_pagar).label('monto')
+    ).filter(periodo_filter)
 
     if proveedor_id:
         stats_by_estado = stats_by_estado.filter(Factura.proveedor_id == proveedor_id)
@@ -649,11 +610,11 @@ def get_estadisticas_periodo(
     # Totales generales
     totales = db.query(
         func.count(Factura.id).label('total_facturas'),
-        func.sum(Factura.total).label('monto_total'),
+        func.sum(Factura.total_a_pagar).label('monto_total'),
         func.sum(Factura.subtotal).label('subtotal'),
         func.sum(Factura.iva).label('iva'),
-        func.avg(Factura.total).label('promedio')
-    ).filter(Factura.periodo_factura == periodo)
+        func.avg(Factura.total_a_pagar).label('promedio')
+    ).filter(periodo_filter)
 
     if proveedor_id:
         totales = totales.filter(Factura.proveedor_id == proveedor_id)
@@ -684,12 +645,17 @@ def get_estadisticas_periodo(
 def get_años_disponibles(db: Session) -> List[int]:
     """
     Obtiene lista de años que tienen facturas registradas.
+    Ahora usa fecha_emision (año_factura eliminado de BD).
     """
-    result = db.query(Factura.año_factura).filter(
-        Factura.año_factura.isnot(None)
-    ).distinct().order_by(desc(Factura.año_factura)).all()
+    from sqlalchemy import extract
 
-    return [row.año_factura for row in result]
+    result = db.query(
+        extract('year', Factura.fecha_emision).label('año')
+    ).filter(
+        Factura.fecha_emision.isnot(None)
+    ).distinct().order_by(desc('año')).all()
+
+    return [int(row.año) for row in result]
 
 
 # -----------------------------------------------------
@@ -722,15 +688,16 @@ def get_jerarquia_facturas(
     Optimizado con índices: idx_facturas_orden_cronologico, idx_facturas_año_mes_estado
     """
     from collections import defaultdict
+    from sqlalchemy import extract
 
-    query = db.query(Factura).filter(Factura.periodo_factura.isnot(None))
+    query = db.query(Factura).filter(Factura.fecha_emision.isnot(None))
 
     # Filtros opcionales
     if año:
-        query = query.filter(Factura.año_factura == año)
+        query = query.filter(extract('year', Factura.fecha_emision) == año)
 
     if mes:
-        query = query.filter(Factura.mes_factura == mes)
+        query = query.filter(extract('month', Factura.fecha_emision) == mes)
 
     if proveedor_id:
         query = query.filter(Factura.proveedor_id == proveedor_id)
@@ -740,8 +707,6 @@ def get_jerarquia_facturas(
 
     # Ordenar cronológicamente: más recientes primero
     facturas = query.order_by(
-        desc(Factura.año_factura),
-        desc(Factura.mes_factura),
         desc(Factura.fecha_emision),
         desc(Factura.id)
     ).all()
@@ -756,14 +721,15 @@ def get_jerarquia_facturas(
     }))
 
     for factura in facturas:
-        año_key = str(factura.año_factura)
-        mes_key = str(factura.mes_factura).zfill(2)  # "01", "02", etc.
+        # Derivar año y mes desde fecha_emision
+        año_key = str(factura.fecha_emision.year) if factura.fecha_emision else "0000"
+        mes_key = str(factura.fecha_emision.month).zfill(2) if factura.fecha_emision else "00"  # "01", "02", etc.
 
         mes_data = jerarquia[año_key][mes_key]
 
         # Agregar a contadores
         mes_data["total_facturas"] += 1
-        mes_data["monto_total"] += float(factura.total or 0)
+        mes_data["monto_total"] += float(factura.total_a_pagar or 0)
         mes_data["subtotal"] += float(factura.subtotal or 0)
         mes_data["iva"] += float(factura.iva or 0)
 
@@ -773,7 +739,7 @@ def get_jerarquia_facturas(
                 "id": factura.id,
                 "numero_factura": factura.numero_factura,
                 "fecha_emision": factura.fecha_emision.isoformat() if factura.fecha_emision else None,
-                "total": float(factura.total or 0),
+                "total": float(factura.total_a_pagar or 0),
                 "estado": factura.estado.value if hasattr(factura.estado, 'value') else factura.estado,
                 "proveedor_id": factura.proveedor_id,
                 "cufe": factura.cufe
@@ -784,133 +750,47 @@ def get_jerarquia_facturas(
 
 
 # -----------------------------------------------------
-# Buscar factura del mes anterior (para automatización)
+# Buscar facturas del mes anterior (para automatización)
 # -----------------------------------------------------
-def find_factura_mes_anterior(
+def find_facturas_mes_anterior(
     db: Session,
     proveedor_id: int,
     fecha_actual: date,
-    concepto_normalizado: Optional[str] = None,
-    concepto_hash: Optional[str] = None,
-    numero_factura: Optional[str] = None
-) -> Optional[Factura]:
+    limit: int = 10
+) -> List[Factura]:
     """
-    Busca la factura del mes anterior del mismo proveedor con el mismo concepto.
+    Busca facturas del mes anterior del mismo proveedor.
 
-    Esta función es crucial para el sistema de automatización que compara
-    mes a mes para aprobación automática.
+    REFACTORIZADO: Ya no compara por concepto (campo eliminado).
+    Usa ComparadorItemsService para comparación item por item.
 
     Args:
         db: Sesión de base de datos
         proveedor_id: ID del proveedor
         fecha_actual: Fecha de la factura actual
-        concepto_normalizado: Concepto normalizado (opcional)
-        concepto_hash: Hash del concepto (opcional)
-        numero_factura: Número de factura (para facturas recurrentes con mismo número)
+        limit: Límite de facturas a retornar
 
     Returns:
-        Factura del mes anterior si existe, None en caso contrario
-
-    Estrategia de búsqueda:
-    1. Calcula el periodo del mes anterior (ej: si actual es 2025-10, busca 2025-09)
-    2. Busca facturas del mismo proveedor en ese periodo
-    3. Filtra por concepto (hash o normalizado) si está disponible
-    4. Retorna la más reciente si hay múltiples
+        Lista de facturas del mes anterior del mismo proveedor
     """
     from dateutil.relativedelta import relativedelta
+    from sqlalchemy import extract
 
     # Calcular fecha del mes anterior
     fecha_mes_anterior = fecha_actual - relativedelta(months=1)
 
-    # Construir query base: mismo proveedor, mes anterior
-    query = db.query(Factura).filter(
+    # Buscar facturas del mismo proveedor en el mes anterior
+    facturas = db.query(Factura).filter(
         and_(
             Factura.proveedor_id == proveedor_id,
-            Factura.año_factura == fecha_mes_anterior.year,
-            Factura.mes_factura == fecha_mes_anterior.month,
-            # Solo considerar facturas aprobadas o aprobadas automáticamente
+            extract('year', Factura.fecha_emision) == fecha_mes_anterior.year,
+            extract('month', Factura.fecha_emision) == fecha_mes_anterior.month,
+            # Solo considerar facturas aprobadas
             or_(
                 Factura.estado == EstadoFactura.aprobada,
                 Factura.estado == EstadoFactura.aprobada_auto
             )
         )
-    )
-
-    # Filtrar por concepto si está disponible
-    if concepto_hash:
-        # Preferir búsqueda por hash (más preciso)
-        query = query.filter(Factura.concepto_hash == concepto_hash)
-    elif concepto_normalizado:
-        # Búsqueda por concepto normalizado
-        query = query.filter(Factura.concepto_normalizado.ilike(f"%{concepto_normalizado}%"))
-    elif numero_factura:
-        # Para facturas con número recurrente (ej: "FACTURA-MENSUAL-001")
-        # Extraer prefijo del número (hasta el último guion o número)
-        import re
-        prefijo = re.sub(r'\d+$', '', numero_factura).strip('-_')
-        if prefijo:
-            query = query.filter(Factura.numero_factura.ilike(f"{prefijo}%"))
-
-    # Ordenar por fecha descendente y tomar la más reciente
-    factura_anterior = query.order_by(desc(Factura.fecha_emision)).first()
-
-    return factura_anterior
-
-
-# -----------------------------------------------------
-# Buscar todas las facturas del mismo concepto en meses anteriores
-# -----------------------------------------------------
-def find_facturas_mismo_concepto_ultimos_meses(
-    db: Session,
-    proveedor_id: int,
-    fecha_actual: date,
-    concepto_hash: Optional[str] = None,
-    concepto_normalizado: Optional[str] = None,
-    meses_atras: int = 6,
-    limit: int = 12
-) -> List[Factura]:
-    """
-    Busca facturas del mismo concepto en los últimos N meses.
-
-    Útil para detectar patrones de recurrencia más complejos.
-
-    Args:
-        db: Sesión de base de datos
-        proveedor_id: ID del proveedor
-        fecha_actual: Fecha de referencia
-        concepto_hash: Hash del concepto
-        concepto_normalizado: Concepto normalizado
-        meses_atras: Cantidad de meses hacia atrás a buscar
-        limit: Límite de resultados
-
-    Returns:
-        Lista de facturas históricas ordenadas por fecha descendente
-    """
-    from dateutil.relativedelta import relativedelta
-
-    # Calcular fecha límite
-    fecha_limite = fecha_actual - relativedelta(months=meses_atras)
-
-    # Query base
-    query = db.query(Factura).filter(
-        and_(
-            Factura.proveedor_id == proveedor_id,
-            Factura.fecha_emision >= fecha_limite,
-            Factura.fecha_emision < fecha_actual,
-            or_(
-                Factura.estado == EstadoFactura.aprobada,
-                Factura.estado == EstadoFactura.aprobada_auto
-            )
-        )
-    )
-
-    # Filtrar por concepto
-    if concepto_hash:
-        query = query.filter(Factura.concepto_hash == concepto_hash)
-    elif concepto_normalizado:
-        query = query.filter(Factura.concepto_normalizado.ilike(f"%{concepto_normalizado}%"))
-
-    # Ordenar y limitar
-    facturas = query.order_by(desc(Factura.fecha_emision)).limit(limit).all()
+    ).order_by(desc(Factura.fecha_emision)).limit(limit).all()
 
     return facturas

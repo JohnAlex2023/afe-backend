@@ -31,7 +31,6 @@ from sqlalchemy import func, and_
 from app.models.factura import Factura
 from app.models.presupuesto import LineaPresupuesto, EjecucionPresupuestal
 from app.models.workflow_aprobacion import AsignacionNitResponsable, WorkflowAprobacionFactura
-from app.services.excel_to_presupuesto import ExcelPresupuestoImporter
 from app.services.auto_vinculacion import AutoVinculador
 from app.services.workflow_automatico import WorkflowAutomaticoService
 
@@ -61,7 +60,6 @@ class InicializacionSistemaService:
 
     def inicializar_sistema_completo(
         self,
-        archivo_presupuesto: Optional[str] = None,
         año_fiscal: int = 2025,
         responsable_default_id: int = 1,
         ejecutar_vinculacion: bool = True,
@@ -72,7 +70,6 @@ class InicializacionSistemaService:
         Inicialización completa del sistema.
 
         Args:
-            archivo_presupuesto: Ruta al Excel de presupuesto (None = buscar automáticamente)
             año_fiscal: Año fiscal a procesar
             responsable_default_id: ID del responsable por defecto
             ejecutar_vinculacion: Si debe vincular facturas con presupuesto
@@ -95,31 +92,13 @@ class InicializacionSistemaService:
 
             # PASO 2: Validar pre-requisitos
             logger.info("\n PASO 2: Validando pre-requisitos...")
-            validacion = self._validar_prerequisitos(
-                archivo_presupuesto,
-                responsable_default_id
-            )
+            validacion = self._validar_prerequisitos(responsable_default_id)
             if not validacion["valido"]:
                 return self._generar_reporte_error(validacion["errores"])
             self._log_paso_completado("Validación de pre-requisitos")
 
-            # PASO 3: Importar presupuesto
-            if archivo_presupuesto and estado_inicial["lineas_presupuesto"] == 0:
-                logger.info("\n PASO 3: Importando presupuesto desde Excel...")
-                resultado_import = self._importar_presupuesto(
-                    archivo_presupuesto,
-                    año_fiscal,
-                    responsable_default_id,
-                    dry_run
-                )
-                self.resultados["importacion_presupuesto"] = resultado_import
-                self._log_paso_completado("Importación de presupuesto")
-            else:
-                logger.info("\n  PASO 3: Saltando importación (ya existen datos o no hay archivo)")
-                self.resultados["warnings"].append("Importación de presupuesto omitida")
-
-            # PASO 4: Auto-configurar asignaciones NIT-Responsable
-            logger.info("\n PASO 4: Auto-configurando asignaciones NIT-Responsable...")
+            # PASO 3: Auto-configurar asignaciones NIT-Responsable
+            logger.info("\n PASO 3: Auto-configurando asignaciones NIT-Responsable...")
             resultado_asignaciones = self._autoconfigurar_asignaciones(
                 responsable_default_id,
                 dry_run
@@ -127,9 +106,9 @@ class InicializacionSistemaService:
             self.resultados["asignaciones"] = resultado_asignaciones
             self._log_paso_completado("Auto-configuración de asignaciones")
 
-            # PASO 5: Vincular facturas con presupuesto
+            # PASO 4: Vincular facturas con presupuesto
             if ejecutar_vinculacion:
-                logger.info("\n PASO 5: Vinculando facturas existentes con presupuesto...")
+                logger.info("\n PASO 4: Vinculando facturas existentes con presupuesto...")
                 resultado_vinculacion = self._vincular_facturas_masivo(
                     año_fiscal,
                     dry_run
@@ -137,19 +116,19 @@ class InicializacionSistemaService:
                 self.resultados["vinculacion"] = resultado_vinculacion
                 self._log_paso_completado("Vinculación de facturas")
             else:
-                logger.info("\n  PASO 5: Saltando vinculación (deshabilitado)")
+                logger.info("\n  PASO 4: Saltando vinculación (deshabilitado)")
 
-            # PASO 6: Activar workflow de aprobación
+            # PASO 5: Activar workflow de aprobación
             if ejecutar_workflow:
-                logger.info("\n  PASO 6: Activando workflow de aprobación...")
+                logger.info("\n  PASO 5: Activando workflow de aprobación...")
                 resultado_workflow = self._activar_workflow_masivo(dry_run)
                 self.resultados["workflow"] = resultado_workflow
                 self._log_paso_completado("Activación de workflow")
             else:
-                logger.info("\n  PASO 6: Saltando workflow (deshabilitado)")
+                logger.info("\n  PASO 5: Saltando workflow (deshabilitado)")
 
-            # PASO 7: Generar reporte ejecutivo
-            logger.info("\n PASO 7: Generando reporte ejecutivo...")
+            # PASO 6: Generar reporte ejecutivo
+            logger.info("\n PASO 6: Generando reporte ejecutivo...")
             estado_final = self._verificar_estado_sistema()
             self.resultados["estado_final"] = estado_final
             self.resultados["fin"] = datetime.now()
@@ -184,10 +163,10 @@ class InicializacionSistemaService:
 
         # Contar facturas
         estado["total_facturas"] = self.db.query(func.count(Factura.id)).scalar() or 0
-        estado["facturas_con_periodo"] = self.db.query(func.count(Factura.id)).filter(
-            Factura.periodo_factura != None
+        estado["facturas_con_fecha"] = self.db.query(func.count(Factura.id)).filter(
+            Factura.fecha_emision != None
         ).scalar() or 0
-        estado["facturas_sin_periodo"] = estado["total_facturas"] - estado["facturas_con_periodo"]
+        estado["facturas_sin_fecha"] = estado["total_facturas"] - estado["facturas_con_fecha"]
 
         # Contar presupuesto
         estado["lineas_presupuesto"] = self.db.query(func.count(LineaPresupuesto.id)).scalar() or 0
@@ -212,7 +191,6 @@ class InicializacionSistemaService:
 
     def _validar_prerequisitos(
         self,
-        archivo_presupuesto: Optional[str],
         responsable_id: int
     ) -> Dict[str, Any]:
         """Valida que se cumplan los pre-requisitos."""
@@ -224,11 +202,6 @@ class InicializacionSistemaService:
         if not responsable:
             errores.append(f"Responsable con ID {responsable_id} no existe")
 
-        # Validar archivo de presupuesto si se proporcionó
-        if archivo_presupuesto:
-            if not Path(archivo_presupuesto).exists():
-                errores.append(f"Archivo de presupuesto no encontrado: {archivo_presupuesto}")
-
         if errores:
             logger.error("    Pre-requisitos no cumplidos:")
             for error in errores:
@@ -237,43 +210,6 @@ class InicializacionSistemaService:
 
         logger.info("    Todos los pre-requisitos cumplidos")
         return {"valido": True, "errores": []}
-
-    def _importar_presupuesto(
-        self,
-        archivo: str,
-        año_fiscal: int,
-        responsable_id: int,
-        dry_run: bool
-    ) -> Dict[str, Any]:
-        """Importa el presupuesto desde Excel."""
-        try:
-            importer = ExcelPresupuestoImporter(self.db)
-
-            # Configurar mapeo de columnas según tu Excel
-            # AJUSTAR SEGÚN LA ESTRUCTURA REAL DE TU EXCEL
-            resultado = importer.importar_desde_excel(
-                file_path=archivo,
-                año_fiscal=año_fiscal,
-                responsable_id=responsable_id,
-                categoria="TI",
-                creado_por="SISTEMA_INICIALIZACION",
-                hoja=0,
-                fila_inicio=7
-            )
-
-            logger.info(f"    Líneas creadas: {resultado.get('lineas_creadas', 0)}")
-            logger.info(f"    Líneas actualizadas: {resultado.get('lineas_actualizadas', 0)}")
-
-            if resultado.get("errores"):
-                logger.warning(f"     Errores: {len(resultado['errores'])}")
-                for error in resultado["errores"][:5]:
-                    logger.warning(f"      - {error}")
-
-            return resultado
-
-        except Exception as e:
-            logger.error(f"    Error en importación: {str(e)}")
-            raise
 
     def _autoconfigurar_asignaciones(
         self,

@@ -552,7 +552,7 @@ def obtener_mis_facturas_pendientes(
             "numero_factura": factura.numero_factura,
             "proveedor": proveedor_nombre,
             "nit": wf.nit_proveedor,
-            "monto": float(factura.total) if factura.total else 0,
+            "monto": float(factura.total_a_pagar) if factura.total_a_pagar else 0,
             "fecha_emision": str(factura.fecha_emision) if factura.fecha_emision else None,
             "estado": wf.estado.value,
             "es_identica_mes_anterior": wf.es_identica_mes_anterior,
@@ -597,22 +597,23 @@ def obtener_factura_con_workflow(
             "area": factura.proveedor.area
         }
 
+    # Calcular año/mes desde fecha_emision
+    año = factura.fecha_emision.year if factura.fecha_emision else None
+    mes = factura.fecha_emision.month if factura.fecha_emision else None
+
     factura_detalle = {
         "id": factura.id,
         "numero_factura": factura.numero_factura,
         "cufe": factura.cufe,
         "fecha_emision": str(factura.fecha_emision) if factura.fecha_emision else None,
+        "año": año,
+        "mes": mes,
         "proveedor": proveedor_info,
         "subtotal": float(factura.subtotal) if factura.subtotal else 0,
         "iva": float(factura.iva) if factura.iva else 0,
-        "total": float(factura.total) if factura.total else 0,
         "total_a_pagar": float(factura.total_a_pagar) if factura.total_a_pagar else 0,
-        "moneda": factura.moneda,
         "estado": factura.estado.value,
-        "observaciones": factura.observaciones,
-        "periodo_factura": factura.periodo_factura,
-        "concepto_principal": factura.concepto_principal,
-        "concepto_normalizado": factura.concepto_normalizado
+        "cantidad_items": len(factura.items) if factura.items else 0
     }
 
     workflow_info = None
@@ -786,3 +787,129 @@ def regenerar_todos_patrones(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error regenerando patrones: {str(e)}"
         )
+
+
+# ==================== ENDPOINT ENTERPRISE: COMPARACIÓN DE ITEMS ====================
+
+@router.post("/comparar-factura-items/{factura_id}")
+def comparar_factura_items(
+    factura_id: int,
+    meses_historico: int = Query(default=12, description="Meses de historial a analizar"),
+    db: Session = Depends(get_db)
+):
+    """
+    🔬 **ENDPOINT ENTERPRISE: Comparación Granular Item por Item**
+
+    Analiza una factura comparando cada item contra su historial mensual.
+
+    **Funcionalidad:**
+    - Compara item por item vs histórico del proveedor
+    - Detecta variaciones de precio unitario (umbrales: 15% moderado, 30% alto)
+    - Detecta variaciones de cantidad (umbrales: 20% moderado, 50% alto)
+    - Identifica items nuevos sin historial
+    - Genera alertas con severidad (baja/media/alta)
+    - Calcula confianza para aprobación automática (0-100%)
+
+    **Retorna:**
+    - Análisis detallado de cada item
+    - Alertas organizadas por severidad
+    - Recomendación de aprobación (aprobar_auto / en_revision)
+    - Porcentaje de confianza
+
+    **Uso:**
+    - Verificación manual antes de aprobar factura
+    - Auditoría de facturas ya procesadas
+    - Análisis de proveedores con cambios frecuentes
+    """
+    from app.services.comparador_items import ComparadorItemsService
+
+    try:
+        comparador = ComparadorItemsService(db)
+
+        resultado = comparador.comparar_factura_vs_historial(
+            factura_id=factura_id,
+            meses_historico=meses_historico
+        )
+
+        return {
+            "exito": True,
+            "factura_id": factura_id,
+            "analisis": resultado,
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error en análisis de items: {str(e)}"
+        )
+
+
+@router.get("/estadisticas-comparacion")
+def obtener_estadisticas_comparacion(
+    fecha_desde: Optional[str] = Query(None, description="Fecha inicio (YYYY-MM-DD)"),
+    fecha_hasta: Optional[str] = Query(None, description="Fecha fin (YYYY-MM-DD)"),
+    db: Session = Depends(get_db)
+):
+    """
+    📊 **Estadísticas del Sistema de Comparación de Items**
+
+    Retorna métricas globales del sistema de comparación automática.
+
+    **Métricas:**
+    - Total de facturas analizadas
+    - Tasa de aprobación automática
+    - Alertas más comunes
+    - Proveedores con más variaciones
+    - Tendencias de precios
+    """
+    from datetime import datetime as dt
+
+    # Parsear fechas
+    fecha_desde_dt = dt.fromisoformat(fecha_desde) if fecha_desde else dt(2024, 1, 1)
+    fecha_hasta_dt = dt.fromisoformat(fecha_hasta) if fecha_hasta else datetime.now()
+
+    # Consultar workflows en el rango
+    workflows = db.query(WorkflowAprobacionFactura).filter(
+        WorkflowAprobacionFactura.creado_en >= fecha_desde_dt,
+        WorkflowAprobacionFactura.creado_en <= fecha_hasta_dt
+    ).all()
+
+    total_analizadas = len(workflows)
+    total_aprobadas_auto = sum(1 for w in workflows if w.estado == EstadoFacturaWorkflow.APROBADA_AUTO)
+    total_revision_manual = sum(1 for w in workflows if w.estado == EstadoFacturaWorkflow.PENDIENTE_REVISION)
+
+    # Calcular tasa de aprobación automática
+    tasa_aprobacion_auto = (total_aprobadas_auto / total_analizadas * 100) if total_analizadas > 0 else 0
+
+    # Recopilar alertas
+    todas_alertas = []
+    for w in workflows:
+        if w.diferencias_detectadas:
+            todas_alertas.extend(w.diferencias_detectadas)
+
+    # Contar alertas por tipo
+    from collections import Counter
+    alertas_por_tipo = Counter(a.get('tipo', 'desconocido') for a in todas_alertas)
+
+    return {
+        "periodo": {
+            "desde": fecha_desde_dt.isoformat(),
+            "hasta": fecha_hasta_dt.isoformat()
+        },
+        "metricas_generales": {
+            "total_facturas_analizadas": total_analizadas,
+            "total_aprobadas_automaticamente": total_aprobadas_auto,
+            "total_revision_manual": total_revision_manual,
+            "tasa_aprobacion_automatica_pct": round(tasa_aprobacion_auto, 2)
+        },
+        "alertas": {
+            "total_alertas": len(todas_alertas),
+            "alertas_por_tipo": dict(alertas_por_tipo.most_common(10))
+        }
+    }

@@ -4,12 +4,17 @@ Servicio de Workflow Automático de Aprobación de Facturas.
 Este servicio analiza facturas nuevas y:
 1. Identifica el NIT del proveedor
 2. Asigna automáticamente al responsable
-3. Compara con la factura del mes anterior
-4. Aprueba automáticamente si es idéntica
+3. Compara ITEM POR ITEM con facturas del mes anterior (usando ComparadorItemsService)
+4. Aprueba automáticamente si cumple criterios de confianza
 5. Envía a revisión manual si hay diferencias
 6. Genera notificaciones
+7. Sincroniza estados con tabla facturas
 
 Integración: Se activa cuando llegan nuevas facturas desde Microsoft Graph a la tabla facturas
+
+Nivel: Enterprise Fortune 500
+Refactorizado: 2025-10-10
+Arquitecto: Senior Backend Development Team
 """
 
 from typing import Optional, Dict, Any, List, Tuple
@@ -18,7 +23,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, desc
 
-from app.models.factura import Factura
+from app.models.factura import Factura, EstadoFactura
 from app.models.workflow_aprobacion import (
     WorkflowAprobacionFactura,
     AsignacionNitResponsable,
@@ -27,15 +32,64 @@ from app.models.workflow_aprobacion import (
     TipoAprobacion,
     TipoNotificacion
 )
+from app.services.comparador_items import ComparadorItemsService
 
 
 class WorkflowAutomaticoService:
     """
     Servicio principal de workflow automático.
+
+    Refactorizado para usar ComparadorItemsService enterprise-grade
+    y sincronización automática de estados.
     """
 
     def __init__(self, db: Session):
         self.db = db
+        self.comparador = ComparadorItemsService(db)
+
+    # ============================================================================
+    # SINCRONIZACIÓN DE ESTADOS (Enterprise Pattern)
+    # ============================================================================
+
+    def _sincronizar_estado_factura(self, workflow: WorkflowAprobacionFactura) -> None:
+        """
+        Sincroniza el estado de la factura con el estado del workflow.
+
+        Enterprise Pattern: Single Source of Truth
+        - El workflow es la fuente autoritativa de estado
+        - La factura refleja el estado del workflow automáticamente
+        - Garantiza consistencia entre tablas
+
+        Args:
+            workflow: Workflow con el estado actualizado
+        """
+        # Mapeo autoritativo: EstadoFacturaWorkflow -> EstadoFactura
+        MAPEO_ESTADOS = {
+            EstadoFacturaWorkflow.RECIBIDA: EstadoFactura.pendiente,
+            EstadoFacturaWorkflow.EN_ANALISIS: EstadoFactura.pendiente,
+            EstadoFacturaWorkflow.APROBADA_AUTO: EstadoFactura.aprobada_auto,
+            EstadoFacturaWorkflow.APROBADA_MANUAL: EstadoFactura.aprobada,
+            EstadoFacturaWorkflow.RECHAZADA: EstadoFactura.rechazada,
+            EstadoFacturaWorkflow.PENDIENTE_REVISION: EstadoFactura.en_revision,
+            EstadoFacturaWorkflow.EN_REVISION: EstadoFactura.en_revision,
+            EstadoFacturaWorkflow.OBSERVADA: EstadoFactura.en_revision,
+            EstadoFacturaWorkflow.ENVIADA_CONTABILIDAD: EstadoFactura.aprobada,
+            EstadoFacturaWorkflow.PROCESADA: EstadoFactura.pagada,
+        }
+
+        if workflow.factura:
+            nuevo_estado = MAPEO_ESTADOS.get(workflow.estado, EstadoFactura.pendiente)
+            workflow.factura.estado = nuevo_estado
+
+            # Sincronizar campos de auditoría adicionales
+            if workflow.aprobada:
+                workflow.factura.aprobado_por = workflow.aprobada_por
+                workflow.factura.fecha_aprobacion = workflow.fecha_aprobacion
+
+            if workflow.rechazada:
+                workflow.factura.rechazado_por = workflow.rechazada_por
+                workflow.factura.fecha_rechazo = workflow.fecha_rechazo
+                workflow.factura.motivo_rechazo = workflow.detalle_rechazo
 
     def procesar_factura_nueva(self, factura_id: int) -> Dict[str, Any]:
         """
@@ -166,179 +220,164 @@ class WorkflowAutomaticoService:
         asignacion: AsignacionNitResponsable
     ) -> Dict[str, Any]:
         """
-        Compara la factura con la del mes anterior del mismo proveedor.
+        Compara la factura ITEM POR ITEM con facturas del mes anterior.
+
+        Enterprise Pattern: Usa ComparadorItemsService para análisis granular.
+
+        Args:
+            factura: Factura a analizar
+            workflow: Workflow asociado
+            asignacion: Configuración del responsable
+
+        Returns:
+            Dict con resultado del análisis y decisión de aprobación
         """
         # Cambiar estado a EN_ANALISIS
         workflow.estado = EstadoFacturaWorkflow.EN_ANALISIS
         workflow.fecha_cambio_estado = datetime.now()
+        self._sincronizar_estado_factura(workflow)  # ✅ Sincronizar
         tiempo_inicio = datetime.now()
 
-        # Buscar factura del mes anterior
-        if factura.fecha_emision:
-            mes_anterior = factura.fecha_emision - timedelta(days=30)
+        # ============================================================================
+        # COMPARACIÓN ENTERPRISE: Item por Item usando ComparadorItemsService
+        # ============================================================================
 
-            factura_anterior = self.db.query(Factura).filter(
-                and_(
-                    Factura.proveedor == factura.proveedor,
-                    Factura.id != factura.id,
-                    Factura.fecha_emision >= mes_anterior - timedelta(days=5),
-                    Factura.fecha_emision <= mes_anterior + timedelta(days=5)
+        try:
+            resultado_comparacion = self.comparador.comparar_factura_vs_historial(
+                factura_id=factura.id,
+                meses_historico=12  # Analiza últimos 12 meses de historial
+            )
+
+            # Actualizar workflow con resultados de la comparación
+            workflow.tiempo_en_analisis = int((datetime.now() - tiempo_inicio).total_seconds())
+            workflow.criterios_comparacion = {
+                "items_analizados": resultado_comparacion['items_analizados'],
+                "items_ok": resultado_comparacion['items_ok'],
+                "items_con_alertas": resultado_comparacion['items_con_alertas'],
+                "nuevos_items_count": resultado_comparacion['nuevos_items_count'],
+                "metodo": "ComparadorItemsService_v1.0"
+            }
+
+            # Calcular porcentaje de similitud basado en items
+            if resultado_comparacion['items_analizados'] > 0:
+                porcentaje_similitud = (
+                    resultado_comparacion['items_ok'] /
+                    resultado_comparacion['items_analizados'] * 100
                 )
-            ).order_by(desc(Factura.fecha_emision)).first()
+            else:
+                porcentaje_similitud = 0
 
-            if factura_anterior:
-                return self._comparar_facturas(factura, factura_anterior, workflow, asignacion, tiempo_inicio)
+            workflow.porcentaje_similitud = Decimal(str(round(porcentaje_similitud, 2)))
+            workflow.es_identica_mes_anterior = (resultado_comparacion['confianza'] >= 95)
 
-        # No hay factura del mes anterior
-        workflow.estado = EstadoFacturaWorkflow.PENDIENTE_REVISION
-        workflow.fecha_cambio_estado = datetime.now()
-        workflow.tiempo_en_analisis = int((datetime.now() - tiempo_inicio).total_seconds())
-        workflow.criterios_comparacion = {"sin_factura_anterior": True}
+            # Almacenar alertas como diferencias detectadas
+            if resultado_comparacion['alertas']:
+                workflow.diferencias_detectadas = resultado_comparacion['alertas']
 
-        self.db.commit()
+            # ============================================================================
+            # DECISIÓN: ¿Aprobar automáticamente o enviar a revisión?
+            # ============================================================================
 
-        return {
-            "requiere_revision": True,
-            "motivo": "No hay factura del mes anterior para comparar",
-            "estado": workflow.estado.value
-        }
+            if self._puede_aprobar_automaticamente_v2(
+                workflow,
+                asignacion,
+                factura,
+                resultado_comparacion
+            ):
+                return self._aprobar_automaticamente(workflow, factura)
+            else:
+                return self._enviar_a_revision_manual_v2(
+                    workflow,
+                    resultado_comparacion
+                )
 
-    def _comparar_facturas(
-        self,
-        factura_actual: Factura,
-        factura_anterior: Factura,
-        workflow: WorkflowAprobacionFactura,
-        asignacion: AsignacionNitResponsable,
-        tiempo_inicio: datetime
-    ) -> Dict[str, Any]:
-        """
-        Compara dos facturas y determina si son idénticas.
-        """
-        diferencias = []
-        criterios = {}
+        except Exception as e:
+            # Error en comparación: enviar a revisión manual por seguridad
+            workflow.estado = EstadoFacturaWorkflow.PENDIENTE_REVISION
+            workflow.fecha_cambio_estado = datetime.now()
+            workflow.tiempo_en_analisis = int((datetime.now() - tiempo_inicio).total_seconds())
+            workflow.criterios_comparacion = {
+                "error_comparacion": str(e),
+                "requiere_revision_manual": True
+            }
+            self._sincronizar_estado_factura(workflow)  # ✅ Sincronizar
+            self.db.commit()
 
-        # 1. Comparar proveedor (por proveedor_id)
-        proveedor_igual = factura_actual.proveedor_id == factura_anterior.proveedor_id
-        criterios["proveedor_igual"] = proveedor_igual
-        if not proveedor_igual:
-            proveedor_actual_nombre = factura_actual.proveedor.razon_social if factura_actual.proveedor else "Sin proveedor"
-            proveedor_anterior_nombre = factura_anterior.proveedor.razon_social if factura_anterior.proveedor else "Sin proveedor"
-            diferencias.append({
-                "campo": "proveedor",
-                "actual": proveedor_actual_nombre,
-                "anterior": proveedor_anterior_nombre
-            })
+            return {
+                "requiere_revision": True,
+                "motivo": f"Error en análisis automático: {str(e)}",
+                "estado": workflow.estado.value
+            }
 
-        # 2. Comparar monto
-        monto_actual = factura_actual.total or Decimal("0")
-        monto_anterior = factura_anterior.total or Decimal("0")
+    # ============================================================================
+    # MÉTODOS DE DECISIÓN ENTERPRISE (Refactorizados)
+    # ============================================================================
 
-        if monto_anterior > 0:
-            variacion_pct = abs((monto_actual - monto_anterior) / monto_anterior * 100)
-        else:
-            variacion_pct = 100 if monto_actual > 0 else 0
-
-        umbral_variacion = asignacion.porcentaje_variacion_permitido or Decimal("5.0")
-        monto_igual = variacion_pct <= umbral_variacion
-
-        criterios["monto_igual"] = monto_igual
-        criterios["variacion_porcentaje"] = float(variacion_pct)
-
-        if not monto_igual:
-            diferencias.append({
-                "campo": "monto",
-                "actual": float(monto_actual),
-                "anterior": float(monto_anterior),
-                "variacion_pct": float(variacion_pct)
-            })
-
-        # 3. Comparar concepto
-        concepto_actual = factura_actual.concepto_normalizado or factura_actual.concepto_principal or ""
-        concepto_anterior = factura_anterior.concepto_normalizado or factura_anterior.concepto_principal or ""
-        concepto_igual = self._comparar_conceptos(concepto_actual, concepto_anterior)
-        criterios["concepto_igual"] = concepto_igual
-
-        if not concepto_igual:
-            diferencias.append({
-                "campo": "concepto",
-                "actual": concepto_actual,
-                "anterior": concepto_anterior
-            })
-
-        # 4. Calcular porcentaje de similitud global
-        puntos = 0
-        if proveedor_igual:
-            puntos += 40
-        if monto_igual:
-            puntos += 40
-        if concepto_igual:
-            puntos += 20
-
-        porcentaje_similitud = Decimal(str(puntos))
-
-        # Actualizar workflow
-        workflow.factura_mes_anterior_id = factura_anterior.id
-        workflow.porcentaje_similitud = porcentaje_similitud
-        workflow.criterios_comparacion = criterios
-        workflow.diferencias_detectadas = diferencias if diferencias else None
-        workflow.es_identica_mes_anterior = (porcentaje_similitud >= 95)
-        workflow.tiempo_en_analisis = int((datetime.now() - tiempo_inicio).total_seconds())
-
-        # Decidir: ¿Aprobación automática o revisión manual?
-        if self._puede_aprobar_automaticamente(workflow, asignacion, factura_actual):
-            return self._aprobar_automaticamente(workflow, factura_actual)
-        else:
-            return self._enviar_a_revision_manual(workflow, diferencias)
-
-    def _comparar_conceptos(self, concepto1: Optional[str], concepto2: Optional[str]) -> bool:
-        """Compara dos conceptos de factura."""
-        if not concepto1 or not concepto2:
-            return concepto1 == concepto2
-
-        # Normalizar
-        c1 = concepto1.lower().strip()
-        c2 = concepto2.lower().strip()
-
-        # Similitud exacta
-        if c1 == c2:
-            return True
-
-        # Similitud por palabras clave (al menos 70% de palabras en común)
-        palabras1 = set(c1.split())
-        palabras2 = set(c2.split())
-
-        if len(palabras1) == 0 or len(palabras2) == 0:
-            return False
-
-        interseccion = palabras1.intersection(palabras2)
-        similitud = len(interseccion) / max(len(palabras1), len(palabras2)) * 100
-
-        return similitud >= 70
-
-    def _puede_aprobar_automaticamente(
+    def _puede_aprobar_automaticamente_v2(
         self,
         workflow: WorkflowAprobacionFactura,
         asignacion: AsignacionNitResponsable,
-        factura: Factura
+        factura: Factura,
+        resultado_comparacion: Dict[str, Any]
     ) -> bool:
-        """Determina si la factura puede aprobarse automáticamente."""
-        # Regla 1: Debe estar habilitada la aprobación automática
+        """
+        Determina si la factura puede aprobarse automáticamente.
+
+        Enterprise Rules Engine con validaciones multinivel.
+
+        Args:
+            workflow: Workflow actual
+            asignacion: Configuración del responsable
+            factura: Factura a evaluar
+            resultado_comparacion: Resultado del ComparadorItemsService
+
+        Returns:
+            True si cumple TODAS las reglas de aprobación automática
+        """
+        # ============================================================================
+        # REGLA 1: Configuración del Responsable
+        # ============================================================================
+
+        # 1.1 - Debe estar habilitada la aprobación automática
         if not asignacion.permitir_aprobacion_automatica:
             return False
 
-        # Regla 2: No debe requerir revisión siempre
+        # 1.2 - No debe requerir revisión siempre
         if asignacion.requiere_revision_siempre:
             return False
 
-        # Regla 3: Debe ser idéntica al mes anterior
-        if not workflow.es_identica_mes_anterior:
+        # ============================================================================
+        # REGLA 2: Confianza del Análisis de Items
+        # ============================================================================
+
+        # 2.1 - Confianza debe ser >= 95% (sin alertas críticas)
+        if resultado_comparacion['confianza'] < 95.0:
             return False
 
-        # Regla 4: Monto debe estar dentro del límite
+        # 2.2 - No debe tener alertas críticas (severidad alta)
+        alertas_criticas = [
+            alerta for alerta in resultado_comparacion.get('alertas', [])
+            if alerta.get('severidad') == 'alta'
+        ]
+        if alertas_criticas:
+            return False
+
+        # 2.3 - No debe tener items nuevos sin historial (requiere revisión)
+        if resultado_comparacion.get('nuevos_items_count', 0) > 0:
+            return False
+
+        # ============================================================================
+        # REGLA 3: Validación de Montos
+        # ============================================================================
+
+        # 3.1 - Monto debe estar dentro del límite configurado
         if asignacion.monto_maximo_auto_aprobacion:
-            if factura.total and factura.total > asignacion.monto_maximo_auto_aprobacion:
+            if factura.total_a_pagar and factura.total_a_pagar > asignacion.monto_maximo_auto_aprobacion:
                 return False
 
+        # ============================================================================
+        # TODAS LAS REGLAS APROBADAS ✅
+        # ============================================================================
         return True
 
     def _aprobar_automaticamente(
@@ -346,14 +385,25 @@ class WorkflowAutomaticoService:
         workflow: WorkflowAprobacionFactura,
         factura: Factura
     ) -> Dict[str, Any]:
-        """Aprueba automáticamente una factura."""
+        """
+        Aprueba automáticamente una factura.
+
+        Enterprise Pattern: Aprobación con trazabilidad completa.
+        """
         workflow.estado = EstadoFacturaWorkflow.APROBADA_AUTO
         workflow.fecha_cambio_estado = datetime.now()
         workflow.tipo_aprobacion = TipoAprobacion.AUTOMATICA
         workflow.aprobada = True
         workflow.aprobada_por = "SISTEMA_AUTO"
         workflow.fecha_aprobacion = datetime.now()
-        workflow.observaciones_aprobacion = f"Aprobación automática - {workflow.porcentaje_similitud}% similitud con mes anterior"
+        workflow.observaciones_aprobacion = (
+            f"✅ Aprobación automática - Confianza: {workflow.porcentaje_similitud}%\n"
+            f"Análisis de items: {workflow.criterios_comparacion.get('items_ok', 0)}/{workflow.criterios_comparacion.get('items_analizados', 0)} items verificados\n"
+            f"Método: ComparadorItemsService Enterprise v1.0"
+        )
+
+        # ✅ SINCRONIZAR ESTADO CON FACTURA
+        self._sincronizar_estado_factura(workflow)
 
         self.db.commit()
 
@@ -367,7 +417,7 @@ class WorkflowAutomaticoService:
             La factura {factura.numero_factura} ha sido aprobada automáticamente.
 
             Proveedor: {factura.proveedor}
-            Monto: ${factura.total:,.2f}
+            Monto: ${factura.total_a_pagar:,.2f}
             Similitud con mes anterior: {workflow.porcentaje_similitud}%
 
             No requiere acción adicional.
@@ -381,40 +431,81 @@ class WorkflowAutomaticoService:
             "mensaje": "Factura aprobada automáticamente"
         }
 
-    def _enviar_a_revision_manual(
+    def _enviar_a_revision_manual_v2(
         self,
         workflow: WorkflowAprobacionFactura,
-        diferencias: List[Dict]
+        resultado_comparacion: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Envía la factura a revisión manual."""
+        """
+        Envía la factura a revisión manual.
+
+        Enterprise Pattern: Revisión inteligente con contexto completo.
+        """
         workflow.estado = EstadoFacturaWorkflow.PENDIENTE_REVISION
         workflow.fecha_cambio_estado = datetime.now()
 
+        # ✅ SINCRONIZAR ESTADO CON FACTURA
+        self._sincronizar_estado_factura(workflow)
+
         self.db.commit()
 
-        # Crear notificación para el responsable
+        # Crear notificación para el responsable con contexto completo
+        alertas_resumen = self._formatear_alertas_para_notificacion(
+            resultado_comparacion.get('alertas', [])
+        )
+
         self._crear_notificacion(
             workflow=workflow,
             tipo=TipoNotificacion.PENDIENTE_REVISION,
             destinatarios=[],  # Email del responsable
             asunto=f"⚠️ Factura Pendiente de Revisión - {workflow.factura.numero_factura}",
             cuerpo=f"""
-            La factura {workflow.factura.numero_factura} requiere su revisión.
+            La factura {workflow.factura.numero_factura} requiere su revisión manual.
 
-            Se detectaron diferencias con respecto al mes anterior:
-            {self._formatear_diferencias(diferencias)}
+            📊 ANÁLISIS AUTOMÁTICO:
+            - Items analizados: {resultado_comparacion.get('items_analizados', 0)}
+            - Items OK: {resultado_comparacion.get('items_ok', 0)}
+            - Items con alertas: {resultado_comparacion.get('items_con_alertas', 0)}
+            - Items nuevos: {resultado_comparacion.get('nuevos_items_count', 0)}
+            - Confianza: {resultado_comparacion.get('confianza', 0)}%
 
-            Por favor, revise y apruebe o rechace la factura.
+            ⚠️ ALERTAS DETECTADAS:
+            {alertas_resumen}
+
+            Por favor, revise y apruebe o rechace la factura en el sistema.
             """
         )
 
         return {
             "requiere_revision": True,
             "estado": workflow.estado.value,
-            "diferencias": diferencias,
+            "alertas": resultado_comparacion.get('alertas', []),
+            "items_analizados": resultado_comparacion.get('items_analizados', 0),
+            "items_con_alertas": resultado_comparacion.get('items_con_alertas', 0),
             "porcentaje_similitud": float(workflow.porcentaje_similitud or 0),
-            "mensaje": "Factura enviada a revisión manual"
+            "confianza": resultado_comparacion.get('confianza', 0),
+            "mensaje": "Factura enviada a revisión manual - Análisis enterprise completado"
         }
+
+    def _formatear_alertas_para_notificacion(self, alertas: List[Dict]) -> str:
+        """Formatea las alertas del comparador para mostrar en notificación."""
+        if not alertas:
+            return "Sin alertas"
+
+        texto = ""
+        for i, alerta in enumerate(alertas[:10], 1):  # Máximo 10 alertas en email
+            severidad_emoji = {
+                'alta': '🔴',
+                'media': '🟡',
+                'baja': '🟢'
+            }.get(alerta.get('severidad', 'media'), '⚪')
+
+            texto += f"\n{i}. {severidad_emoji} {alerta.get('tipo', 'Alerta')}: {alerta.get('mensaje', 'Sin detalle')}"
+
+        if len(alertas) > 10:
+            texto += f"\n\n... y {len(alertas) - 10} alertas más. Ver sistema para detalle completo."
+
+        return texto
 
     def _formatear_diferencias(self, diferencias: List[Dict]) -> str:
         """Formatea las diferencias para mostrar en notificación."""
@@ -455,7 +546,7 @@ class WorkflowAutomaticoService:
     ):
         """Envía notificación inicial de factura recibida."""
         proveedor_nombre = factura.proveedor.razon_social if factura.proveedor else "Sin proveedor"
-        monto = factura.total or 0
+        monto = factura.total_a_pagar or 0
         fecha = factura.fecha_emision or "Sin fecha"
 
         self._crear_notificacion(
@@ -480,7 +571,11 @@ class WorkflowAutomaticoService:
         aprobado_por: str,
         observaciones: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Aprueba manualmente una factura."""
+        """
+        Aprueba manualmente una factura.
+
+        Enterprise Pattern: Aprobación manual con trazabilidad y sincronización.
+        """
         workflow = self.db.query(WorkflowAprobacionFactura).filter(
             WorkflowAprobacionFactura.id == workflow_id
         ).first()
@@ -488,14 +583,18 @@ class WorkflowAutomaticoService:
         if not workflow:
             return {"error": "Workflow no encontrado"}
 
-        workflow.estado = EstadoFacturaWorkflow.APROBADA_MANUAL
+        # Actualizar workflow
         workflow.estado_anterior = workflow.estado
+        workflow.estado = EstadoFacturaWorkflow.APROBADA_MANUAL
         workflow.fecha_cambio_estado = datetime.now()
         workflow.tipo_aprobacion = TipoAprobacion.MANUAL
         workflow.aprobada = True
         workflow.aprobada_por = aprobado_por
         workflow.fecha_aprobacion = datetime.now()
         workflow.observaciones_aprobacion = observaciones
+
+        # ✅ SINCRONIZAR ESTADO CON FACTURA
+        self._sincronizar_estado_factura(workflow)
 
         self.db.commit()
 
@@ -522,7 +621,11 @@ class WorkflowAutomaticoService:
         motivo: str,
         detalle: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Rechaza una factura."""
+        """
+        Rechaza una factura.
+
+        Enterprise Pattern: Rechazo con trazabilidad y sincronización.
+        """
         workflow = self.db.query(WorkflowAprobacionFactura).filter(
             WorkflowAprobacionFactura.id == workflow_id
         ).first()
@@ -532,13 +635,17 @@ class WorkflowAutomaticoService:
 
         from app.models.workflow_aprobacion import MotivoRechazo
 
-        workflow.estado = EstadoFacturaWorkflow.RECHAZADA
+        # Actualizar workflow
         workflow.estado_anterior = workflow.estado
+        workflow.estado = EstadoFacturaWorkflow.RECHAZADA
         workflow.fecha_cambio_estado = datetime.now()
         workflow.rechazada = True
         workflow.rechazada_por = rechazado_por
         workflow.fecha_rechazo = datetime.now()
         workflow.detalle_rechazo = detalle
+
+        # ✅ SINCRONIZAR ESTADO CON FACTURA
+        self._sincronizar_estado_factura(workflow)
 
         self.db.commit()
 

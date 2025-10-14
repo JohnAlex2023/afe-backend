@@ -14,6 +14,7 @@ from app.api.v1.routers import (
     workflow,
     responsable_proveedor,
     flujo_automatizacion,
+    email_config,
 )
 
 # Router principal con prefijo global
@@ -37,3 +38,4 @@ api_router.include_router(historial_pagos.router, tags=["Historial de Pagos"])
 api_router.include_router(workflow.router, tags=["Workflow Aprobación"])
 api_router.include_router(responsable_proveedor.router, tags=["Responsable-Proveedor"])
 api_router.include_router(flujo_automatizacion.router, tags=["Flujo de Automatización"])
+api_router.include_router(email_config.router, tags=["Email Configuration"])

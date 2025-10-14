@@ -16,6 +16,7 @@ from .workflow_aprobacion import (
     ConfiguracionCorreo
 )
 from .historial_pagos import HistorialPagos, TipoPatron
+from .email_config import CuentaCorreo, NitConfiguracion, HistorialExtraccion
 
 __all__ = [
     "Cliente",
@@ -32,5 +33,8 @@ __all__ = [
     "ConfiguracionCorreo",
     "HistorialPagos",
     "TipoPatron",
+    "CuentaCorreo",
+    "NitConfiguracion",
+    "HistorialExtraccion",
     "Base",
 ]

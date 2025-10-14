@@ -78,21 +78,21 @@ def export_facturas_to_csv(
     output = StringIO()
     writer = csv.writer(output)
 
-    # Escribir encabezados
+    # Escribir encabezados (actualizado sin campos obsoletos)
     headers = [
         'ID',
         'Número Factura',
         'CUFE',
         'Fecha Emisión',
+        'Año',
+        'Mes',
         'NIT Proveedor',
         'Nombre Proveedor',
         'Subtotal',
         'IVA',
         'Total',
         'Estado',
-        'Período',
-        'Concepto',
-        'Orden Compra',
+        'Cantidad Items',
         'Fecha Vencimiento',
         'Aprobado Por',
         'Fecha Aprobación',
@@ -102,20 +102,27 @@ def export_facturas_to_csv(
 
     # Escribir datos
     for factura in facturas:
+        # Calcular año/mes desde fecha_emision
+        año = factura.fecha_emision.year if factura.fecha_emision else ''
+        mes = factura.fecha_emision.month if factura.fecha_emision else ''
+
+        # Contar items de la factura
+        cantidad_items = len(factura.items) if factura.items else 0
+
         row = [
             factura.id,
             factura.numero_factura,
             factura.cufe or '',
             factura.fecha_emision.strftime('%Y-%m-%d') if factura.fecha_emision else '',
+            año,
+            mes,
             factura.proveedor.nit if factura.proveedor else '',
             factura.proveedor.razon_social if factura.proveedor else '',
             float(factura.subtotal or 0),
             float(factura.iva or 0),
-            float(factura.total or 0),
+            float(factura.total_a_pagar or 0),
             factura.estado.value if hasattr(factura.estado, 'value') else str(factura.estado),
-            factura.periodo_factura or '',
-            factura.concepto or '',
-            factura.orden_compra_numero or '',
+            cantidad_items,
             factura.fecha_vencimiento.strftime('%Y-%m-%d') if factura.fecha_vencimiento else '',
             factura.aprobado_por or '',
             factura.fecha_aprobacion.strftime('%Y-%m-%d %H:%M:%S') if factura.fecha_aprobacion else '',
