@@ -179,7 +179,7 @@ class DecisionEngine:
         criterios.append(self._evaluar_monto_razonable(factura, resultado_patron))
         
         # 4. Criterio: Fecha esperada
-        criterios.append(self._evaluar_fecha_esperada(factura, resultado_patron))
+        criterios.append(self._evaluar_fecha_esperada(factura, resultado_patron, facturas_historicas))
         
         # 5. Criterio: Orden de compra válida
         criterios.append(self._evaluar_orden_compra(factura, facturas_historicas))
@@ -269,7 +269,7 @@ class DecisionEngine:
             valor_requerido=self.config['max_monto_aprobacion_automatica']
         )
 
-    def _evaluar_fecha_esperada(self, factura: Factura, resultado_patron: ResultadoAnalisisPatron) -> CriterioValidacion:
+    def _evaluar_fecha_esperada(self, factura: Factura, resultado_patron: ResultadoAnalisisPatron, facturas_historicas: List[Factura]) -> CriterioValidacion:
         """Evalúa si la fecha de la factura está cerca de la fecha esperada."""
         if not resultado_patron.patron_temporal.consistente:
             return CriterioValidacion(
@@ -282,18 +282,26 @@ class DecisionEngine:
             )
         
         # Calcular fecha esperada basada en patrón temporal
-        if not resultado_patron.facturas_referencia:
+        # NOTA: facturas_referencia contiene IDs, no objetos Factura
+        # Por lo tanto, usamos facturas_historicas directamente
+        if not resultado_patron.facturas_referencia or not facturas_historicas:
             fecha_esperada_cumple = False
             dias_diferencia = 999
         else:
-            # Usar la última factura como referencia
-            ultima_fecha_historica = max(f.fecha_emision for f in resultado_patron.facturas_referencia 
-                                       if hasattr(f, 'fecha_emision'))
-            dias_patron = resultado_patron.patron_temporal.promedio_dias
-            fecha_esperada = ultima_fecha_historica + timedelta(days=int(dias_patron))
-            
-            dias_diferencia = abs((factura.fecha_emision - fecha_esperada).days)
-            fecha_esperada_cumple = dias_diferencia <= self.config['max_dias_diferencia_esperada']
+            # Filtrar facturas históricas con fecha válida
+            fechas_historicas = [f.fecha_emision for f in facturas_historicas if f.fecha_emision]
+
+            if not fechas_historicas:
+                fecha_esperada_cumple = False
+                dias_diferencia = 999
+            else:
+                # Usar la última fecha histórica como referencia
+                ultima_fecha_historica = max(fechas_historicas)
+                dias_patron = resultado_patron.patron_temporal.promedio_dias
+                fecha_esperada = ultima_fecha_historica + timedelta(days=int(dias_patron))
+
+                dias_diferencia = abs((factura.fecha_emision - fecha_esperada).days)
+                fecha_esperada_cumple = dias_diferencia <= self.config['max_dias_diferencia_esperada']
         
         return CriterioValidacion(
             nombre="fecha_esperada",

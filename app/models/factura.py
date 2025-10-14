@@ -55,6 +55,28 @@ class Factura(Base):
     fecha_procesamiento_auto = Column(DateTime(timezone=True), nullable=True,
                                      comment="Cuándo se ejecutó el procesamiento automático")
 
+    # ✨ CAMPOS PARA MATCHING Y COMPARACIÓN EMPRESARIAL ✨
+
+    # Concepto y descripción
+    concepto_principal = Column(String(500), nullable=True,
+                               comment="Descripción/concepto principal de la factura")
+    concepto_hash = Column(String(32), nullable=True, index=True,
+                          comment="Hash MD5 del concepto normalizado para matching rápido")
+    concepto_normalizado = Column(String(500), nullable=True,
+                                 comment="Concepto sin stopwords y normalizado")
+
+    # Orden de compra
+    orden_compra_numero = Column(String(50), nullable=True, index=True,
+                                comment="Número de orden de compra asociada")
+
+    # Patrón de recurrencia
+    patron_recurrencia = Column(String(20), nullable=True,
+                               comment="Patrón: FIJO, VARIABLE, UNICO, DESCONOCIDO")
+
+    # Tipo de factura (clasificación empresarial)
+    tipo_factura = Column(String(20), nullable=False, server_default='COMPRA',
+                         comment="Tipo: COMPRA, VENTA, NOTA_CREDITO, NOTA_DEBITO")
+
     proveedor = relationship("Proveedor", back_populates="facturas", lazy="joined")
     responsable = relationship("Responsable", back_populates="facturas", lazy="joined")
 

@@ -1,0 +1,158 @@
+{% set title = "Error Crítico en Procesamiento" %}
+{% set header_icon = "❌" %}
+{% set header_title = "ERROR CRÍTICO EN PROCESAMIENTO" %}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                            <h1 style="margin: 0; font-size: 24px; font-weight: 600;">{{ header_icon }} {{ header_title }}</h1>
+                        </td>
+                    </tr>
+
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 30px;">
+                            <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">
+                                Hola <strong>{{ responsable_nombre }}</strong>,
+                            </p>
+
+                            <p style="margin: 0 0 25px 0; font-size: 15px; color: #555;">
+                                Se ha producido un <strong style="color: #dc3545;">ERROR CRÍTICO</strong> al procesar la siguiente factura:
+                            </p>
+
+                            <!-- Factura Info Box -->
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f8d7da; border-left: 4px solid #dc3545; border-radius: 4px; margin: 0 0 25px 0;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <p style="margin: 0 0 10px 0; font-size: 14px; color: #721c24;">
+                                            <strong style="color: #dc3545;">📄 Factura:</strong> {{ numero_factura }}
+                                        </p>
+                                        <p style="margin: 0 0 10px 0; font-size: 14px; color: #721c24;">
+                                            <strong style="color: #dc3545;">🏢 Proveedor:</strong> {{ proveedor_nombre }}
+                                        </p>
+                                        <p style="margin: 0; font-size: 14px; color: #721c24;">
+                                            <strong style="color: #dc3545;">⏰ Fecha del Error:</strong> {{ fecha_error|date_es }}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Descripción del Error -->
+                            <h2 style="margin: 0 0 15px 0; font-size: 18px; color: #dc3545;">
+                                🐛 DESCRIPCIÓN DEL ERROR
+                            </h2>
+
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #fff3cd; border-radius: 4px; margin: 0 0 25px 0;">
+                                <tr>
+                                    <td style="padding: 15px;">
+                                        <p style="margin: 0; font-size: 14px; color: #856404; font-family: 'Courier New', monospace;">
+                                            {{ error_descripcion }}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Stack Trace (si existe) -->
+                            {% if stack_trace %}
+                            <h2 style="margin: 0 0 15px 0; font-size: 16px; color: #6c757d;">
+                                📋 Stack Trace (Detalles Técnicos)
+                            </h2>
+
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; margin: 0 0 25px 0;">
+                                <tr>
+                                    <td style="padding: 15px; overflow-x: auto;">
+                                        <pre style="margin: 0; font-size: 11px; color: #495057; font-family: 'Courier New', monospace; white-space: pre-wrap; word-wrap: break-word;">{{ stack_trace }}</pre>
+                                    </td>
+                                </tr>
+                            </table>
+                            {% endif %}
+
+                            <!-- Impacto -->
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f8d7da; border-left: 4px solid #dc3545; border-radius: 4px; margin: 0 0 25px 0;">
+                                <tr>
+                                    <td style="padding: 15px;">
+                                        <p style="margin: 0 0 10px 0; font-size: 14px; color: #721c24;">
+                                            <strong>⚠️ IMPACTO:</strong>
+                                        </p>
+                                        <p style="margin: 0 0 5px 0; font-size: 13px; color: #721c24;">
+                                            • La factura NO fue procesada por el sistema de automatización
+                                        </p>
+                                        <p style="margin: 0 0 5px 0; font-size: 13px; color: #721c24;">
+                                            • Se requiere <strong>intervención manual inmediata</strong>
+                                        </p>
+                                        <p style="margin: 0; font-size: 13px; color: #721c24;">
+                                            • El equipo técnico fue notificado automáticamente
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Acciones Recomendadas -->
+                            <h2 style="margin: 0 0 15px 0; font-size: 18px; color: #dc3545;">
+                                🔧 ACCIONES RECOMENDADAS
+                            </h2>
+
+                            <ul style="margin: 0 0 25px 0; padding-left: 20px; color: #555;">
+                                <li style="margin-bottom: 8px;">Revisar la factura manualmente en el sistema</li>
+                                <li style="margin-bottom: 8px;">Verificar si los datos de la factura están completos y correctos</li>
+                                <li style="margin-bottom: 8px;">Contactar al equipo técnico si el error persiste</li>
+                                <li style="margin-bottom: 8px;">No intentar reprocesar hasta que el error sea resuelto</li>
+                            </ul>
+
+                            <!-- Call to Action -->
+                            <div style="text-align: center; margin: 30px 0;">
+                                <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto;">
+                                    <tr>
+                                        <td style="padding: 0 10px;">
+                                            <a href="{{ url_ver_factura }}" style="display: inline-block; padding: 12px 25px; background-color: #dc3545; color: white; text-decoration: none; border-radius: 5px; font-weight: 600; font-size: 14px;">
+                                                🔍 Ver Factura
+                                            </a>
+                                        </td>
+                                        <td style="padding: 0 10px;">
+                                            <a href="{{ url_soporte }}" style="display: inline-block; padding: 12px 25px; background-color: #6c757d; color: white; text-decoration: none; border-radius: 5px; font-weight: 600; font-size: 14px;">
+                                                📞 Contactar Soporte
+                                            </a>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <!-- Deadline Note -->
+                            <p style="margin: 25px 0 0 0; padding: 15px; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; font-size: 13px; color: #856404;">
+                                <strong>⏰ Prioridad:</strong> CRÍTICA - Requiere atención inmediata
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f8f9fa; padding: 20px 30px; text-align: center; border-radius: 0 0 8px 8px;">
+                            <p style="margin: 0; font-size: 12px; color: #6c757d;">
+                                Este es un mensaje automático del <strong>Sistema de Automatización de Facturas AFE</strong>
+                            </p>
+                            <p style="margin: 10px 0 0 0; font-size: 12px; color: #6c757d;">
+                                Para preguntas o soporte, contacte a soporte@afe.com
+                            </p>
+                            <p style="margin: 15px 0 0 0; font-size: 11px; color: #adb5bd;">
+                                &copy; 2025 AFE Backend. Todos los derechos reservados.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

@@ -16,6 +16,8 @@ from app.models.factura import Factura, EstadoFactura
 from app.models.responsable import Responsable
 from app.crud import responsable as crud_responsable
 from app.crud import audit as crud_audit
+from app.services.email_service import get_email_service
+from app.services.email_template_service import get_template_service
 
 
 # Configurar logging
@@ -36,9 +38,13 @@ class NotificationService:
     """
     Servicio de notificaciones para automatización de facturas.
     """
-    
+
     def __init__(self):
         self.config_default = ConfiguracionNotificacion()
+
+        # Servicios de email
+        self.email_service = get_email_service()
+        self.template_service = get_template_service()
         
         # Plantillas de mensajes
         self.plantillas = {
@@ -155,36 +161,49 @@ Sistema Automático de Facturas
         }
 
     def notificar_revision_requerida(
-        self, 
-        db: Session, 
+        self,
+        db: Session,
         factura: Factura,
         motivo: str,
         confianza: float,
         patron_detectado: str,
+        alertas: Optional[List[str]] = None,
+        contexto_historico: Optional[Dict[str, Any]] = None,
         config: Optional[ConfiguracionNotificacion] = None
     ) -> Dict[str, Any]:
         """
         Envía notificación cuando una factura requiere revisión manual.
         """
         config = config or self.config_default
-        
+
         try:
             # Obtener responsables de la factura
             responsables = self._obtener_responsables_factura(db, factura)
-            
-            # Preparar datos para la plantilla
-            datos_plantilla = self._preparar_datos_factura(factura, {
+
+            # Preparar datos para la plantilla HTML
+            datos_plantilla = {
+                'numero_factura': factura.numero_factura,
+                'proveedor_nombre': factura.proveedor.nombre if factura.proveedor else 'N/A',
+                'monto': float(factura.total_a_pagar or 0),
+                'fecha_emision': factura.fecha_emision,
+                'concepto': factura.concepto_principal or factura.concepto_normalizado or 'Sin concepto',
                 'motivo_revision': motivo,
+                'alertas': alertas or [],
+                'contexto_historico': contexto_historico,
+                'confianza': confianza,
                 'confianza_pct': confianza * 100,
                 'patron_detectado': patron_detectado,
-                'es_recurrente': 'Sí' if confianza > 0.7 else 'No'
-            })
-            
+                'es_recurrente': 'Sí' if confianza > 0.7 else 'No',
+                'url_aprobar': f"/api/v1/facturas/{factura.id}/aprobar",
+                'url_ver_factura': f"/facturas/{factura.id}",
+                'url_rechazar': f"/api/v1/facturas/{factura.id}/rechazar"
+            }
+
             resultados_envio = []
-            
+
             for responsable in responsables:
-                datos_plantilla['nombre_responsable'] = responsable.nombre
-                
+                datos_plantilla['responsable_nombre'] = responsable.nombre
+
                 resultado = self._enviar_notificacion_individual(
                     'revision_requerida',
                     responsable,
@@ -192,62 +211,68 @@ Sistema Automático de Facturas
                     config
                 )
                 resultados_envio.append(resultado)
-            
+
             # Registrar en auditoría
             self._registrar_notificacion_auditoria(
                 db, factura, 'revision_requerida', responsables, motivo
             )
-            
+
             return {
                 'exito': True,
                 'notificaciones_enviadas': len([r for r in resultados_envio if r['exito']]),
                 'total_responsables': len(responsables),
                 'detalles': resultados_envio
             }
-            
+
         except Exception as e:
             logger.error(f"Error enviando notificación de revisión para factura {factura.id}: {str(e)}")
             return {'exito': False, 'error': str(e)}
 
     def notificar_aprobacion_automatica(
-        self, 
-        db: Session, 
+        self,
+        db: Session,
         factura: Factura,
         criterios_cumplidos: List[str],
         confianza: float,
         patron_detectado: str,
         factura_referencia: Optional[str] = None,
+        variacion_monto: float = 0.0,
         config: Optional[ConfiguracionNotificacion] = None
     ) -> Dict[str, Any]:
         """
         Envía notificación cuando una factura es aprobada automáticamente.
         """
         config = config or self.config_default
-        
+
         try:
             # Solo notificar si está configurado para hacerlo
             if not config.activar_sistema:
                 return {'exito': True, 'mensaje': 'Notificaciones desactivadas'}
-            
+
             # Obtener responsables de la factura
             responsables = self._obtener_responsables_factura(db, factura)
-            
-            # Preparar criterios cumplidos como texto
-            criterios_texto = '\n'.join(f"✓ {criterio}" for criterio in criterios_cumplidos)
-            
-            # Preparar datos para la plantilla
-            datos_plantilla = self._preparar_datos_factura(factura, {
-                'criterios_cumplidos': criterios_texto,
+
+            # Preparar datos para la plantilla HTML
+            datos_plantilla = {
+                'numero_factura': factura.numero_factura,
+                'proveedor_nombre': factura.proveedor.nombre if factura.proveedor else 'N/A',
+                'monto': float(factura.total_a_pagar or 0),
+                'fecha_emision': factura.fecha_emision,
+                'concepto': factura.concepto_principal or factura.concepto_normalizado or 'Sin concepto',
+                'confianza': confianza,
                 'confianza_pct': confianza * 100,
                 'patron_detectado': patron_detectado,
-                'factura_referencia': factura_referencia or 'N/A'
-            })
-            
+                'factura_referencia': factura_referencia or 'N/A',
+                'variacion_monto': variacion_monto,
+                'criterios_cumplidos': criterios_cumplidos,
+                'url_ver_factura': f"/facturas/{factura.id}"
+            }
+
             resultados_envio = []
-            
+
             for responsable in responsables:
-                datos_plantilla['nombre_responsable'] = responsable.nombre
-                
+                datos_plantilla['responsable_nombre'] = responsable.nombre
+
                 resultado = self._enviar_notificacion_individual(
                     'aprobacion_automatica',
                     responsable,
@@ -255,28 +280,30 @@ Sistema Automático de Facturas
                     config
                 )
                 resultados_envio.append(resultado)
-            
+
             # Registrar en auditoría
             self._registrar_notificacion_auditoria(
                 db, factura, 'aprobacion_automatica', responsables
             )
-            
+
             return {
                 'exito': True,
                 'notificaciones_enviadas': len([r for r in resultados_envio if r['exito']]),
                 'total_responsables': len(responsables),
                 'detalles': resultados_envio
             }
-            
+
         except Exception as e:
             logger.error(f"Error enviando notificación de aprobación para factura {factura.id}: {str(e)}")
             return {'exito': False, 'error': str(e)}
 
     def enviar_resumen_procesamiento(
-        self, 
+        self,
         db: Session,
         estadisticas_procesamiento: Dict[str, Any],
         facturas_pendientes: List[Factura],
+        facturas_aprobadas: Optional[List[Factura]] = None,
+        tendencias: Optional[Dict[str, Any]] = None,
         responsables_notificar: Optional[List[int]] = None,
         config: Optional[ConfiguracionNotificacion] = None
     ) -> Dict[str, Any]:
@@ -284,41 +311,67 @@ Sistema Automático de Facturas
         Envía resumen del procesamiento automático a los responsables.
         """
         config = config or self.config_default
-        
+
         try:
             # Obtener responsables a notificar
             if responsables_notificar:
-                responsables = [crud_responsable.get_responsable(db, id_resp) 
+                responsables = [crud_responsable.get_responsable(db, id_resp)
                              for id_resp in responsables_notificar]
                 responsables = [r for r in responsables if r is not None]
             else:
                 # Notificar a todos los responsables activos
                 responsables = crud_responsable.get_responsables_activos(db)
-            
-            # Preparar lista de facturas pendientes
-            facturas_pendientes_texto = self._formatear_facturas_pendientes(facturas_pendientes)
-            
-            # Preparar estadísticas de patrones
-            patrones_texto = self._formatear_patrones_detectados(
-                estadisticas_procesamiento.get('estadisticas_detalladas', {})
-            )
-            
-            # Preparar datos para la plantilla
-            datos_plantilla = {
-                'fecha': datetime.now().strftime('%d/%m/%Y'),
-                'facturas_procesadas': estadisticas_procesamiento['resumen_general']['facturas_procesadas'],
-                'aprobadas_auto': estadisticas_procesamiento['resumen_general']['aprobadas_automaticamente'],
-                'revision_manual': estadisticas_procesamiento['resumen_general']['enviadas_revision'],
-                'tasa_automatizacion': estadisticas_procesamiento['resumen_general']['tasa_automatizacion'],
-                'facturas_pendientes': facturas_pendientes_texto,
-                'patrones_detectados': patrones_texto
+
+            # Preparar estadísticas para template HTML
+            resumen = estadisticas_procesamiento.get('resumen_general', {})
+            stats = {
+                'aprobadas_auto': resumen.get('aprobadas_automaticamente', 0),
+                'revision': resumen.get('enviadas_revision', 0),
+                'pendientes': len(facturas_pendientes),
+                'rechazadas': 0,  # Agregar si está disponible
+                'tasa': resumen.get('tasa_automatizacion', 0),
+                'monto_total': resumen.get('monto_total_procesado', 0)
             }
-            
+
+            # Preparar facturas que requieren atención
+            facturas_atencion_list = [
+                {
+                    'numero_factura': f.numero_factura,
+                    'proveedor_nombre': f.proveedor.nombre if f.proveedor else 'N/A',
+                    'monto': float(f.total_a_pagar or 0),
+                    'motivo': 'Requiere revisión manual'
+                }
+                for f in facturas_pendientes[:5]  # Top 5
+            ]
+
+            # Preparar facturas aprobadas (últimas 5)
+            facturas_aprobadas_list = []
+            if facturas_aprobadas:
+                facturas_aprobadas_list = [
+                    {
+                        'numero_factura': f.numero_factura,
+                        'proveedor_nombre': f.proveedor.nombre if f.proveedor else 'N/A',
+                        'monto': float(f.total_a_pagar or 0),
+                        'confianza': f.confianza_automatizacion or 0.0
+                    }
+                    for f in facturas_aprobadas[:5]
+                ]
+
+            # Preparar datos para la plantilla HTML
+            datos_plantilla = {
+                'fecha': datetime.now(),
+                'stats': stats,
+                'facturas_atencion': facturas_atencion_list,
+                'facturas_aprobadas': facturas_aprobadas_list,
+                'tendencias': tendencias,
+                'url_dashboard': "/dashboard"
+            }
+
             resultados_envio = []
-            
+
             for responsable in responsables:
-                datos_plantilla['nombre_responsable'] = responsable.nombre
-                
+                datos_plantilla['responsable_nombre'] = responsable.nombre
+
                 resultado = self._enviar_notificacion_individual(
                     'resumen_procesamiento',
                     responsable,
@@ -326,49 +379,55 @@ Sistema Automático de Facturas
                     config
                 )
                 resultados_envio.append(resultado)
-            
+
             return {
                 'exito': True,
                 'notificaciones_enviadas': len([r for r in resultados_envio if r['exito']]),
                 'total_responsables': len(responsables),
                 'detalles': resultados_envio
             }
-            
+
         except Exception as e:
             logger.error(f"Error enviando resumen de procesamiento: {str(e)}")
             return {'exito': False, 'error': str(e)}
 
     def notificar_error_procesamiento(
-        self, 
+        self,
         db: Session,
         factura: Factura,
         error_descripcion: str,
+        stack_trace: Optional[str] = None,
         config: Optional[ConfiguracionNotificacion] = None
     ) -> Dict[str, Any]:
         """
         Notifica errores en el procesamiento automático.
         """
         config = config or self.config_default
-        
+
         try:
             # Obtener administradores/responsables técnicos
             responsables_admin = crud_responsable.get_responsables_por_rol(db, "administrador")
-            
+
             if not responsables_admin:
                 # Si no hay administradores, notificar a todos los responsables
                 responsables_admin = crud_responsable.get_responsables_activos(db)
-            
-            # Preparar datos para la plantilla
-            datos_plantilla = self._preparar_datos_factura(factura, {
+
+            # Preparar datos para la plantilla HTML
+            datos_plantilla = {
+                'numero_factura': factura.numero_factura,
+                'proveedor_nombre': factura.proveedor.nombre if factura.proveedor else 'N/A',
                 'error_descripcion': error_descripcion,
-                'fecha_error': datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-            })
-            
+                'fecha_error': datetime.now(),
+                'stack_trace': stack_trace,
+                'url_ver_factura': f"/facturas/{factura.id}",
+                'url_soporte': "/soporte"
+            }
+
             resultados_envio = []
-            
+
             for responsable in responsables_admin:
-                datos_plantilla['nombre_responsable'] = responsable.nombre
-                
+                datos_plantilla['responsable_nombre'] = responsable.nombre
+
                 resultado = self._enviar_notificacion_individual(
                     'error_procesamiento',
                     responsable,
@@ -376,19 +435,19 @@ Sistema Automático de Facturas
                     config
                 )
                 resultados_envio.append(resultado)
-            
+
             # Registrar en auditoría
             self._registrar_notificacion_auditoria(
                 db, factura, 'error_procesamiento', responsables_admin, error_descripcion
             )
-            
+
             return {
                 'exito': True,
                 'notificaciones_enviadas': len([r for r in resultados_envio if r['exito']]),
                 'total_responsables': len(responsables_admin),
                 'detalles': resultados_envio
             }
-            
+
         except Exception as e:
             logger.error(f"Error enviando notificación de error para factura {factura.id}: {str(e)}")
             return {'exito': False, 'error': str(e)}
@@ -423,7 +482,7 @@ Sistema Automático de Facturas
         return datos
 
     def _enviar_notificacion_individual(
-        self, 
+        self,
         tipo_notificacion: str,
         responsable: Responsable,
         datos_plantilla: Dict[str, Any],
@@ -431,33 +490,72 @@ Sistema Automático de Facturas
     ) -> Dict[str, Any]:
         """
         Envía una notificación individual a un responsable.
-        
-        NOTA: Esta implementación simula el envío. En un entorno real,
-        aquí se integraría con servicios de email, SMS, etc.
+
+        Usa EmailService + EmailTemplateService para enviar emails HTML profesionales.
         """
         try:
-            plantilla = self.plantillas[tipo_notificacion][config.idioma]
-            
-            asunto = plantilla['asunto'].format(**datos_plantilla)
-            mensaje = plantilla['mensaje'].format(**datos_plantilla)
-            
-            # Simular envío de notificación
-            # En implementación real, aquí iría:
-            # - Envío de email (SMTP, SendGrid, etc.)
-            # - Notificación push
-            # - Mensaje en sistema interno
-            
-            logger.info(f"Notificación simulada enviada a {responsable.email}: {asunto}")
-            
-            return {
-                'exito': True,
-                'responsable_id': responsable.id,
-                'responsable_email': responsable.email,
-                'tipo_notificacion': tipo_notificacion,
-                'asunto': asunto,
-                'metodo_envio': 'simulado'  # En real sería 'email', 'sms', etc.
+            # Si las notificaciones por email están desactivadas, solo simular
+            if not config.activar_email:
+                logger.info(f"Notificación simulada (email desactivado) a {responsable.email}: {tipo_notificacion}")
+                return {
+                    'exito': True,
+                    'responsable_id': responsable.id,
+                    'responsable_email': responsable.email,
+                    'tipo_notificacion': tipo_notificacion,
+                    'metodo_envio': 'simulado'
+                }
+
+            # Mapear tipo de notificación a método de renderizado
+            render_methods = {
+                'aprobacion_automatica': self.template_service.render_aprobacion_automatica,
+                'revision_requerida': self.template_service.render_revision_requerida,
+                'error_procesamiento': self.template_service.render_error_critico,
+                'resumen_procesamiento': self.template_service.render_resumen_diario
             }
-            
+
+            # Renderizar template HTML
+            if tipo_notificacion in render_methods:
+                html_body, text_body = render_methods[tipo_notificacion](datos_plantilla)
+            else:
+                # Fallback a plantilla texto básica
+                plantilla = self.plantillas[tipo_notificacion][config.idioma]
+                asunto = plantilla['asunto'].format(**datos_plantilla)
+                text_body = plantilla['mensaje'].format(**datos_plantilla)
+                html_body = f"<html><body><pre>{text_body}</pre></body></html>"
+
+            # Obtener asunto del template
+            plantilla = self.plantillas[tipo_notificacion][config.idioma]
+            asunto = plantilla['asunto'].format(**datos_plantilla)
+
+            # Enviar email real usando EmailService
+            resultado_email = self.email_service.send_email(
+                to_email=responsable.email,
+                subject=asunto,
+                body_html=html_body,
+                body_text=text_body
+            )
+
+            if resultado_email['success']:
+                logger.info(f"Email enviado exitosamente a {responsable.email}: {asunto}")
+                return {
+                    'exito': True,
+                    'responsable_id': responsable.id,
+                    'responsable_email': responsable.email,
+                    'tipo_notificacion': tipo_notificacion,
+                    'asunto': asunto,
+                    'metodo_envio': 'email',
+                    'detalles_envio': resultado_email
+                }
+            else:
+                logger.error(f"Error enviando email a {responsable.email}: {resultado_email.get('error')}")
+                return {
+                    'exito': False,
+                    'responsable_id': responsable.id,
+                    'responsable_email': responsable.email,
+                    'error': resultado_email.get('error'),
+                    'detalles_envio': resultado_email
+                }
+
         except Exception as e:
             logger.error(f"Error enviando notificación a {responsable.email}: {str(e)}")
             return {

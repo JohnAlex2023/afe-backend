@@ -3,7 +3,6 @@ from fastapi import APIRouter
 # Importa cada módulo de rutas
 from app.api.v1.routers import (
     auth,
-    clientes,
     proveedores,
     responsables,
     roles,
@@ -28,7 +27,6 @@ def read_root():
 # Registro de módulos de rutas
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
 api_router.include_router(responsables.router, prefix="/responsables", tags=["Responsables"])
-api_router.include_router(clientes.router, prefix="/clientes", tags=["Clientes"])
 api_router.include_router(proveedores.router, prefix="/proveedores", tags=["Proveedores"])
 api_router.include_router(roles.router, prefix="/roles", tags=["Roles"])
 api_router.include_router(facturas.router, prefix="/facturas", tags=["Facturas"])

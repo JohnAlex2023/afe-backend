@@ -551,6 +551,128 @@ async def enviar_notificacion_resumen_manual(
         )
 
 
+@router.get("/dashboard/metricas", summary="📊 Métricas del Dashboard en Tiempo Real")
+async def obtener_metricas_dashboard(
+    db: Session = Depends(get_db)
+):
+    """
+    **ENDPOINT OPTIMIZADO PARA DASHBOARD**
+
+    Retorna métricas en tiempo real para el dashboard principal:
+    - Facturas aprobadas automáticamente hoy
+    - Facturas en revisión manual
+    - Facturas pendientes de procesamiento
+    - Tasa de automatización del día
+    - Últimas facturas procesadas
+    - Estadísticas de la última ejecución
+
+    **Optimizado para:**
+    - Respuesta rápida (< 500ms)
+    - Datos agregados y cacheables
+    - Formato listo para visualización
+    """
+    try:
+        from sqlalchemy import and_, func
+        from datetime import date
+
+        hoy = datetime.utcnow().date()
+
+        # Métricas del día actual
+        facturas_aprobadas_hoy = db.query(func.count(Factura.id)).filter(
+            and_(
+                Factura.estado == EstadoFactura.aprobada_auto,
+                func.date(Factura.fecha_procesamiento_auto) == hoy
+            )
+        ).scalar() or 0
+
+        facturas_revision_hoy = db.query(func.count(Factura.id)).filter(
+            and_(
+                Factura.estado == EstadoFactura.en_revision,
+                func.date(Factura.fecha_procesamiento_auto) == hoy
+            )
+        ).scalar() or 0
+
+        facturas_pendientes_total = db.query(func.count(Factura.id)).filter(
+            Factura.estado == EstadoFactura.pendiente
+        ).scalar() or 0
+
+        # Tasa de automatización del día
+        total_procesadas_hoy = facturas_aprobadas_hoy + facturas_revision_hoy
+        tasa_automatizacion = (
+            (facturas_aprobadas_hoy / total_procesadas_hoy * 100)
+            if total_procesadas_hoy > 0 else 0
+        )
+
+        # Últimas 10 facturas procesadas automáticamente
+        ultimas_facturas = db.query(Factura).filter(
+            Factura.fecha_procesamiento_auto.isnot(None)
+        ).order_by(
+            Factura.fecha_procesamiento_auto.desc()
+        ).limit(10).all()
+
+        ultimas_facturas_data = [
+            {
+                'id': f.id,
+                'numero_factura': f.numero_factura,
+                'proveedor': f.proveedor.nombre if f.proveedor else 'N/A',
+                'total': float(f.total_a_pagar) if f.total_a_pagar else 0,
+                'estado': f.estado.value if f.estado else 'pendiente',
+                'confianza': float(f.confianza_automatica) if f.confianza_automatica else 0,
+                'fecha_procesamiento': f.fecha_procesamiento_auto.isoformat() if f.fecha_procesamiento_auto else None,
+                'motivo': f.motivo_decision or 'Sin motivo'
+            }
+            for f in ultimas_facturas
+        ]
+
+        # Estadísticas de la última semana
+        fecha_semana = datetime.utcnow() - timedelta(days=7)
+        facturas_semana = db.query(func.count(Factura.id)).filter(
+            and_(
+                Factura.fecha_procesamiento_auto >= fecha_semana,
+                Factura.estado.in_([EstadoFactura.aprobada_auto, EstadoFactura.en_revision])
+            )
+        ).scalar() or 0
+
+        facturas_aprobadas_semana = db.query(func.count(Factura.id)).filter(
+            and_(
+                Factura.fecha_procesamiento_auto >= fecha_semana,
+                Factura.estado == EstadoFactura.aprobada_auto
+            )
+        ).scalar() or 0
+
+        return {
+            'success': True,
+            'timestamp': datetime.utcnow().isoformat(),
+            'metricas_hoy': {
+                'facturas_aprobadas_automaticamente': facturas_aprobadas_hoy,
+                'facturas_en_revision_manual': facturas_revision_hoy,
+                'facturas_pendientes_procesamiento': facturas_pendientes_total,
+                'total_procesadas': total_procesadas_hoy,
+                'tasa_automatizacion_pct': round(tasa_automatizacion, 1)
+            },
+            'metricas_semana': {
+                'total_procesadas': facturas_semana,
+                'aprobadas_automaticamente': facturas_aprobadas_semana,
+                'tasa_automatizacion_pct': round(
+                    (facturas_aprobadas_semana / facturas_semana * 100) if facturas_semana > 0 else 0,
+                    1
+                )
+            },
+            'ultimas_facturas': ultimas_facturas_data,
+            'estado_sistema': {
+                'automatizacion_activa': True,
+                'ultima_ejecucion': ultimas_facturas[0].fecha_procesamiento_auto.isoformat() if ultimas_facturas else None,
+                'proxima_ejecucion_programada': 'Cada hora en punto'
+            }
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error obteniendo métricas del dashboard: {str(e)}"
+        )
+
+
 # Función auxiliar para notificaciones en segundo plano
 async def enviar_notificaciones_procesamiento(db: Session, resultado_procesamiento: Dict[str, Any]):
     """Envía notificaciones de procesamiento en segundo plano."""
@@ -558,13 +680,13 @@ async def enviar_notificaciones_procesamiento(db: Session, resultado_procesamien
         # Identificar facturas que requieren notificación
         facturas_revision = []
         facturas_aprobadas = []
-        
+
         for factura_info in resultado_procesamiento.get('facturas_procesadas', []):
             if factura_info.get('requiere_accion_manual', False):
                 facturas_revision.append(factura_info['factura_id'])
             elif factura_info.get('decision') == 'aprobacion_automatica':
                 facturas_aprobadas.append(factura_info['factura_id'])
-        
+
         # Enviar notificaciones para facturas que requieren revisión
         for factura_id in facturas_revision:
             factura = crud_factura.get_factura(db, factura_id)
@@ -576,7 +698,7 @@ async def enviar_notificaciones_procesamiento(db: Session, resultado_procesamien
                     confianza=float(factura.confianza_automatica or 0),
                     patron_detectado=factura.patron_recurrencia or "no_detectado"
                 )
-        
+
         # Enviar resumen general si se procesaron facturas
         if resultado_procesamiento['resumen_general']['facturas_procesadas'] > 0:
             facturas_pendientes = crud_factura.get_facturas_pendientes_procesamiento(db)
@@ -585,7 +707,7 @@ async def enviar_notificaciones_procesamiento(db: Session, resultado_procesamien
                 estadisticas_procesamiento=resultado_procesamiento,
                 facturas_pendientes=facturas_pendientes
             )
-            
+
     except Exception as e:
         # Registrar error pero no fallar el procesamiento principal
         import logging

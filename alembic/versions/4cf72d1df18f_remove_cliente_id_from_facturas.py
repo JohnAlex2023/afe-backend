@@ -20,8 +20,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Elimina cliente_id (FK ya fue eliminada anteriormente)."""
-    # Eliminar columna directamente (FK ya no existe)
+    """Elimina cliente_id y su foreign key constraint."""
+    # Primero eliminar la foreign key constraint
+    op.drop_constraint('facturas_ibfk_1', 'facturas', type_='foreignkey')
+    # Luego eliminar la columna
     op.drop_column('facturas', 'cliente_id')
 
 

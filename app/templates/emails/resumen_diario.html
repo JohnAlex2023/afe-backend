@@ -1,0 +1,234 @@
+{% set title = "Resumen Diario de Automatización" %}
+{% set header_icon = "📊" %}
+{% set header_title = "RESUMEN DIARIO DE AUTOMATIZACIÓN" %}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+        <tr>
+            <td align="center" style="padding: 20px 0;">
+                <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0;">
+                            <h1 style="margin: 0; font-size: 24px; font-weight: 600;">{{ header_icon }} {{ header_title }}</h1>
+                            <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.9;">{{ fecha|date_es }}</p>
+                        </td>
+                    </tr>
+
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 30px;">
+                            <p style="margin: 0 0 20px 0; font-size: 16px; color: #333;">
+                                Hola <strong>{{ responsable_nombre }}</strong>,
+                            </p>
+
+                            <p style="margin: 0 0 25px 0; font-size: 15px; color: #555;">
+                                Aquí está tu resumen de actividad del sistema de automatización de facturas:
+                            </p>
+
+                            <!-- Estadísticas Principales -->
+                            <h2 style="margin: 0 0 15px 0; font-size: 18px; color: #667eea;">
+                                📈 ESTADÍSTICAS DEL DÍA
+                            </h2>
+
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin: 0 0 25px 0;">
+                                <tr>
+                                    <!-- Aprobadas Auto -->
+                                    <td style="width: 50%; padding: 15px; background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border-radius: 8px; vertical-align: top;">
+                                        <p style="margin: 0 0 5px 0; font-size: 12px; color: #155724; font-weight: 600; text-transform: uppercase;">
+                                            ✅ Aprobadas Auto
+                                        </p>
+                                        <p style="margin: 0; font-size: 32px; color: #28a745; font-weight: bold;">
+                                            {{ stats.aprobadas_auto }}
+                                        </p>
+                                    </td>
+
+                                    <!-- Spacer -->
+                                    <td style="width: 20px;"></td>
+
+                                    <!-- Requieren Revisión -->
+                                    <td style="width: 50%; padding: 15px; background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); border-radius: 8px; vertical-align: top;">
+                                        <p style="margin: 0 0 5px 0; font-size: 12px; color: #856404; font-weight: 600; text-transform: uppercase;">
+                                            ⚠️ Requieren Revisión
+                                        </p>
+                                        <p style="margin: 0; font-size: 32px; color: #ffc107; font-weight: bold;">
+                                            {{ stats.revision }}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin: 0 0 25px 0;">
+                                <tr>
+                                    <!-- Pendientes -->
+                                    <td style="width: 33%; padding: 15px; background-color: #e7f3ff; border-radius: 8px; vertical-align: top;">
+                                        <p style="margin: 0 0 5px 0; font-size: 11px; color: #0066cc; font-weight: 600;">
+                                            📋 PENDIENTES
+                                        </p>
+                                        <p style="margin: 0; font-size: 24px; color: #17a2b8; font-weight: bold;">
+                                            {{ stats.pendientes }}
+                                        </p>
+                                    </td>
+
+                                    <!-- Spacer -->
+                                    <td style="width: 10px;"></td>
+
+                                    <!-- Rechazadas -->
+                                    <td style="width: 33%; padding: 15px; background-color: #f8d7da; border-radius: 8px; vertical-align: top;">
+                                        <p style="margin: 0 0 5px 0; font-size: 11px; color: #721c24; font-weight: 600;">
+                                            ❌ RECHAZADAS
+                                        </p>
+                                        <p style="margin: 0; font-size: 24px; color: #dc3545; font-weight: bold;">
+                                            {{ stats.rechazadas }}
+                                        </p>
+                                    </td>
+
+                                    <!-- Spacer -->
+                                    <td style="width: 10px;"></td>
+
+                                    <!-- Tasa Automatización -->
+                                    <td style="width: 33%; padding: 15px; background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border-radius: 8px; vertical-align: top;">
+                                        <p style="margin: 0 0 5px 0; font-size: 11px; color: #155724; font-weight: 600;">
+                                            🎯 TASA AUTO
+                                        </p>
+                                        <p style="margin: 0; font-size: 24px; color: #28a745; font-weight: bold;">
+                                            {{ stats.tasa|percentage }}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Monto Total Procesado -->
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; margin: 0 0 25px 0;">
+                                <tr>
+                                    <td style="padding: 20px; text-align: center;">
+                                        <p style="margin: 0 0 5px 0; font-size: 13px; color: white; opacity: 0.9;">
+                                            💰 MONTO TOTAL PROCESADO
+                                        </p>
+                                        <p style="margin: 0; font-size: 36px; color: white; font-weight: bold;">
+                                            {{ stats.monto_total|currency }}
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Facturas que Requieren Atención -->
+                            {% if facturas_atencion %}
+                            <h2 style="margin: 0 0 15px 0; font-size: 18px; color: #dc3545;">
+                                🔴 FACTURAS QUE REQUIEREN ATENCIÓN INMEDIATA
+                            </h2>
+
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; margin: 0 0 25px 0;">
+                                <tr>
+                                    <td style="padding: 15px;">
+                                        {% for factura in facturas_atencion %}
+                                        <p style="margin: 0 0 10px 0; font-size: 13px; color: #856404;">
+                                            <strong>{{ factura.numero_factura }}</strong> - {{ factura.proveedor_nombre }} - {{ factura.monto|currency }}
+                                            <br>
+                                            <span style="font-size: 12px; color: #721c24;">Motivo: {{ factura.motivo }}</span>
+                                        </p>
+                                        {% endfor %}
+                                    </td>
+                                </tr>
+                            </table>
+                            {% endif %}
+
+                            <!-- Últimas Facturas Aprobadas Automáticamente -->
+                            {% if facturas_aprobadas %}
+                            <h2 style="margin: 0 0 15px 0; font-size: 18px; color: #28a745;">
+                                ✅ ÚLTIMAS APROBACIONES AUTOMÁTICAS
+                            </h2>
+
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f8f9fa; border-radius: 4px; margin: 0 0 25px 0;">
+                                <tr>
+                                    <td style="padding: 15px;">
+                                        {% for factura in facturas_aprobadas %}
+                                        <p style="margin: 0 0 8px 0; font-size: 13px; color: #555;">
+                                            <strong style="color: #28a745;">{{ factura.numero_factura }}</strong> - {{ factura.proveedor_nombre }} - {{ factura.monto|currency }}
+                                            <br>
+                                            <span style="font-size: 11px; color: #6c757d;">Confianza: {{ (factura.confianza * 100)|percentage }}</span>
+                                        </p>
+                                        {% endfor %}
+                                    </td>
+                                </tr>
+                            </table>
+                            {% endif %}
+
+                            <!-- Tendencias y Análisis -->
+                            {% if tendencias %}
+                            <h2 style="margin: 0 0 15px 0; font-size: 18px; color: #667eea;">
+                                📊 TENDENCIAS Y ANÁLISIS
+                            </h2>
+
+                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #e7f3ff; border-radius: 4px; margin: 0 0 25px 0;">
+                                <tr>
+                                    <td style="padding: 15px;">
+                                        <p style="margin: 0 0 8px 0; font-size: 13px; color: #0066cc;">
+                                            <strong>📈 Comparación con ayer:</strong>
+                                        </p>
+                                        <ul style="margin: 0; padding-left: 20px; color: #555;">
+                                            <li style="margin-bottom: 5px; font-size: 12px;">
+                                                Aprobaciones automáticas:
+                                                <span style="color: {{ 'green' if tendencias.aprobaciones_cambio >= 0 else 'red' }};">
+                                                    {{ tendencias.aprobaciones_cambio|percentage }}
+                                                </span>
+                                            </li>
+                                            <li style="margin-bottom: 5px; font-size: 12px;">
+                                                Tasa de automatización:
+                                                <span style="color: {{ 'green' if tendencias.tasa_cambio >= 0 else 'red' }};">
+                                                    {{ tendencias.tasa_cambio|percentage }}
+                                                </span>
+                                            </li>
+                                            <li style="font-size: 12px;">
+                                                Monto procesado:
+                                                <span style="color: {{ 'green' if tendencias.monto_cambio >= 0 else 'red' }};">
+                                                    {{ tendencias.monto_cambio|percentage }}
+                                                </span>
+                                            </li>
+                                        </ul>
+                                    </td>
+                                </tr>
+                            </table>
+                            {% endif %}
+
+                            <!-- Call to Action -->
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="{{ url_dashboard }}" style="display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 5px; font-weight: 600; font-size: 14px;">
+                                    Ver Dashboard Completo
+                                </a>
+                            </div>
+
+                            <!-- Info Note -->
+                            <p style="margin: 25px 0 0 0; padding: 15px; background-color: #e7f3ff; border-left: 4px solid #17a2b8; border-radius: 4px; font-size: 13px; color: #0c5460;">
+                                <strong>ℹ️ Este resumen se envía automáticamente todos los días a las 8:00 AM.</strong> Para cambiar tus preferencias de notificación, visita la configuración de tu cuenta.
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f8f9fa; padding: 20px 30px; text-align: center; border-radius: 0 0 8px 8px;">
+                            <p style="margin: 0; font-size: 12px; color: #6c757d;">
+                                Este es un mensaje automático del <strong>Sistema de Automatización de Facturas AFE</strong>
+                            </p>
+                            <p style="margin: 10px 0 0 0; font-size: 12px; color: #6c757d;">
+                                Para preguntas o soporte, contacte a soporte@afe.com
+                            </p>
+                            <p style="margin: 15px 0 0 0; font-size: 11px; color: #adb5bd;">
+                                &copy; 2025 AFE Backend. Todos los derechos reservados.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

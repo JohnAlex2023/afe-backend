@@ -71,7 +71,7 @@ def main():
 
     try:
         print("\n" + "=" * 80)
-        print("🚀 INICIALIZACIÓN ENTERPRISE DEL SISTEMA AFE")
+        print(" INICIALIZACIÓN ENTERPRISE DEL SISTEMA AFE")
         print("=" * 80)
         print(f"Modo: {'DRY RUN (simulación)' if args.dry_run else 'PRODUCCIÓN'}")
         print(f"Año fiscal: {args.año}")
@@ -94,30 +94,30 @@ def main():
 
         # Mostrar resultado
         print("\n" + "=" * 80)
-        print("📊 REPORTE EJECUTIVO")
+        print(" REPORTE EJECUTIVO")
         print("=" * 80)
 
         if resultado.get("exito"):
-            print("✅ Status: EXITOSO\n")
+            print(" Status: EXITOSO\n")
 
             # Estado inicial vs final
             if "estado_inicial" in resultado and "estado_final" in resultado:
-                print("📈 Cambios en el Sistema:")
+                print(" Cambios en el Sistema:")
                 print(f"   Líneas de Presupuesto: {resultado['estado_inicial']['lineas_presupuesto']} → {resultado['estado_final']['lineas_presupuesto']}")
                 print(f"   Ejecuciones Presupuestales: {resultado['estado_inicial']['ejecuciones_presupuestales']} → {resultado['estado_final']['ejecuciones_presupuestales']}")
                 print(f"   Asignaciones NIT: {resultado['estado_inicial']['asignaciones_nit']} → {resultado['estado_final']['asignaciones_nit']}")
                 print(f"   Workflows Creados: {resultado['estado_inicial']['workflows_creados']} → {resultado['estado_final']['workflows_creados']}")
 
-            print(f"\n⏱️  Duración: {resultado.get('duracion_segundos', 0):.2f} segundos")
-            print(f"📋 Pasos completados: {len(resultado.get('pasos_completados', []))}")
+            print(f"\n  Duración: {resultado.get('duracion_segundos', 0):.2f} segundos")
+            print(f" Pasos completados: {len(resultado.get('pasos_completados', []))}")
 
             if resultado.get("warnings"):
-                print(f"\n⚠️  Warnings: {len(resultado['warnings'])}")
+                print(f"\n  Warnings: {len(resultado['warnings'])}")
                 for warning in resultado["warnings"]:
                     print(f"   - {warning}")
 
         else:
-            print("❌ Status: FALLIDO\n")
+            print(" Status: FALLIDO\n")
             print("Errores:")
             for error in resultado.get("errores", []):
                 if isinstance(error, dict):
@@ -131,13 +131,13 @@ def main():
         reporte_file = f"reporte_inicializacion_{args.año}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         with open(reporte_file, 'w', encoding='utf-8') as f:
             json.dump(resultado, f, indent=2, default=str)
-        print(f"\n📄 Reporte guardado en: {reporte_file}")
+        print(f"\n Reporte guardado en: {reporte_file}")
 
         # Retornar código de salida
         sys.exit(0 if resultado.get("exito") else 1)
 
     except Exception as e:
-        print(f"\n❌ ERROR CRÍTICO: {str(e)}")
+        print(f"\n ERROR CRÍTICO: {str(e)}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

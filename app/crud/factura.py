@@ -6,7 +6,6 @@ from datetime import datetime, date
 
 from app.models.factura import Factura, EstadoFactura
 from app.models.proveedor import Proveedor
-from app.models.cliente import Cliente
 from app.models.responsable_proveedor import ResponsableProveedor
 
 
@@ -756,18 +755,23 @@ def find_facturas_mes_anterior(
     db: Session,
     proveedor_id: int,
     fecha_actual: date,
+    concepto_hash: Optional[str] = None,
+    concepto_normalizado: Optional[str] = None,
+    numero_factura: Optional[str] = None,
     limit: int = 10
 ) -> List[Factura]:
     """
     Busca facturas del mes anterior del mismo proveedor.
 
-    REFACTORIZADO: Ya no compara por concepto (campo eliminado).
-    Usa ComparadorItemsService para comparación item por item.
+    Ahora soporta filtrado adicional por concepto_hash para matching más preciso.
 
     Args:
         db: Sesión de base de datos
         proveedor_id: ID del proveedor
         fecha_actual: Fecha de la factura actual
+        concepto_hash: Hash MD5 del concepto para matching rápido (opcional)
+        concepto_normalizado: Concepto normalizado para comparación (opcional)
+        numero_factura: Número de factura para excluir (opcional)
         limit: Límite de facturas a retornar
 
     Returns:
@@ -780,7 +784,7 @@ def find_facturas_mes_anterior(
     fecha_mes_anterior = fecha_actual - relativedelta(months=1)
 
     # Buscar facturas del mismo proveedor en el mes anterior
-    facturas = db.query(Factura).filter(
+    query = db.query(Factura).filter(
         and_(
             Factura.proveedor_id == proveedor_id,
             extract('year', Factura.fecha_emision) == fecha_mes_anterior.year,
@@ -791,6 +795,149 @@ def find_facturas_mes_anterior(
                 Factura.estado == EstadoFactura.aprobada_auto
             )
         )
-    ).order_by(desc(Factura.fecha_emision)).limit(limit).all()
+    )
+
+    # Filtrar por concepto_hash si se proporciona (matching rápido)
+    if concepto_hash:
+        query = query.filter(Factura.concepto_hash == concepto_hash)
+
+    # Excluir la factura actual si se proporciona su número
+    if numero_factura:
+        query = query.filter(Factura.numero_factura != numero_factura)
+
+    facturas = query.order_by(desc(Factura.fecha_emision)).limit(limit).all()
 
     return facturas
+
+
+# Versión singular para AutomationService (retorna solo la más reciente)
+def find_factura_mes_anterior(
+    db: Session,
+    proveedor_id: int,
+    fecha_actual: date,
+    concepto_hash: Optional[str] = None,
+    concepto_normalizado: Optional[str] = None,
+    numero_factura: Optional[str] = None
+) -> Optional[Factura]:
+    """
+    Busca LA factura más reciente del mes anterior del mismo proveedor.
+
+    Esta es la versión singular que retorna un solo resultado (o None).
+
+    Args:
+        db: Sesión de base de datos
+        proveedor_id: ID del proveedor
+        fecha_actual: Fecha de la factura actual
+        concepto_hash: Hash MD5 del concepto para matching rápido (opcional)
+        concepto_normalizado: Concepto normalizado para comparación (opcional)
+        numero_factura: Número de factura para excluir (opcional)
+
+    Returns:
+        La factura más reciente del mes anterior, o None si no se encuentra
+    """
+    facturas = find_facturas_mes_anterior(
+        db=db,
+        proveedor_id=proveedor_id,
+        fecha_actual=fecha_actual,
+        concepto_hash=concepto_hash,
+        concepto_normalizado=concepto_normalizado,
+        numero_factura=numero_factura,
+        limit=1
+    )
+
+    return facturas[0] if facturas else None
+
+
+# -----------------------------------------------------
+# Buscar facturas por hash de concepto (para automatización)
+# -----------------------------------------------------
+def find_facturas_by_concepto_hash(
+    db: Session,
+    concepto_hash: str,
+    proveedor_id: Optional[int] = None,
+    limit: int = 10
+) -> List[Factura]:
+    """
+    Busca facturas con el mismo hash de concepto.
+
+    Útil para encontrar facturas recurrentes idénticas.
+
+    Args:
+        db: Sesión de base de datos
+        concepto_hash: Hash MD5 del concepto normalizado
+        proveedor_id: ID del proveedor (opcional, para filtrar por proveedor)
+        limit: Límite de facturas a retornar
+
+    Returns:
+        Lista de facturas con el mismo hash de concepto
+    """
+    query = db.query(Factura).filter(
+        Factura.concepto_hash == concepto_hash
+    )
+
+    if proveedor_id:
+        query = query.filter(Factura.proveedor_id == proveedor_id)
+
+    return query.order_by(desc(Factura.fecha_emision)).limit(limit).all()
+
+
+# -----------------------------------------------------
+# Buscar facturas por concepto normalizado y proveedor (para automatización)
+# -----------------------------------------------------
+def find_facturas_by_concepto_proveedor(
+    db: Session,
+    proveedor_id: int,
+    concepto_normalizado: str,
+    limit: int = 12
+) -> List[Factura]:
+    """
+    Busca facturas con el mismo concepto normalizado del mismo proveedor.
+
+    Útil para encontrar facturas recurrentes basadas en el concepto.
+
+    Args:
+        db: Sesión de base de datos
+        proveedor_id: ID del proveedor
+        concepto_normalizado: Concepto normalizado de la factura
+        limit: Límite de facturas a retornar
+
+    Returns:
+        Lista de facturas con el mismo concepto normalizado
+    """
+    query = db.query(Factura).filter(
+        and_(
+            Factura.proveedor_id == proveedor_id,
+            Factura.concepto_normalizado == concepto_normalizado
+        )
+    )
+
+    return query.order_by(desc(Factura.fecha_emision)).limit(limit).all()
+
+
+# -----------------------------------------------------
+# Buscar facturas por número de orden de compra (para automatización)
+# -----------------------------------------------------
+def find_facturas_by_orden_compra(
+    db: Session,
+    orden_compra_numero: str,
+    proveedor_id: Optional[int] = None
+) -> List[Factura]:
+    """
+    Busca facturas asociadas a una orden de compra.
+
+    Args:
+        db: Sesión de base de datos
+        orden_compra_numero: Número de orden de compra
+        proveedor_id: ID del proveedor (opcional)
+
+    Returns:
+        Lista de facturas asociadas a la orden de compra
+    """
+    query = db.query(Factura).filter(
+        Factura.orden_compra_numero == orden_compra_numero
+    )
+
+    if proveedor_id:
+        query = query.filter(Factura.proveedor_id == proveedor_id)
+
+    return query.order_by(desc(Factura.fecha_emision)).all()

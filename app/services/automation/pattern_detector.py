@@ -375,15 +375,21 @@ class PatternDetector:
         """
         if len(facturas_historicas) < 2:
             return None
-        
+
         patron_temporal = self._analizar_patron_temporal(facturas_historicas[:-1], facturas_historicas[-1])
-        
+
         if not patron_temporal.consistente:
             return None
-        
-        ultima_fecha = max(f.fecha_emision for f in facturas_historicas)
+
+        # Filtrar facturas con fecha de emisión válida
+        fechas_validas = [f.fecha_emision for f in facturas_historicas if f.fecha_emision]
+
+        if not fechas_validas:
+            return None
+
+        ultima_fecha = max(fechas_validas)
         dias_a_sumar = int(patron_temporal.promedio_dias)
-        
+
         return ultima_fecha + timedelta(days=dias_a_sumar)
 
     def calcular_probabilidad_recurrencia_mensual(self, facturas_historicas: List[Factura]) -> float:

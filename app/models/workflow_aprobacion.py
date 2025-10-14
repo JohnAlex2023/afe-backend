@@ -253,44 +253,5 @@ class NotificacionWorkflow(Base):
     )
 
 
-class ConfiguracionCorreo(Base):
-    """
-    Configuración de cuentas de correo para lectura automática.
-    """
-    __tablename__ = "configuracion_correo"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    nombre = Column(String(100), nullable=False, comment="Nombre descriptivo (ej: 'Correo Facturas TI')")
-
-    # Configuración IMAP
-    email = Column(String(255), nullable=False, unique=True)
-    servidor_imap = Column(String(255), nullable=False, comment="imap.gmail.com, outlook.office365.com, etc.")
-    puerto_imap = Column(BigInteger, default=993)
-    usa_ssl = Column(Boolean, default=True)
-
-    # Credenciales (encriptar en producción)
-    password = Column(String(500), nullable=True, comment="Contraseña o App Password")
-    oauth_token = Column(Text, nullable=True, comment="Token OAuth2 si aplica")
-
-    # Carpetas a monitorear
-    carpeta_inbox = Column(String(100), default="INBOX")
-    carpeta_procesados = Column(String(100), default="Procesados")
-    carpeta_errores = Column(String(100), default="Errores")
-
-    # Filtros
-    filtro_asunto = Column(JSON, nullable=True, comment="Palabras clave en asunto: ['factura', 'invoice']")
-    filtro_remitente = Column(JSON, nullable=True, comment="Dominios o emails permitidos")
-
-    # Estado
-    activo = Column(Boolean, default=True, index=True)
-    ultima_lectura = Column(DateTime, nullable=True)
-    total_correos_procesados = Column(BigInteger, default=0)
-
-    # Auditoría
-    creado_en = Column(DateTime, default=datetime.now)
-    actualizado_en = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    creado_por = Column(String(255), nullable=True)
-
-    __table_args__ = (
-        Index('idx_config_correo_activo', 'activo', 'email'),
-    )
+# NOTA: ConfiguracionCorreo fue eliminada (obsoleta, configuración IMAP vieja).
+# Ahora usamos CuentaCorreo (app/models/email_config.py) con Microsoft Graph API.
