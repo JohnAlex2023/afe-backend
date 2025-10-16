@@ -473,11 +473,21 @@ server {
 
 ## Documentación Técnica
 
-### Documentos Disponibles
+### 📚 Documentación Completa del Sistema
 
-| Documento | Descripción |
-|-----------|-------------|
-| `SISTEMA_EXTRACCION_INCREMENTAL.md` | Documentación completa del sistema de extracción incremental desde Microsoft Graph |
+Para documentación técnica completa y detallada del sistema, consultar:
+
+**[DOCUMENTACION_TECNICA_SISTEMA_AFE.md](DOCUMENTACION_TECNICA_SISTEMA_AFE.md)**
+
+Este documento único consolida toda la información técnica del sistema:
+- Arquitectura general end-to-end
+- Módulo de extracción automática (Microsoft Graph)
+- Módulo de clasificación de proveedores (Enterprise)
+- Módulo de workflow de auto-aprobación
+- Sistema de notificaciones
+- Base de datos y migraciones
+- Operación, mantenimiento y troubleshooting
+- KPIs y monitoreo
 
 ### Estructura del Proyecto
 

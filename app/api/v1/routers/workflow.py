@@ -386,6 +386,7 @@ def crear_asignacion_nit(
         )
 
     from decimal import Decimal
+    from datetime import datetime
 
     nueva_asignacion = AsignacionNitResponsable(
         nit=asignacion.nit,
@@ -606,6 +607,7 @@ def obtener_factura_con_workflow(
         "numero_factura": factura.numero_factura,
         "cufe": factura.cufe,
         "fecha_emision": str(factura.fecha_emision) if factura.fecha_emision else None,
+        "fecha_vencimiento": str(factura.fecha_vencimiento) if factura.fecha_vencimiento else None,
         "año": año,
         "mes": mes,
         "proveedor": proveedor_info,
@@ -635,15 +637,19 @@ def obtener_factura_con_workflow(
             "diferencias_detectadas": workflow.diferencias_detectadas,
             "criterios_comparacion": workflow.criterios_comparacion,
             "fecha_aprobacion": str(workflow.fecha_aprobacion) if workflow.fecha_aprobacion else None,
-            "aprobado_por": workflow.aprobado_por,
+            "aprobado_por": workflow.aprobada_por,
             "fecha_rechazo": str(workflow.fecha_rechazo) if workflow.fecha_rechazo else None,
-            "rechazado_por": workflow.rechazado_por,
+            "rechazado_por": workflow.rechazada_por,
             "motivo_rechazo": workflow.motivo_rechazo,
             "factura_mes_anterior": {
                 "id": factura_anterior.id,
-                "numero": factura_anterior.numero_factura,
+                "numero_factura": factura_anterior.numero_factura,
+                "fecha_emision": str(factura_anterior.fecha_emision) if factura_anterior.fecha_emision else None,
+                "fecha_vencimiento": str(factura_anterior.fecha_vencimiento) if factura_anterior.fecha_vencimiento else None,
+                "subtotal": float(factura_anterior.subtotal) if factura_anterior.subtotal else 0,
+                "iva": float(factura_anterior.iva) if factura_anterior.iva else 0,
                 "total": float(factura_anterior.total) if factura_anterior.total else 0,
-                "fecha": str(factura_anterior.fecha_emision) if factura_anterior.fecha_emision else None
+                "total_a_pagar": float(factura_anterior.total_a_pagar) if factura_anterior.total_a_pagar else 0
             } if factura_anterior else None
         }
 
@@ -822,6 +828,7 @@ def comparar_factura_items(
     - Análisis de proveedores con cambios frecuentes
     """
     from app.services.comparador_items import ComparadorItemsService
+    from datetime import datetime
 
     try:
         comparador = ComparadorItemsService(db)
@@ -872,7 +879,7 @@ def obtener_estadisticas_comparacion(
 
     # Parsear fechas
     fecha_desde_dt = dt.fromisoformat(fecha_desde) if fecha_desde else dt(2024, 1, 1)
-    fecha_hasta_dt = dt.fromisoformat(fecha_hasta) if fecha_hasta else datetime.now()
+    fecha_hasta_dt = dt.fromisoformat(fecha_hasta) if fecha_hasta else dt.now()
 
     # Consultar workflows en el rango
     workflows = db.query(WorkflowAprobacionFactura).filter(

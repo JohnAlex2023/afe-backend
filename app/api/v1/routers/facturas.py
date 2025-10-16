@@ -575,12 +575,15 @@ def aprobar_factura(
     """
     Aprueba una factura y registra quién la aprobó.
 
+    **IMPORTANTE:** También actualiza el workflow asociado para mantener sincronización.
+
     Parámetros esperados en payload:
     - aprobado_por: Usuario que aprueba
     - observaciones (opcional): Comentarios adicionales
     """
-    from app.models.factura import Factura
-    from app.models.estado_factura import EstadoFactura
+    from app.models.factura import Factura, EstadoFactura
+    from app.models.workflow_aprobacion import WorkflowAprobacionFactura
+    from app.services.workflow_automatico import WorkflowAutomaticoService
     from datetime import datetime
 
     factura = db.query(Factura).filter(Factura.id == factura_id).first()
@@ -590,19 +593,42 @@ def aprobar_factura(
             detail="Factura no encontrada"
         )
 
-    # Actualizar estado
-    factura.estado = EstadoFactura.aprobada
-    factura.aprobado_por = payload.get("aprobado_por", current_user.usuario)
-    factura.fecha_aprobacion = datetime.now()
-    if payload.get("observaciones"):
-        factura.observaciones = payload.get("observaciones")
+    # Buscar workflow asociado
+    workflow = db.query(WorkflowAprobacionFactura).filter(
+        WorkflowAprobacionFactura.factura_id == factura_id
+    ).first()
 
-    db.commit()
-    db.refresh(factura)
+    if workflow:
+        # Si existe workflow, usar el servicio enterprise para mantener sincronización
+        servicio = WorkflowAutomaticoService(db)
+        resultado = servicio.aprobar_manual(
+            workflow_id=workflow.id,
+            aprobado_por=payload.get("aprobado_por", current_user.usuario),
+            observaciones=payload.get("observaciones")
+        )
+
+        if resultado.get("error"):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=resultado["error"]
+            )
+
+        # Refrescar factura para obtener datos actualizados
+        db.refresh(factura)
+    else:
+        # Si no existe workflow (facturas antiguas), actualizar solo la factura
+        factura.estado = EstadoFactura.aprobada
+        factura.aprobado_por = payload.get("aprobado_por", current_user.usuario)
+        factura.fecha_aprobacion = datetime.now()
+        if payload.get("observaciones"):
+            factura.observaciones = payload.get("observaciones")
+
+        db.commit()
+        db.refresh(factura)
 
     logger.info(
         f"Factura {factura.numero_factura} aprobada por {current_user.usuario}",
-        extra={"factura_id": factura_id, "usuario": current_user.usuario}
+        extra={"factura_id": factura_id, "usuario": current_user.usuario, "con_workflow": workflow is not None}
     )
 
     return factura
@@ -626,12 +652,16 @@ def rechazar_factura(
     """
     Rechaza una factura y registra el motivo.
 
+    **IMPORTANTE:** También actualiza el workflow asociado para mantener sincronización.
+
     Parámetros esperados en payload:
     - rechazado_por: Usuario que rechaza
     - motivo: Razón del rechazo (requerido)
+    - detalle (opcional): Detalle adicional del rechazo
     """
-    from app.models.factura import Factura
-    from app.models.estado_factura import EstadoFactura
+    from app.models.factura import Factura, EstadoFactura
+    from app.models.workflow_aprobacion import WorkflowAprobacionFactura
+    from app.services.workflow_automatico import WorkflowAutomaticoService
     from datetime import datetime
 
     factura = db.query(Factura).filter(Factura.id == factura_id).first()
@@ -647,18 +677,42 @@ def rechazar_factura(
             detail="El motivo de rechazo es requerido"
         )
 
-    # Actualizar estado
-    factura.estado = EstadoFactura.rechazada
-    factura.rechazado_por = payload.get("rechazado_por", current_user.usuario)
-    factura.fecha_rechazo = datetime.now()
-    factura.motivo_rechazo = payload.get("motivo")
+    # Buscar workflow asociado
+    workflow = db.query(WorkflowAprobacionFactura).filter(
+        WorkflowAprobacionFactura.factura_id == factura_id
+    ).first()
 
-    db.commit()
-    db.refresh(factura)
+    if workflow:
+        # Si existe workflow, usar el servicio enterprise para mantener sincronización
+        servicio = WorkflowAutomaticoService(db)
+        resultado = servicio.rechazar(
+            workflow_id=workflow.id,
+            rechazado_por=payload.get("rechazado_por", current_user.usuario),
+            motivo=payload.get("motivo"),
+            detalle=payload.get("detalle")
+        )
+
+        if resultado.get("error"):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=resultado["error"]
+            )
+
+        # Refrescar factura para obtener datos actualizados
+        db.refresh(factura)
+    else:
+        # Si no existe workflow (facturas antiguas), actualizar solo la factura
+        factura.estado = EstadoFactura.rechazada
+        factura.rechazado_por = payload.get("rechazado_por", current_user.usuario)
+        factura.fecha_rechazo = datetime.now()
+        factura.motivo_rechazo = payload.get("motivo")
+
+        db.commit()
+        db.refresh(factura)
 
     logger.info(
         f"Factura {factura.numero_factura} rechazada por {current_user.usuario}. Motivo: {payload.get('motivo')}",
-        extra={"factura_id": factura_id, "usuario": current_user.usuario}
+        extra={"factura_id": factura_id, "usuario": current_user.usuario, "con_workflow": workflow is not None}
     )
 
     return factura

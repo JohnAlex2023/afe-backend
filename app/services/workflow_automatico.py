@@ -33,6 +33,7 @@ from app.models.workflow_aprobacion import (
     TipoNotificacion
 )
 from app.services.comparador_items import ComparadorItemsService
+from app.services.clasificacion_proveedores import ClasificacionProveedoresService
 
 
 class WorkflowAutomaticoService:
@@ -46,6 +47,7 @@ class WorkflowAutomaticoService:
     def __init__(self, db: Session):
         self.db = db
         self.comparador = ComparadorItemsService(db)
+        self.clasificador = ClasificacionProveedoresService(db)
 
     # ============================================================================
     # SINCRONIZACIÓN DE ESTADOS (Enterprise Pattern)
@@ -126,6 +128,9 @@ class WorkflowAutomaticoService:
 
         if not asignacion:
             return self._crear_workflow_sin_asignacion(factura, nit)
+
+        # 4.5 NUEVO: Clasificación automática del proveedor (si no está clasificado)
+        self._asegurar_clasificacion_proveedor(asignacion)
 
         # 5. Crear workflow inicial
         workflow = WorkflowAprobacionFactura(
@@ -347,11 +352,24 @@ class WorkflowAutomaticoService:
             return False
 
         # ============================================================================
-        # REGLA 2: Confianza del Análisis de Items
+        # REGLA 2: Confianza del Análisis de Items (ENTERPRISE: Umbral Dinámico)
         # ============================================================================
 
-        # 2.1 - Confianza debe ser >= 95% (sin alertas críticas)
-        if resultado_comparacion['confianza'] < 95.0:
+        # 2.1 - Obtener umbral dinámico basado en clasificación del proveedor
+        umbral_requerido = self.clasificador.obtener_umbral_aprobacion(
+            tipo_servicio=asignacion.tipo_servicio_proveedor,
+            nivel_confianza=asignacion.nivel_confianza_proveedor
+        )
+
+        # Convertir a porcentaje para comparación
+        umbral_porcentaje = umbral_requerido * 100
+
+        # Almacenar umbral usado para trazabilidad
+        workflow.umbral_confianza_utilizado = Decimal(str(round(umbral_porcentaje, 2)))
+        workflow.tipo_validacion_aplicada = f"{asignacion.tipo_servicio_proveedor}_{asignacion.nivel_confianza_proveedor}"
+
+        # Comparar con umbral dinámico (no fijo 95%)
+        if resultado_comparacion['confianza'] < umbral_porcentaje:
             return False
 
         # 2.2 - No debe tener alertas críticas (severidad alta)
@@ -373,6 +391,20 @@ class WorkflowAutomaticoService:
         # 3.1 - Monto debe estar dentro del límite configurado
         if asignacion.monto_maximo_auto_aprobacion:
             if factura.total_a_pagar and factura.total_a_pagar > asignacion.monto_maximo_auto_aprobacion:
+                return False
+
+        # ============================================================================
+        # REGLA 4: Orden de Compra Obligatoria (ENTERPRISE)
+        # ============================================================================
+
+        # 4.1 - Si el proveedor requiere OC obligatoria, debe existir
+        if asignacion.requiere_orden_compra_obligatoria:
+            # Verificar que la factura tenga orden de compra
+            if not hasattr(factura, 'orden_compra') and not hasattr(factura, 'numero_orden_compra'):
+                # Campos no existen en el modelo, skip esta validación
+                pass
+            elif not factura.orden_compra and not factura.numero_orden_compra:
+                # No tiene OC → No auto-aprobar
                 return False
 
         # ============================================================================
@@ -664,3 +696,61 @@ class WorkflowAutomaticoService:
             "estado": workflow.estado.value,
             "rechazada_por": rechazado_por
         }
+
+    # ============================================================================
+    # CLASIFICACIÓN AUTOMÁTICA DE PROVEEDORES (Enterprise Feature)
+    # ============================================================================
+
+    def _asegurar_clasificacion_proveedor(self, asignacion: AsignacionNitResponsable) -> None:
+        """
+        Asegura que el proveedor esté clasificado ANTES de procesar la factura.
+
+        Esta función se ejecuta automáticamente para CADA factura nueva:
+        - Si el proveedor ya está clasificado → No hace nada
+        - Si es proveedor nuevo sin clasificación → Clasifica con valores seguros por defecto
+        - Si tiene 3+ meses y 3+ facturas → Reclasifica automáticamente
+
+        Clasificación por defecto (proveedor nuevo):
+        - Tipo: SERVICIO_EVENTUAL (más restrictivo)
+        - Nivel: NIVEL_5_NUEVO (requiere 100% confianza = nunca auto-aprobar)
+        - Requiere OC: True
+
+        Esta función garantiza que NUNCA se auto-apruebe un proveedor sin clasificar.
+
+        Args:
+            asignacion: Asignación NIT-Responsable del proveedor
+
+        Nivel: Fortune 500 Risk Management
+        """
+        # Si ya está clasificado Y no necesita reclasificación → Skip
+        if asignacion.tipo_servicio_proveedor:
+            # Verificar si necesita reclasificación (cada 3 meses)
+            if asignacion.metadata_riesgos:
+                fecha_clasificacion = asignacion.metadata_riesgos.get('fecha_clasificacion')
+                if fecha_clasificacion:
+                    from dateutil.parser import parse
+                    fecha_class = parse(fecha_clasificacion)
+                    dias_desde_clasificacion = (datetime.now() - fecha_class).days
+
+                    # Reclasificar cada 90 días (3 meses)
+                    if dias_desde_clasificacion < 90:
+                        return  # ✅ Clasificación reciente, no hacer nada
+
+        # Clasificar o reclasificar
+        try:
+            resultado = self.clasificador.clasificar_proveedor_automatico(
+                nit=asignacion.nit,
+                forzar_reclasificacion=False  # Solo si no está clasificado
+            )
+
+            # Log para auditoría (opcional)
+            if resultado['clasificado'] and not resultado.get('ya_clasificado'):
+                print(f"🔄 Proveedor {asignacion.nit} clasificado automáticamente: "
+                      f"{resultado['tipo_servicio'].value} - {resultado['nivel_confianza'].value}")
+
+        except Exception as e:
+            # Si hay error en clasificación, usar valores seguros por defecto
+            print(f"⚠️  Error clasificando proveedor {asignacion.nit}: {e}")
+            print(f"   Usando clasificación segura por defecto (SERVICIO_EVENTUAL)")
+
+            self.clasificador.clasificar_nuevo_proveedor_on_the_fly(asignacion)

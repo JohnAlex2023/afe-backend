@@ -66,6 +66,99 @@ class TipoNotificacion(enum.Enum):
     ALERTA = "alerta"
 
 
+# ==================== ENUMS ENTERPRISE: CONTROL DE RIESGOS ====================
+
+class TipoServicioProveedor(enum.Enum):
+    """
+    Clasificación de proveedores según naturaleza del servicio.
+
+    Esta clasificación determina los criterios de aprobación automática:
+    - FIJO: Criterios estrictos (95% confianza, sin items nuevos)
+    - VARIABLE: Criterios moderados (88% confianza, rango ±30%)
+    - POR_CONSUMO: Requiere orden de compra (85% confianza)
+    - EVENTUAL: NUNCA auto-aprobar (siempre revisión manual)
+
+    Nivel: Fortune 500 Risk Management
+    """
+    SERVICIO_FIJO_MENSUAL = "servicio_fijo_mensual"
+    # Ejemplos: Arriendo, vigilancia, nómina outsourcing, seguros
+    # Características: Monto fijo o muy predecible (CV < 15%)
+    # Criterios: CV < 5%, confianza >= 95%, sin items nuevos
+
+    SERVICIO_VARIABLE_PREDECIBLE = "servicio_variable_predecible"
+    # Ejemplos: Servicios públicos, telefonía, hosting
+    # Características: Varía pero dentro de rango predecible (CV 15-80%)
+    # Criterios: CV < 30%, confianza >= 88%, monto en rango ±30%
+
+    SERVICIO_POR_CONSUMO = "servicio_por_consumo"
+    # Ejemplos: Materiales, equipos, servicios profesionales
+    # Características: Alta variabilidad según necesidad (CV > 80%)
+    # Criterios: CV < 50%, confianza >= 85%, requiere orden de compra
+
+    SERVICIO_EVENTUAL = "servicio_eventual"
+    # Ejemplos: Proyectos especiales, compras únicas
+    # Características: No recurrente
+    # Criterios: NUNCA auto-aprobar (siempre revisión manual)
+
+
+class NivelConfianzaProveedor(enum.Enum):
+    """
+    Nivel de confianza del proveedor basado en historial y desempeño.
+
+    Determina el umbral de confianza requerido para aprobación automática:
+    - NIVEL_1 (Crítico): Servicios críticos, requiere 95%+ confianza
+    - NIVEL_2 (Alto): Proveedores establecidos, 92%+ confianza
+    - NIVEL_3 (Medio): Proveedores regulares, 88%+ confianza
+    - NIVEL_4 (Bajo): Proveedores con incidencias, 95%+ confianza
+    - NIVEL_5 (Nuevo): Sin historial, NUNCA auto-aprobar (100%)
+
+    Nivel: Fortune 500 Vendor Management
+    """
+    NIVEL_1_CRITICO = "nivel_1_critico"
+    # Umbral: 95% confianza
+    # Proveedores de servicios críticos para operación
+    # Antigüedad: 24+ meses sin incidencias
+
+    NIVEL_2_ALTO = "nivel_2_alto"
+    # Umbral: 92% confianza
+    # Proveedores establecidos con buen historial
+    # Antigüedad: 12-24 meses, <2 incidencias/año
+
+    NIVEL_3_MEDIO = "nivel_3_medio"
+    # Umbral: 88% confianza
+    # Proveedores regulares
+    # Antigüedad: 6-12 meses, <3 incidencias/año
+
+    NIVEL_4_BAJO = "nivel_4_bajo"
+    # Umbral: 95% confianza (más estricto por historial)
+    # Proveedores con incidencias recientes
+    # Antigüedad: 3-6 meses O incidencias recientes
+
+    NIVEL_5_NUEVO = "nivel_5_nuevo"
+    # Umbral: 100% (NUNCA auto-aprobar)
+    # Proveedores nuevos sin historial suficiente
+    # Antigüedad: <3 meses
+
+
+class TipoAlerta(enum.Enum):
+    """Tipos de alertas para el sistema de Early Warning."""
+    CONFIANZA_BORDE = "confianza_borde"              # 94-95% (cerca del límite)
+    VARIACION_PRECIO_MODERADA = "variacion_precio_moderada"  # 10-15% variación
+    ITEM_NUEVO_BAJO_VALOR = "item_nuevo_bajo_valor"  # Item nuevo < 10% total
+    PATRON_INUSUAL = "patron_inusual"                # Desviación del patrón
+    PROVEEDOR_NUEVO = "proveedor_nuevo"              # < 6 meses historial
+    MONTO_CERCA_LIMITE = "monto_cerca_limite"        # 90-100% monto máximo
+    CAMBIO_FRECUENCIA = "cambio_frecuencia"          # Cambio en frecuencia de facturas
+
+
+class SeveridadAlerta(enum.Enum):
+    """Severidad de alertas para priorización."""
+    BAJA = "baja"          # Informativa, revisar en auditoría semanal
+    MEDIA = "media"        # Requiere revisión en auditoría diaria
+    ALTA = "alta"          # Requiere revisión inmediata
+    CRITICA = "critica"    # Bloquea aprobación automática
+
+
 # ==================== MODELOS ====================
 
 class WorkflowAprobacionFactura(Base):
@@ -200,6 +293,47 @@ class AsignacionNitResponsable(Base):
     # Notificaciones
     emails_notificacion = Column(JSON, nullable=True, comment="Emails adicionales a notificar")
 
+    # ==================== ENTERPRISE: CLASIFICACION Y CONTROL DE RIESGOS ====================
+    # Campos agregados por migración 88f9b5fd2ca3
+
+    tipo_servicio_proveedor = Column(
+        String(50),
+        nullable=True,
+        index=True,
+        comment="Clasificación del tipo de servicio para ajustar criterios de aprobación"
+    )
+
+    nivel_confianza_proveedor = Column(
+        String(50),
+        nullable=True,
+        index=True,
+        comment="Nivel de confianza (1-5) basado en antigüedad e historial"
+    )
+
+    fecha_inicio_relacion = Column(
+        DateTime,
+        nullable=True,
+        comment="Primera factura registrada del proveedor (para calcular antigüedad)"
+    )
+
+    coeficiente_variacion_historico = Column(
+        Numeric(7, 2),
+        nullable=True,
+        comment="CV% de variación de montos históricos"
+    )
+
+    requiere_orden_compra_obligatoria = Column(
+        Boolean,
+        default=False,
+        comment="Si TRUE, facturas sin OC no se auto-aprueban (para servicios por consumo)"
+    )
+
+    metadata_riesgos = Column(
+        JSON,
+        nullable=True,
+        comment="Metadata de análisis de riesgos: última evaluación, incidentes, etc."
+    )
+
     # Activo/Inactivo
     activo = Column(Boolean, default=True, index=True)
 
@@ -251,6 +385,95 @@ class NotificacionWorkflow(Base):
     __table_args__ = (
         Index('idx_notif_workflow_tipo', 'workflow_id', 'tipo'),
     )
+
+
+class AlertaAprobacionAutomatica(Base):
+    """
+    Sistema de Alertas Tempranas (Early Warning System) para auditoría continua.
+
+    Registra alertas incluso cuando la factura ES aprobada automáticamente,
+    permitiendo auditoría posterior de casos "borderline" o con riesgos moderados.
+
+    Casos de uso:
+    - Factura aprobada con confianza 94.5% (cerca del 95%)
+    - Factura aprobada con items nuevos de bajo valor
+    - Cambios en patrones de proveedores establecidos
+    - Montos cerca del límite máximo configurado
+
+    Nivel: Fortune 500 Compliance & Audit
+    """
+    __tablename__ = "alertas_aprobacion_automatica"
+
+    # Identificación
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    workflow_id = Column(BigInteger, ForeignKey("workflow_aprobacion_facturas.id"), nullable=True, index=True)
+    factura_id = Column(BigInteger, ForeignKey("facturas.id"), nullable=False, index=True)
+
+    # Tipo y severidad de alerta
+    tipo_alerta = Column(
+        String(50),
+        nullable=False,
+        index=True,
+        comment="Tipo de alerta detectada"
+    )
+
+    severidad = Column(
+        String(50),
+        nullable=False,
+        index=True,
+        comment="Severidad: BAJA (informativa), MEDIA (revisar diario), ALTA (inmediata), CRITICA (bloquea)"
+    )
+
+    # Datos de la alerta
+    confianza_calculada = Column(Numeric(5, 2), nullable=True, comment="Confianza calculada en la decisión")
+    umbral_requerido = Column(Numeric(5, 2), nullable=True, comment="Umbral requerido para aprobación")
+    diferencia = Column(Numeric(5, 2), nullable=True, comment="Diferencia entre calculada y requerida")
+    valor_detectado = Column(String(255), nullable=True, comment="Valor que generó la alerta")
+    valor_esperado = Column(String(255), nullable=True, comment="Valor esperado según patrón")
+
+    # Flags de gestión
+    requiere_revision_urgente = Column(
+        Boolean,
+        nullable=False,
+        server_default='0',
+        comment="Si TRUE, requiere revisión inmediata por auditor"
+    )
+
+    revisada = Column(
+        Boolean,
+        nullable=False,
+        server_default='0',
+        index=True,
+        comment="Si TRUE, la alerta ya fue revisada por un humano"
+    )
+
+    revisada_por = Column(String(255), nullable=True, comment="Usuario que revisó la alerta")
+    fecha_revision = Column(DateTime, nullable=True, comment="Cuándo se revisó")
+    accion_tomada = Column(Text, nullable=True, comment="Descripción de acción tomada tras revisar")
+
+    # Metadata y auditoría
+    metadata_alerta = Column(
+        JSON,
+        nullable=True,
+        comment="Información adicional: contexto, métricas, recomendaciones"
+    )
+
+    creado_en = Column(DateTime, nullable=False, server_default=func.now())
+    actualizado_en = Column(DateTime, nullable=True, onupdate=func.now())
+
+    # Relaciones
+    workflow = relationship("WorkflowAprobacionFactura", foreign_keys=[workflow_id], backref="alertas")
+    factura = relationship("Factura", foreign_keys=[factura_id])
+
+    # Índices compuestos para queries frecuentes
+    __table_args__ = (
+        Index('idx_alertas_pendientes', 'revisada', 'severidad', 'creado_en'),
+        Index('idx_alertas_tipo_severidad', 'tipo_alerta', 'severidad'),
+        Index('idx_alertas_workflow_factura', 'workflow_id', 'factura_id'),
+    )
+
+    def __repr__(self):
+        return f"<AlertaAprobacionAutomatica(id={self.id}, tipo={self.tipo_alerta.value}, severidad={self.severidad.value}, revisada={self.revisada})>"
 
 
 # NOTA: ConfiguracionCorreo fue eliminada (obsoleta, configuración IMAP vieja).
