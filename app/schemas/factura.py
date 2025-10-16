@@ -23,6 +23,16 @@ class ProveedorSimple(BaseModel):
         from_attributes = True
 
 
+# Schema simple para Responsable anidado
+class ResponsableSimple(BaseModel):
+    id: int
+    nombre: str
+    usuario: str
+
+    class Config:
+        from_attributes = True
+
+
 # Base
 class FacturaBase(BaseModel):
     numero_factura: str
@@ -54,6 +64,9 @@ class FacturaRead(FacturaBase):
     # Relación con proveedor anidado
     proveedor: Optional[ProveedorSimple] = None
 
+    # Relación con responsable anidado (para ADMIN)
+    responsable: Optional[ResponsableSimple] = None
+
     # Campos calculados para compatibilidad con frontend
     nit_emisor: Optional[str] = None
     nombre_emisor: Optional[str] = None
@@ -64,6 +77,18 @@ class FacturaRead(FacturaBase):
     factura_referencia_id: Optional[int] = None
     motivo_decision: Optional[str] = None
     fecha_procesamiento_auto: Optional[datetime] = None
+
+    # Campos de auditoría - Aprobación/Rechazo (para ADMIN)
+    aprobado_por: Optional[str] = None
+    fecha_aprobacion: Optional[datetime] = None
+    rechazado_por: Optional[str] = None
+    fecha_rechazo: Optional[datetime] = None
+    motivo_rechazo: Optional[str] = None
+
+    # Campos calculados para la columna "Acción Por"
+    nombre_responsable: Optional[str] = None
+    accion_por: Optional[str] = None
+    fecha_accion: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -80,5 +105,21 @@ class FacturaRead(FacturaBase):
         # Calcular monto_total desde total_a_pagar
         if not self.monto_total:
             self.monto_total = self.total_a_pagar
+
+        # Poblar nombre del responsable
+        if self.responsable:
+            self.nombre_responsable = self.responsable.nombre
+
+        # Calcular "Acción Por" - quién aprobó o rechazó
+        # 🔥 Si es aprobación automática, mostrar "SISTEMA DE AUTOMATIZACIÓN"
+        if self.estado == EstadoFactura.aprobada_auto:
+            self.accion_por = "SISTEMA DE AUTOMATIZACIÓN"
+            self.fecha_accion = self.fecha_aprobacion
+        elif self.aprobado_por:
+            self.accion_por = self.aprobado_por
+            self.fecha_accion = self.fecha_aprobacion
+        elif self.rechazado_por:
+            self.accion_por = self.rechazado_por
+            self.fecha_accion = self.fecha_rechazo
 
         return self

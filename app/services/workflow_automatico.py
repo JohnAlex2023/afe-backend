@@ -144,9 +144,13 @@ class WorkflowAutomaticoService:
             creado_por="SISTEMA_AUTO"
         )
 
+        # 🔥 IMPORTANTE: Asignar responsable directamente a la factura (sincronización bidireccional)
+        factura.responsable_id = asignacion.responsable_id
+
         self.db.add(workflow)
         self.db.commit()
         self.db.refresh(workflow)
+        self.db.refresh(factura)  # Refrescar factura para que cargue la relación responsable
 
         # 6. Iniciar análisis de similitud
         resultado_analisis = self._analizar_similitud_mes_anterior(factura, workflow, asignacion)
@@ -749,8 +753,9 @@ class WorkflowAutomaticoService:
                       f"{resultado['tipo_servicio'].value} - {resultado['nivel_confianza'].value}")
 
         except Exception as e:
-            # Si hay error en clasificación, usar valores seguros por defecto
-            print(f"⚠️  Error clasificando proveedor {asignacion.nit}: {e}")
-            print(f"   Usando clasificación segura por defecto (SERVICIO_EVENTUAL)")
-
-            self.clasificador.clasificar_nuevo_proveedor_on_the_fly(asignacion)
+            # Si hay error en clasificación, simplemente skip y continuar
+            # El proveedor sin clasificación irá a revisión manual (umbral 100%)
+            print(f"⚠️  Error clasificando proveedor: {str(e)[:100]}")
+            print(f"   El proveedor continuará sin clasificación automática")
+            # No hacer nada más - dejar que el workflow continúe sin clasificación
+            # La función obtener_umbral_aprobacion manejará el caso de proveedor sin clasificar

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factura Pendiente de Aprobación</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #ffc107;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #ffc107;
+            margin: 0;
+            font-size: 24px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #ffc107;
+            color: #333;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .info-section {
+            margin: 20px 0;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #555;
+        }
+        .info-value {
+            color: #333;
+        }
+        .action-box {
+            background-color: #e7f3ff;
+            border-left: 4px solid #007bff;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 4px;
+        }
+        .button-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 30px;
+            margin: 5px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            color: white !important;
+        }
+        .button-approve {
+            background-color: #28a745;
+        }
+        .button-reject {
+            background-color: #dc3545;
+        }
+        .button-view {
+            background-color: #007bff;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #777;
+            font-size: 12px;
+        }
+        .urgency {
+            background-color: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⏳ Factura Pendiente de Aprobación</h1>
+            <div class="status-badge">PENDIENTE</div>
+        </div>
+
+        <p>Estimado/a <strong>{nombre_responsable}</strong>,</p>
+
+        <p>Tiene una nueva factura asignada que requiere su revisión y aprobación:</p>
+
+        <div class="info-section">
+            <div class="info-row">
+                <span class="info-label">Número de Factura:</span>
+                <span class="info-value">{numero_factura}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Proveedor:</span>
+                <span class="info-value">{nombre_proveedor}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">NIT:</span>
+                <span class="info-value">{nit_proveedor}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Monto:</span>
+                <span class="info-value">{monto_factura}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Fecha de Recepción:</span>
+                <span class="info-value">{fecha_recepcion}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Centro de Costos:</span>
+                <span class="info-value">{centro_costos}</span>
+            </div>
+        </div>
+
+        <div class="urgency">
+            ⏰ <strong>Días pendientes:</strong> {dias_pendiente} días
+        </div>
+
+        <div class="action-box">
+            <strong>📋 Acción requerida:</strong>
+            <p style="margin: 10px 0;">Por favor, revise la factura y proceda con la aprobación o rechazo según corresponda.</p>
+
+            <div class="button-container">
+                <a href="{link_sistema}" class="button button-view">👁️ Ver Factura</a>
+            </div>
+        </div>
+
+        <p style="margin-top: 20px; color: #666;">
+            Para gestionar esta factura, acceda al sistema AFE y revise los documentos adjuntos.
+        </p>
+
+        <div class="footer">
+            <p>Este es un correo automático del Sistema AFE - Gestión de Facturas</p>
+            <p>Por favor no responda a este mensaje</p>
+            <p>&copy; 2025 Zentria - Todos los derechos reservados</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -12,10 +12,81 @@ from app.utils.logger import logger
 from app.models.responsable_proveedor import ResponsableProveedor
 from app.models.responsable import Responsable
 from app.models.proveedor import Proveedor
+from app.models.workflow_aprobacion import AsignacionNitResponsable
+from app.models.factura import Factura
 from pydantic import BaseModel
 
 
 router = APIRouter(prefix="/responsable-proveedor", tags=["Responsable-Proveedor"])
+
+
+# ==================== FUNCIONES AUXILIARES ====================
+
+def sincronizar_asignacion_nit(
+    db: Session,
+    proveedor: Proveedor,
+    responsable_id: int,
+    activo: bool = True
+):
+    """
+    Sincroniza la asignación en la tabla asignacion_nit_responsable
+    y actualiza todas las facturas del proveedor.
+
+    Esta función mantiene ambas tablas sincronizadas:
+    - responsable_proveedor (tabla vieja, usada por interfaz)
+    - asignacion_nit_responsable (tabla nueva, usada por workflow)
+    """
+    if not proveedor.nit:
+        return  # No se puede sincronizar sin NIT
+
+    # Buscar o crear asignación NIT
+    asignacion_nit = db.query(AsignacionNitResponsable).filter(
+        AsignacionNitResponsable.nit == proveedor.nit
+    ).first()
+
+    if asignacion_nit:
+        # Actualizar existente
+        asignacion_nit.responsable_id = responsable_id
+        asignacion_nit.nombre_proveedor = proveedor.razon_social
+        asignacion_nit.activo = activo
+    else:
+        # Crear nueva
+        responsable = db.query(Responsable).filter(Responsable.id == responsable_id).first()
+        asignacion_nit = AsignacionNitResponsable(
+            nit=proveedor.nit,
+            nombre_proveedor=proveedor.razon_social,
+            responsable_id=responsable_id,
+            area=responsable.area if responsable else "General",
+            permitir_aprobacion_automatica=True,
+            activo=activo
+        )
+        db.add(asignacion_nit)
+
+    # Actualizar todas las facturas del proveedor
+    facturas = db.query(Factura).filter(Factura.proveedor_id == proveedor.id).all()
+    for factura in facturas:
+        factura.responsable_id = responsable_id
+
+    logger.info(
+        f"Sincronización NIT: {proveedor.nit} -> Responsable {responsable_id}, "
+        f"{len(facturas)} facturas actualizadas"
+    )
+
+
+def eliminar_asignacion_nit(db: Session, proveedor: Proveedor):
+    """
+    Marca como inactiva la asignación NIT cuando se elimina de responsable_proveedor.
+    """
+    if not proveedor.nit:
+        return
+
+    asignacion_nit = db.query(AsignacionNitResponsable).filter(
+        AsignacionNitResponsable.nit == proveedor.nit
+    ).first()
+
+    if asignacion_nit:
+        asignacion_nit.activo = False
+        logger.info(f"Asignación NIT desactivada: {proveedor.nit}")
 
 
 # ==================== SCHEMAS ====================
@@ -198,15 +269,20 @@ def crear_asignacion(
     )
 
     db.add(nueva_asignacion)
+
+    # 🔥 SINCRONIZACIÓN AUTOMÁTICA: Actualizar asignacion_nit_responsable y facturas
+    sincronizar_asignacion_nit(db, proveedor, payload.responsable_id, payload.activo)
+
     db.commit()
     db.refresh(nueva_asignacion)
 
     logger.info(
-        "Asignación creada",
+        "Asignación creada y sincronizada",
         extra={
             "asignacion_id": nueva_asignacion.id,
             "responsable_id": payload.responsable_id,
             "proveedor_id": payload.proveedor_id,
+            "proveedor_nit": proveedor.nit,
             "usuario": current_user.usuario
         }
     )
@@ -268,6 +344,10 @@ def crear_asignaciones_masivas(
             )
 
             db.add(nueva_asignacion)
+
+            # 🔥 SINCRONIZACIÓN AUTOMÁTICA: Actualizar asignacion_nit_responsable y facturas
+            sincronizar_asignacion_nit(db, proveedor, payload.responsable_id, payload.activo)
+
             creadas += 1
 
         except Exception as e:
@@ -333,13 +413,20 @@ def actualizar_asignacion(
     if payload.activo is not None:
         asignacion.activo = payload.activo
 
+    # 🔥 SINCRONIZACIÓN AUTOMÁTICA: Actualizar asignacion_nit_responsable y facturas
+    proveedor = db.query(Proveedor).filter(Proveedor.id == asignacion.proveedor_id).first()
+    if proveedor:
+        sincronizar_asignacion_nit(db, proveedor, asignacion.responsable_id, asignacion.activo)
+
     db.commit()
     db.refresh(asignacion)
 
     logger.info(
-        "Asignación actualizada",
+        "Asignación actualizada y sincronizada",
         extra={
             "asignacion_id": asignacion_id,
+            "responsable_id": asignacion.responsable_id,
+            "proveedor_nit": proveedor.nit if proveedor else None,
             "usuario": current_user.usuario
         }
     )
@@ -373,15 +460,21 @@ def eliminar_asignacion(
             detail=f"Asignación {asignacion_id} no encontrada"
         )
 
+    # 🔥 SINCRONIZACIÓN AUTOMÁTICA: Desactivar asignacion_nit_responsable
+    proveedor = db.query(Proveedor).filter(Proveedor.id == asignacion.proveedor_id).first()
+    if proveedor:
+        eliminar_asignacion_nit(db, proveedor)
+
     db.delete(asignacion)
     db.commit()
 
     logger.info(
-        "Asignación eliminada",
+        "Asignación eliminada y sincronizada",
         extra={
             "asignacion_id": asignacion_id,
             "responsable_id": asignacion.responsable_id,
             "proveedor_id": asignacion.proveedor_id,
+            "proveedor_nit": proveedor.nit if proveedor else None,
             "usuario": current_user.usuario
         }
     )

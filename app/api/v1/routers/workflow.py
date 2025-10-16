@@ -186,6 +186,139 @@ def rechazar_factura(
     return resultado
 
 
+@router.post("/factura/aprobar/{factura_id}")
+def aprobar_por_factura_id(
+    factura_id: int,
+    request: AprobacionManualRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Aprueba una factura usando su factura_id.
+
+    Este endpoint es útil cuando se trabaja directamente con facturas
+    que aún no tienen workflow creado. Si no existe workflow, lo crea automáticamente.
+    """
+    from app.models.factura import Factura
+
+    # Verificar que la factura existe
+    factura = db.query(Factura).filter(Factura.id == factura_id).first()
+    if not factura:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Factura {factura_id} no encontrada"
+        )
+
+    # Buscar o crear workflow
+    workflow = db.query(WorkflowAprobacionFactura).filter(
+        WorkflowAprobacionFactura.factura_id == factura_id
+    ).first()
+
+    if not workflow:
+        # Crear workflow automáticamente
+        servicio = WorkflowAutomaticoService(db)
+        resultado_proceso = servicio.procesar_factura_nueva(factura_id)
+
+        if resultado_proceso.get("error"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Error al procesar factura: {resultado_proceso['error']}"
+            )
+
+        # Obtener el workflow recién creado
+        workflow = db.query(WorkflowAprobacionFactura).filter(
+            WorkflowAprobacionFactura.factura_id == factura_id
+        ).first()
+
+        if not workflow:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al crear workflow para la factura"
+            )
+
+    # Aprobar usando el workflow_id
+    servicio = WorkflowAutomaticoService(db)
+    resultado = servicio.aprobar_manual(
+        workflow_id=workflow.id,
+        aprobado_por=request.aprobado_por,
+        observaciones=request.observaciones
+    )
+
+    if resultado.get("error"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=resultado["error"]
+        )
+
+    return resultado
+
+
+@router.post("/factura/rechazar/{factura_id}")
+def rechazar_por_factura_id(
+    factura_id: int,
+    request: RechazoRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Rechaza una factura usando su factura_id.
+
+    Este endpoint es útil cuando se trabaja directamente con facturas
+    que aún no tienen workflow creado. Si no existe workflow, lo crea automáticamente.
+    """
+    from app.models.factura import Factura
+
+    # Verificar que la factura existe
+    factura = db.query(Factura).filter(Factura.id == factura_id).first()
+    if not factura:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Factura {factura_id} no encontrada"
+        )
+
+    # Buscar o crear workflow
+    workflow = db.query(WorkflowAprobacionFactura).filter(
+        WorkflowAprobacionFactura.factura_id == factura_id
+    ).first()
+
+    if not workflow:
+        # Crear workflow automáticamente
+        servicio = WorkflowAutomaticoService(db)
+        resultado_proceso = servicio.procesar_factura_nueva(factura_id)
+
+        if resultado_proceso.get("error"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Error al procesar factura: {resultado_proceso['error']}"
+            )
+
+        # Obtener el workflow recién creado
+        workflow = db.query(WorkflowAprobacionFactura).filter(
+            WorkflowAprobacionFactura.factura_id == factura_id
+        ).first()
+
+        if not workflow:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al crear workflow para la factura"
+            )
+
+    # Rechazar usando el workflow_id
+    servicio = WorkflowAutomaticoService(db)
+    resultado = servicio.rechazar(
+        workflow_id=workflow.id,
+        rechazado_por=request.rechazado_por,
+        motivo=request.motivo,
+        detalle=request.detalle
+    )
+
+    if resultado.get("error"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=resultado["error"]
+        )
+
+    return resultado
+
+
 @router.get("/consultar/{workflow_id}")
 def consultar_workflow(
     workflow_id: int,
@@ -334,6 +467,13 @@ def obtener_dashboard_workflow(
         WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.PENDIENTE_REVISION
     ).count()
 
+    total_en_revision = query.filter(
+        WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.EN_REVISION
+    ).count()
+
+    # Total de aprobadas (manual + auto)
+    total_aprobadas = total_aprobadas_auto + total_aprobadas_manual
+
     # Tiempo promedio de aprobación
     tiempo_promedio = db.query(
         func.avg(WorkflowAprobacionFactura.tiempo_total_aprobacion)
@@ -350,15 +490,28 @@ def obtener_dashboard_workflow(
         WorkflowAprobacionFactura.fecha_cambio_estado <= fecha_limite
     ).count()
 
+    # Calcular tasa de aprobación automática
+    total_facturas = total_aprobadas + total_rechazadas + total_pendientes + total_en_revision
+    tasa_aprobacion_automatica = (total_aprobadas_auto / total_facturas * 100) if total_facturas > 0 else 0
+
     return {
+        # Campos compatibles con el frontend
+        "total_pendientes": total_pendientes,
+        "total_en_revision": total_en_revision,
+        "total_aprobadas": total_aprobadas,
+        "total_aprobadas_auto": total_aprobadas_auto,
+        "total_rechazadas": total_rechazadas,
+        "pendientes_antiguas": pendientes_antiguas,
+        "tiempo_promedio_aprobacion_horas": round(tiempo_promedio / 3600, 2) if tiempo_promedio else 0,
+        "tasa_aprobacion_automatica": round(tasa_aprobacion_automatica, 2),
+
+        # Campos adicionales para compatibilidad legacy
         "facturas_por_estado": facturas_por_estado,
         "total_aprobadas_automaticamente": total_aprobadas_auto,
         "total_aprobadas_manualmente": total_aprobadas_manual,
-        "total_rechazadas": total_rechazadas,
         "total_pendientes_revision": total_pendientes,
         "pendientes_hace_mas_3_dias": pendientes_antiguas,
         "tiempo_promedio_aprobacion_segundos": int(tiempo_promedio),
-        "tiempo_promedio_aprobacion_horas": round(tiempo_promedio / 3600, 2) if tiempo_promedio else 0
     }
 
 
@@ -530,9 +683,13 @@ def obtener_mis_facturas_pendientes(
     Retorna workflows en estados: PENDIENTE_REVISION, EN_ANALISIS, REQUIERE_APROBACION_MANUAL
     """
     from app.models.factura import Factura
+    from app.models.responsable import Responsable
+    from sqlalchemy.orm import joinedload
 
     workflows = db.query(WorkflowAprobacionFactura).join(
         Factura, WorkflowAprobacionFactura.factura_id == Factura.id
+    ).options(
+        joinedload(WorkflowAprobacionFactura.factura).joinedload(Factura.responsable)
     ).filter(
         WorkflowAprobacionFactura.responsable_id == responsable_id,
         WorkflowAprobacionFactura.estado.in_([
@@ -547,6 +704,11 @@ def obtener_mis_facturas_pendientes(
         factura = wf.factura
         proveedor_nombre = factura.proveedor.razon_social if factura.proveedor else "Sin proveedor"
 
+        # 🔥 Obtener nombre del responsable asignado
+        nombre_responsable = None
+        if factura.responsable:
+            nombre_responsable = factura.responsable.nombre
+
         resultado.append({
             "workflow_id": wf.id,
             "factura_id": wf.factura_id,
@@ -559,7 +721,9 @@ def obtener_mis_facturas_pendientes(
             "es_identica_mes_anterior": wf.es_identica_mes_anterior,
             "porcentaje_similitud": float(wf.porcentaje_similitud) if wf.porcentaje_similitud else None,
             "fecha_asignacion": str(wf.fecha_asignacion) if wf.fecha_asignacion else None,
-            "dias_pendiente": (wf.fecha_asignacion.date() - wf.creado_en.date()).days if wf.fecha_asignacion and wf.creado_en else 0
+            "dias_pendiente": (wf.fecha_asignacion.date() - wf.creado_en.date()).days if wf.fecha_asignacion and wf.creado_en else 0,
+            # Campo de auditoría para ADMIN
+            "nombre_responsable": nombre_responsable
         })
 
     return {
@@ -655,35 +819,41 @@ def obtener_factura_con_workflow(
 
     # ✨ NUEVO: Análisis de patrones históricos
     contexto_historico = None
-    if factura.concepto_normalizado and factura.proveedor_id:
-        analizador = AnalizadorPatrones(db)
-        historial, recomendacion = analizador.evaluar_factura_nueva(factura)
+    try:
+        if factura.concepto_normalizado and factura.proveedor_id:
+            analizador = AnalizadorPatrones(db)
+            historial, recomendacion = analizador.evaluar_factura_nueva(factura)
 
-        if historial:
-            contexto_historico = {
-                "tipo_patron": historial.tipo_patron.value,
-                "recomendacion": recomendacion["recomendacion"],
-                "motivo": recomendacion["motivo"],
-                "confianza": recomendacion["confianza"],
-                "estadisticas": {
-                    "pagos_analizados": historial.pagos_analizados,
-                    "meses_con_pagos": historial.meses_con_pagos,
-                    "monto_promedio": float(historial.monto_promedio),
-                    "monto_minimo": float(historial.monto_minimo),
-                    "monto_maximo": float(historial.monto_maximo),
-                    "coeficiente_variacion": float(historial.coeficiente_variacion),
-                },
-                "rango_esperado": {
-                    "inferior": float(historial.rango_inferior) if historial.rango_inferior else None,
-                    "superior": float(historial.rango_superior) if historial.rango_superior else None,
-                } if historial.rango_inferior else None,
-                "ultimo_pago": {
-                    "fecha": str(historial.ultimo_pago_fecha) if historial.ultimo_pago_fecha else None,
-                    "monto": float(historial.ultimo_pago_monto) if historial.ultimo_pago_monto else None,
-                } if historial.ultimo_pago_fecha else None,
-                "pagos_historicos": historial.pagos_detalle[:6] if historial.pagos_detalle else [],
-                "contexto_adicional": recomendacion["contexto"]
-            }
+            if historial:
+                contexto_historico = {
+                    "tipo_patron": historial.tipo_patron.value,
+                    "recomendacion": recomendacion["recomendacion"],
+                    "motivo": recomendacion["motivo"],
+                    "confianza": recomendacion["confianza"],
+                    "estadisticas": {
+                        "pagos_analizados": historial.pagos_analizados,
+                        "meses_con_pagos": historial.meses_con_pagos,
+                        "monto_promedio": float(historial.monto_promedio),
+                        "monto_minimo": float(historial.monto_minimo),
+                        "monto_maximo": float(historial.monto_maximo),
+                        "coeficiente_variacion": float(historial.coeficiente_variacion),
+                    },
+                    "rango_esperado": {
+                        "inferior": float(historial.rango_inferior) if historial.rango_inferior else None,
+                        "superior": float(historial.rango_superior) if historial.rango_superior else None,
+                    } if historial.rango_inferior else None,
+                    "ultimo_pago": {
+                        "fecha": str(historial.ultimo_pago_fecha) if historial.ultimo_pago_fecha else None,
+                        "monto": float(historial.ultimo_pago_monto) if historial.ultimo_pago_monto else None,
+                    } if historial.ultimo_pago_fecha else None,
+                    "pagos_historicos": historial.pagos_detalle[:6] if historial.pagos_detalle else [],
+                    "contexto_adicional": recomendacion["contexto"]
+                }
+    except Exception as e:
+        # Si falla el análisis de patrones, simplemente no incluir contexto histórico
+        # La factura detalle se retorna normalmente sin esta información adicional
+        print(f"Warning: Error en análisis de patrones para factura {factura_id}: {str(e)}")
+        contexto_historico = None
 
     return {
         "factura": factura_detalle,

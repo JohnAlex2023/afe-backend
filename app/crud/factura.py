@@ -70,7 +70,13 @@ def list_facturas(
 
     Usa índice: idx_facturas_orden_cronologico para performance óptima
     """
-    query = db.query(Factura)
+    from sqlalchemy.orm import joinedload
+    from app.models.responsable import Responsable
+
+    query = db.query(Factura).options(
+        joinedload(Factura.proveedor),
+        joinedload(Factura.responsable)
+    )
 
     # Filtrar por responsable (solo facturas de sus proveedores asignados)
     if responsable_id:

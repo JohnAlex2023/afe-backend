@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factura Rechazada</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #dc3545;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #dc3545;
+            margin: 0;
+            font-size: 24px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            background-color: #dc3545;
+            color: white;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .info-section {
+            margin: 20px 0;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #555;
+        }
+        .info-value {
+            color: #333;
+        }
+        .reason-box {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .reason-title {
+            font-weight: bold;
+            color: #856404;
+            margin-bottom: 10px;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #777;
+            font-size: 12px;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>❌ Factura Rechazada</h1>
+            <div class="status-badge">RECHAZADA</div>
+        </div>
+
+        <p>Estimado/a <strong>{nombre_responsable}</strong>,</p>
+
+        <p>Le informamos que la siguiente factura ha sido <strong>rechazada</strong>:</p>
+
+        <div class="info-section">
+            <div class="info-row">
+                <span class="info-label">Número de Factura:</span>
+                <span class="info-value">{numero_factura}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Proveedor:</span>
+                <span class="info-value">{nombre_proveedor}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">NIT:</span>
+                <span class="info-value">{nit_proveedor}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Monto:</span>
+                <span class="info-value">{monto_factura}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Fecha de Rechazo:</span>
+                <span class="info-value">{fecha_rechazo}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Rechazado por:</span>
+                <span class="info-value">{rechazado_por}</span>
+            </div>
+        </div>
+
+        <div class="reason-box">
+            <div class="reason-title">📋 Motivo del rechazo:</div>
+            <p>{motivo_rechazo}</p>
+        </div>
+
+        <p style="margin-top: 20px;">
+            Por favor, revise la información y tome las acciones correctivas necesarias. Si tiene alguna duda, contacte al área correspondiente.
+        </p>
+
+        <div class="footer">
+            <p>Este es un correo automático del Sistema AFE - Gestión de Facturas</p>
+            <p>Por favor no responda a este mensaje</p>
+            <p>&copy; 2025 Zentria - Todos los derechos reservados</p>
+        </div>
+    </div>
+</body>
+</html>

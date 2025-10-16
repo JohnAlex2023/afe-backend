@@ -601,9 +601,11 @@ def aprobar_factura(
     if workflow:
         # Si existe workflow, usar el servicio enterprise para mantener sincronización
         servicio = WorkflowAutomaticoService(db)
+        # Usar el nombre completo del usuario, no el username
+        aprobado_por = payload.get("aprobado_por", current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)
         resultado = servicio.aprobar_manual(
             workflow_id=workflow.id,
-            aprobado_por=payload.get("aprobado_por", current_user.usuario),
+            aprobado_por=aprobado_por,
             observaciones=payload.get("observaciones")
         )
 
@@ -618,7 +620,8 @@ def aprobar_factura(
     else:
         # Si no existe workflow (facturas antiguas), actualizar solo la factura
         factura.estado = EstadoFactura.aprobada
-        factura.aprobado_por = payload.get("aprobado_por", current_user.usuario)
+        # Usar el nombre completo del usuario, no el username
+        factura.aprobado_por = payload.get("aprobado_por", current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)
         factura.fecha_aprobacion = datetime.now()
         if payload.get("observaciones"):
             factura.observaciones = payload.get("observaciones")
@@ -685,9 +688,11 @@ def rechazar_factura(
     if workflow:
         # Si existe workflow, usar el servicio enterprise para mantener sincronización
         servicio = WorkflowAutomaticoService(db)
+        # Usar el nombre completo del usuario, no el username
+        rechazado_por = payload.get("rechazado_por", current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)
         resultado = servicio.rechazar(
             workflow_id=workflow.id,
-            rechazado_por=payload.get("rechazado_por", current_user.usuario),
+            rechazado_por=rechazado_por,
             motivo=payload.get("motivo"),
             detalle=payload.get("detalle")
         )
@@ -703,7 +708,8 @@ def rechazar_factura(
     else:
         # Si no existe workflow (facturas antiguas), actualizar solo la factura
         factura.estado = EstadoFactura.rechazada
-        factura.rechazado_por = payload.get("rechazado_por", current_user.usuario)
+        # Usar el nombre completo del usuario, no el username
+        factura.rechazado_por = payload.get("rechazado_por", current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)
         factura.fecha_rechazo = datetime.now()
         factura.motivo_rechazo = payload.get("motivo")
 
