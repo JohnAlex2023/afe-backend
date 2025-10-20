@@ -381,5 +381,54 @@ find src/ -type f -name "*.ts" -o -name "*.tsx" | xargs sed -i 's/fecha_aprobaci
 
 ---
 
+## 🎯 SINCRONIZACIÓN COMPLETADA - 2025-10-19
+
+### ✅ CAMBIOS APLICADOS EXITOSAMENTE
+
+#### Backend:
+1. **Modelo actualizado** (`workflow_aprobacion.py`)
+   - Eliminado `unique=True` del campo `nit`
+   - Agregado `UniqueConstraint('nit', 'responsable_id')`
+   - **Resultado**: Permite múltiples responsables por NIT
+
+2. **Migración aplicada** (`c9b4479ff345`)
+   - DROP CONSTRAINT `nit` (UNIQUE)
+   - CREATE CONSTRAINT `uq_nit_responsable` (nit, responsable_id)
+   - Estado: ✅ Aplicada exitosamente
+
+3. **API actualizada** (`asignacion_nit.py`)
+   - Validación: verifica (nit, responsable_id) en lugar de solo nit
+   - Mensaje profesional en error 400
+   - Endpoint bulk omite duplicados
+
+#### Frontend:
+1. **Tipos sincronizados** (`asignacionNit.api.ts`)
+   - Agregado `requiere_revision_siempre` a interfaces
+   - Sincronizado con schemas backend
+
+2. **Componentes corregidos**
+   - `AsignacionesTab.tsx`: payload completo + manejo de errores
+   - `PorResponsableTab.tsx`: validación defensiva contra undefined
+
+### 🚀 ESTADO ACTUAL
+
+- ✅ Backend: Commit `effdc30`
+- ✅ Frontend: Commit `56d628d`
+- ✅ Migraciones: Aplicadas hasta `c9b4479ff345`
+- ✅ Tests: Validados manualmente
+
+### 📊 COMPORTAMIENTO VERIFICADO
+
+| Escenario | Resultado Esperado | Estado |
+|-----------|-------------------|--------|
+| Crear asignación nueva | 201 Created | ✅ |
+| Duplicar NIT + mismo responsable | 400 + mensaje profesional | ✅ |
+| Mismo NIT + diferente responsable | 201 Created | ✅ |
+| Bulk con duplicados | Omite + reporta en resumen | ✅ |
+| Tab "Asignaciones" | Carga sin errores | ✅ |
+| Tab "Por Responsable" | No crashea con datos vacíos | ✅ |
+
+---
+
 **Preparado para sincronización frontend**
 **Fecha:** 2025-10-19
