@@ -79,11 +79,13 @@ class FacturaRead(FacturaBase):
     fecha_procesamiento_auto: Optional[datetime] = None
 
     # Campos de auditoría - Aprobación/Rechazo (para ADMIN)
-    aprobado_por: Optional[str] = None
-    fecha_aprobacion: Optional[datetime] = None
-    rechazado_por: Optional[str] = None
-    fecha_rechazo: Optional[datetime] = None
-    motivo_rechazo: Optional[str] = None
+    # NOTA: Estos campos vienen desde workflow_aprobacion_facturas vía helpers del modelo
+    aprobado_por_workflow: Optional[str] = None
+    fecha_aprobacion_workflow: Optional[datetime] = None
+    rechazado_por_workflow: Optional[str] = None
+    fecha_rechazo_workflow: Optional[datetime] = None
+    motivo_rechazo_workflow: Optional[str] = None
+    tipo_aprobacion_workflow: Optional[str] = None
 
     # Campos calculados para la columna "Acción Por"
     nombre_responsable: Optional[str] = None
@@ -111,17 +113,16 @@ class FacturaRead(FacturaBase):
             self.nombre_responsable = self.responsable.nombre
 
         # Calcular "Acción Por" - quién aprobó o rechazó
-        # NOTA IMPORTANTE: Ahora estos campos pueden venir de campos legacy O de workflow
-        # Los helpers _workflow del modelo prueban ambas fuentes automáticamente
-        # 🔥 Si es aprobación automática, mostrar "SISTEMA DE AUTOMATIZACIÓN"
+        # NOTA: Ahora estos campos vienen desde workflow_aprobacion_facturas vía helpers
+        # Si es aprobación automática, mostrar "SISTEMA DE AUTOMATIZACIÓN"
         if self.estado == EstadoFactura.aprobada_auto:
             self.accion_por = "SISTEMA DE AUTOMATIZACIÓN"
-            self.fecha_accion = self.fecha_aprobacion
-        elif self.aprobado_por:
-            self.accion_por = self.aprobado_por
-            self.fecha_accion = self.fecha_aprobacion
-        elif self.rechazado_por:
-            self.accion_por = self.rechazado_por
-            self.fecha_accion = self.fecha_rechazo
+            self.fecha_accion = self.fecha_aprobacion_workflow
+        elif self.aprobado_por_workflow:
+            self.accion_por = self.aprobado_por_workflow
+            self.fecha_accion = self.fecha_aprobacion_workflow
+        elif self.rechazado_por_workflow:
+            self.accion_por = self.rechazado_por_workflow
+            self.fecha_accion = self.fecha_rechazo_workflow
 
         return self
