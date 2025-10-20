@@ -1,26 +1,33 @@
 #app/api/v1/routers/responsables.py
+"""
+Router para gestión de Responsables.
+
+⚠️ IMPORTANTE: Algunos endpoints relacionados con responsable-proveedor
+fueron movidos a /api/v1/asignacion-nit/*
+
+✅ NUEVOS ENDPOINTS: Ver /api/v1/asignacion-nit/
+"""
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.schemas.responsable import ResponsableCreate, ResponsableRead, ResponsableUpdate
-from app.schemas.responsable import ResponsableProveedorAssign, ResponsableProveedorUpdate
 from app.schemas.common import ErrorResponse
-from app.crud.responsable import get_responsable_by_usuario, create_responsable, update_responsable, delete_responsable
-from app.crud.responsable_proveedor import (
-    get_proveedores_by_responsable,
-    get_responsables_by_proveedor,
-    desactivar_responsable_proveedor
+from app.crud.responsable import (
+    get_responsable_by_usuario,
+    create_responsable,
+    update_responsable,
+    delete_responsable
 )
-from sqlalchemy import delete
-from app.services.responsable_proveedor_service import asignar_proveedores_a_responsable
 from app.core.security import get_current_responsable, require_role
 from app.utils.logger import logger
 
 router = APIRouter(tags=["Responsables"])
 
-#crear responsable
+
+# ==================== ENDPOINTS DE RESPONSABLES ====================
+
 @router.post(
     "/",
     response_model=ResponsableRead,
@@ -34,105 +41,17 @@ def create_responsable_endpoint(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin")),
 ):
+    """Crea un nuevo responsable"""
     if get_responsable_by_usuario(db, payload.usuario):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Usuario ya existe")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Usuario ya existe"
+        )
+
     r = create_responsable(db, payload)
     logger.info("Responsable creado", extra={"id": r.id, "usuario": r.usuario})
     return r
 
-
-# Obtener proveedores asignados a un responsable
-@router.get(
-    "/{responsable_id}/proveedores",
-    summary="Listar proveedores asignados a un responsable"
-)
-def listar_proveedores_por_responsable(
-    responsable_id: int, 
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin", "responsable"))
-):
-    relaciones = get_proveedores_by_responsable(db, responsable_id)
-    return [{"proveedor_id": r.proveedor_id, "activo": r.activo, "creado_en": r.creado_en} for r in relaciones]
-
-# Obtener responsables asignados a un proveedor
-@router.get(
-    "/proveedor/{proveedor_id}/responsables",
-    summary="Listar responsables asignados a un proveedor"
-)
-def listar_responsables_por_proveedor(
-    proveedor_id: int, 
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin", "responsable"))
-):
-    relaciones = get_responsables_by_proveedor(db, proveedor_id)
-    return [{"responsable_id": r.responsable_id, "activo": r.activo, "creado_en": r.creado_en} for r in relaciones]
-
-# Desactivar relación responsable-proveedor
-@router.delete(
-    "/{responsable_id}/proveedores/{proveedor_id}",
-    summary="Desactivar relación responsable-proveedor"
-)
-def desactivar_relacion_responsable_proveedor(
-    responsable_id: int, 
-    proveedor_id: int, 
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin"))
-):
-    ok = desactivar_responsable_proveedor(db, responsable_id, proveedor_id)
-    if ok:
-        return {"msg": "Relación desactivada"}
-    else:
-        raise HTTPException(status_code=404, detail="Relación no encontrada")
-
-# Eliminar completamente la relación responsable-proveedor
-@router.delete(
-    "/{responsable_id}/proveedores/{proveedor_id}/eliminar",
-    summary="Eliminar completamente la relación responsable-proveedor",
-    description="Elimina la fila de la relación responsable-proveedor de la base de datos.",
-)
-def eliminar_relacion_responsable_proveedor(
-    responsable_id: int, 
-    proveedor_id: int, 
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin"))
-):
-    from app.models.responsable_proveedor import ResponsableProveedor
-    from app.models.factura import Factura
-    logger.info(f"Intentando eliminar responsable_id={responsable_id}, proveedor_id={proveedor_id}")
-    # Buscar la relación aunque esté inactiva
-    rel = db.query(ResponsableProveedor).filter(
-        ResponsableProveedor.responsable_id == responsable_id,
-        ResponsableProveedor.proveedor_id == proveedor_id
-    ).first()
-    logger.info(f"Resultado de la consulta: {rel}")
-    if rel:
-        # Log de facturas antes del update para depuración
-        facturas = db.query(Factura).filter(
-            Factura.proveedor_id == proveedor_id
-        ).all()
-        logger.info(f"Facturas proveedor_id={proveedor_id}: {[{'id': f.id, 'responsable_id': f.responsable_id} for f in facturas]}")
-
-        # Actualizar facturas: poner responsable_id en NULL donde coincidan ambos IDs (update masivo)
-        rows = db.query(Factura).filter(
-            Factura.responsable_id == responsable_id,
-            Factura.proveedor_id == proveedor_id
-        ).update({Factura.responsable_id: None}, synchronize_session=False)
-        logger.info(f"Facturas actualizadas: {rows}")
-        db.flush()
-        db.delete(rel)
-        db.commit()
-        logger.info(f"Commit realizado. Verificando facturas después del commit...")
-        facturas_post = db.query(Factura).filter(
-            Factura.proveedor_id == proveedor_id
-        ).all()
-        logger.info(f"Facturas proveedor_id={proveedor_id} después del commit: {[{'id': f.id, 'responsable_id': f.responsable_id} for f in facturas_post]}")
-        logger.info(f"Relación eliminada responsable_id={responsable_id}, proveedor_id={proveedor_id} y facturas actualizadas")
-        return {"msg": f"Relación eliminada completamente y facturas actualizadas: {rows}"}
-    else:
-        logger.warning(f"No se encontró relación responsable_id={responsable_id}, proveedor_id={proveedor_id}")
-        raise HTTPException(status_code=404, detail="Relación no encontrada")
-
-#listar responsables
 
 @router.get(
     "/",
@@ -144,93 +63,94 @@ def list_responsables(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin", "responsable")),
 ):
+    """Lista todos los responsables"""
     from app.models.responsable import Responsable
     return db.query(Responsable).all()
 
 
-# Asignar proveedores a un responsable
-@router.post(
-    "/asignar-proveedores",
-    status_code=status.HTTP_200_OK,
-    summary="Asignar proveedores a responsable",
-    description="Asigna uno o varios proveedores (por NIT) a un responsable."
-)
-def asignar_proveedores_endpoint(
-    payload: ResponsableProveedorAssign,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin")),
-):
-    try:
-        resultado = asignar_proveedores_a_responsable(db, payload.responsable_id, payload.nits_proveedores)
-        return {"msg": "Asignación realizada", "detalle": resultado}
-    except Exception as e:
-        logger.error(f"Error en asignación de proveedores: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-
-#actualizar responsable
-@router.put(
-    "/{responsable_id}/proveedores",
-    summary="Actualizar NITs asignados a un responsable",
-    description="Actualiza la lista de NITs de proveedores asignados a un responsable. La asignación es idempotente: activa los NITs enviados y desactiva los que ya no estén.",
-)
-def actualizar_proveedores_responsable(
-    responsable_id: int,
-    payload: ResponsableProveedorUpdate,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin")),
-):
-    # Obtener todos los proveedores actualmente asignados
-    actuales = get_proveedores_by_responsable(db, responsable_id)
-    actuales_nits = set()
-    from app.models.proveedor import Proveedor
-    for rel in actuales:
-        prov = db.query(Proveedor).filter_by(id=rel.proveedor_id).first()
-        if prov:
-            actuales_nits.add(prov.nit)
-    nuevos_nits = set(payload.nits_proveedores)
-    # Desactivar los que ya no estén
-    for rel in actuales:
-        prov = db.query(Proveedor).filter_by(id=rel.proveedor_id).first()
-        if prov and prov.nit not in nuevos_nits:
-            rel.activo = False
-    # Asignar/activar los nuevos
-    resultado = asignar_proveedores_a_responsable(db, responsable_id, list(nuevos_nits))
-    return {"msg": "Asignación actualizada", "detalle": resultado}
-@router.put(
-    "/{id}",
+@router.get(
+    "/{responsable_id}",
     response_model=ResponsableRead,
-    responses={404: {"model": ErrorResponse}},
+    summary="Obtener responsable por ID",
+    description="Obtiene un responsable específico por su ID."
+)
+def get_responsable(
+    responsable_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin", "responsable")),
+):
+    """Obtiene un responsable por ID"""
+    from app.models.responsable import Responsable
+
+    responsable = db.query(Responsable).filter(Responsable.id == responsable_id).first()
+
+    if not responsable:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Responsable con ID {responsable_id} no encontrado"
+        )
+
+    return responsable
+
+
+@router.put(
+    "/{responsable_id}",
+    response_model=ResponsableRead,
     summary="Actualizar responsable",
-    description="Actualiza los datos de un responsable por su ID."
+    description="Actualiza la información de un responsable."
 )
 def update_responsable_endpoint(
-    id: int,
+    responsable_id: int,
     payload: ResponsableUpdate,
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin")),
 ):
-    r = update_responsable(db, id, payload)
-    if not r:
-        raise HTTPException(status_code=404, detail="Responsable no encontrado")
-    logger.info("Responsable actualizado", extra={"id": r.id, "usuario": r.usuario})
-    return r
+    """Actualiza un responsable"""
+    responsable = update_responsable(db, responsable_id, payload)
 
-#eliminar responsable
+    if not responsable:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Responsable con ID {responsable_id} no encontrado"
+        )
+
+    logger.info(f"Responsable actualizado: {responsable_id}")
+    return responsable
+
 
 @router.delete(
-    "/{id}",
+    "/{responsable_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={404: {"model": ErrorResponse}},
     summary="Eliminar responsable",
-    description="Elimina un responsable por su ID."
+    description="Elimina (desactiva) un responsable del sistema."
 )
 def delete_responsable_endpoint(
-    id: int,
+    responsable_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin")),
 ):
-    ok = delete_responsable(db, id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Responsable no encontrado")
-    logger.info("Responsable eliminado", extra={"id": id})
+    """Elimina (desactiva) un responsable"""
+    success = delete_responsable(db, responsable_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Responsable con ID {responsable_id} no encontrado"
+        )
+
+    logger.info(f"Responsable eliminado: {responsable_id}")
     return None
+
+
+# ==================== ENDPOINTS DE ASIGNACIONES ====================
+# ⚠️ NOTA: Los endpoints de asignación responsable-proveedor fueron
+# movidos a /api/v1/asignacion-nit/*
+#
+# - GET /asignacion-nit/ - Listar asignaciones
+# - POST /asignacion-nit/ - Crear asignación
+# - PUT /asignacion-nit/{id} - Actualizar asignación
+# - DELETE /asignacion-nit/{id} - Eliminar asignación
+# - POST /asignacion-nit/bulk - Asignación masiva
+# - GET /asignacion-nit/por-responsable/{responsable_id} - Asignaciones por responsable
+#
+# ==================== FIN DEL ARCHIVO ====================

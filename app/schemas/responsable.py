@@ -54,14 +54,18 @@ class ResponsableUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=8)
 
 
+# ❌ DEPRECATED: Estas clases no se usan - ver AsignacionNitCreate en workflow_aprobacion.py
 # Schema para asignar proveedores a un responsable
+# NOTA: Mantener temporalmente para compatibilidad, pero usar AsignacionNitCreate
 from typing import List
 
 class ResponsableProveedorAssign(BaseModel):
+    """DEPRECATED: Usar AsignacionNitCreate de schemas.workflow_aprobacion"""
     responsable_id: int
     nits_proveedores: List[str] = Field(..., example=["890929073", "901261003"])
 
 
 # Nuevo schema para PUT (solo lista de NITs)
 class ResponsableProveedorUpdate(BaseModel):
+    """DEPRECATED: Usar AsignacionNitUpdate de schemas.workflow_aprobacion"""
     nits_proveedores: List[str] = Field(..., example=["890929073", "901261003"])

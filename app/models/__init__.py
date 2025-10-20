@@ -5,7 +5,7 @@ from .proveedor import Proveedor
 from .factura import Factura
 from .factura_item import FacturaItem
 from .responsable import Responsable
-from .responsable_proveedor import ResponsableProveedor
+# ❌ ELIMINADO: ResponsableProveedor (migrado a AsignacionNitResponsable)
 from .role import Role
 from .audit_log import AuditLog
 from .workflow_aprobacion import (
@@ -21,7 +21,7 @@ __all__ = [
     "Factura",
     "FacturaItem",
     "Responsable",
-    "ResponsableProveedor",
+    # ❌ ELIMINADO: "ResponsableProveedor",
     "Role",
     "AuditLog",
     "WorkflowAprobacionFactura",

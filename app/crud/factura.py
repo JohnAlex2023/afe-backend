@@ -6,7 +6,7 @@ from datetime import datetime, date
 
 from app.models.factura import Factura, EstadoFactura
 from app.models.proveedor import Proveedor
-from app.models.responsable_proveedor import ResponsableProveedor
+from app.models.workflow_aprobacion import AsignacionNitResponsable
 
 
 # -----------------------------------------------------
@@ -31,15 +31,16 @@ def count_facturas(
     """
     query = db.query(func.count(Factura.id))
 
-    # Filtrar por responsable (solo facturas de sus proveedores asignados)
+    # Filtrar por responsable (solo facturas de sus NITs asignados)
     if responsable_id:
-        proveedores_asignados = db.query(ResponsableProveedor.proveedor_id).filter(
+        # ✅ NUEVA ARQUITECTURA: Usar asignacion_nit_responsable
+        nits_asignados = db.query(AsignacionNitResponsable.nit).filter(
             and_(
-                ResponsableProveedor.responsable_id == responsable_id,
-                ResponsableProveedor.activo == True
+                AsignacionNitResponsable.responsable_id == responsable_id,
+                AsignacionNitResponsable.activo == True
             )
         )
-        query = query.filter(Factura.proveedor_id.in_(proveedores_asignados))
+        query = query.join(Proveedor).filter(Proveedor.nit.in_(nits_asignados))
 
     if nit:
         query = query.join(Proveedor).filter(Proveedor.nit == nit)
@@ -78,18 +79,19 @@ def list_facturas(
         joinedload(Factura.responsable)
     )
 
-    # Filtrar por responsable (solo facturas de sus proveedores asignados)
+    # Filtrar por responsable (solo facturas de sus NITs asignados)
     if responsable_id:
-        # Subconsulta para obtener IDs de proveedores asignados al responsable
-        proveedores_asignados = db.query(ResponsableProveedor.proveedor_id).filter(
+        # ✅ NUEVA ARQUITECTURA: Usar asignacion_nit_responsable
+        # Subconsulta para obtener NITs asignados al responsable
+        nits_asignados = db.query(AsignacionNitResponsable.nit).filter(
             and_(
-                ResponsableProveedor.responsable_id == responsable_id,
-                ResponsableProveedor.activo == True
+                AsignacionNitResponsable.responsable_id == responsable_id,
+                AsignacionNitResponsable.activo == True
             )
         )
 
-        # Filtrar facturas solo de esos proveedores
-        query = query.filter(Factura.proveedor_id.in_(proveedores_asignados))
+        # Filtrar facturas cuyos proveedores tengan esos NITs
+        query = query.join(Proveedor).filter(Proveedor.nit.in_(nits_asignados))
 
     if nit:
         # Hacemos JOIN con Proveedor y filtramos por NIT
@@ -136,17 +138,24 @@ def list_facturas_cursor(
     Returns:
         Tupla (facturas, has_more)
     """
-    query = db.query(Factura)
+    from sqlalchemy.orm import joinedload
 
-    # Filtrar por responsable (solo facturas de sus proveedores asignados)
+    # Cargar relaciones con joinedload para poblar campos calculados en el schema
+    query = db.query(Factura).options(
+        joinedload(Factura.proveedor),
+        joinedload(Factura.responsable)
+    )
+
+    # Filtrar por responsable (solo facturas de sus NITs asignados)
     if responsable_id:
-        proveedores_asignados = db.query(ResponsableProveedor.proveedor_id).filter(
+        # ✅ NUEVA ARQUITECTURA: Usar asignacion_nit_responsable
+        nits_asignados = db.query(AsignacionNitResponsable.nit).filter(
             and_(
-                ResponsableProveedor.responsable_id == responsable_id,
-                ResponsableProveedor.activo == True
+                AsignacionNitResponsable.responsable_id == responsable_id,
+                AsignacionNitResponsable.activo == True
             )
         )
-        query = query.filter(Factura.proveedor_id.in_(proveedores_asignados))
+        query = query.join(Proveedor).filter(Proveedor.nit.in_(nits_asignados))
 
     if nit:
         query = query.join(Proveedor).filter(Proveedor.nit == nit)
@@ -224,7 +233,7 @@ def list_all_facturas_for_dashboard(
 
     ⚠️ USAR CON PRECAUCIÓN:
     - Solo para usuarios admin
-    - Optimizado con lazy loading de relaciones
+    - Optimizado con eager loading de relaciones (proveedor, responsable)
     - Para datasets >50k, considerar agregar filtros de fecha
 
     Args:
@@ -237,19 +246,26 @@ def list_all_facturas_for_dashboard(
     Performance:
     - Usa índice idx_facturas_orden_cronologico
     - Sin OFFSET (evita deep pagination problem)
-    - Lazy loading de relaciones para minimizar memoria
+    - Eager loading de relaciones para poblar campos calculados
     """
-    query = db.query(Factura)
+    from sqlalchemy.orm import joinedload
+
+    # Cargar relaciones con joinedload para poblar campos calculados en el schema
+    query = db.query(Factura).options(
+        joinedload(Factura.proveedor),
+        joinedload(Factura.responsable)
+    )
 
     # Filtrar por responsable si se especifica
     if responsable_id:
-        proveedores_asignados = db.query(ResponsableProveedor.proveedor_id).filter(
+        # ✅ NUEVA ARQUITECTURA: Usar asignacion_nit_responsable
+        nits_asignados = db.query(AsignacionNitResponsable.nit).filter(
             and_(
-                ResponsableProveedor.responsable_id == responsable_id,
-                ResponsableProveedor.activo == True
+                AsignacionNitResponsable.responsable_id == responsable_id,
+                AsignacionNitResponsable.activo == True
             )
         )
-        query = query.filter(Factura.proveedor_id.in_(proveedores_asignados))
+        query = query.join(Proveedor).filter(Proveedor.nit.in_(nits_asignados))
 
     # Orden cronológico empresarial: más recientes primero
     return query.order_by(
