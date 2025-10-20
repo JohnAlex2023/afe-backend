@@ -73,11 +73,19 @@ class AsignacionNitResponse(BaseModel):
         from_attributes = True
 
 
+class NitBulkItem(BaseModel):
+    """Item individual para creación bulk"""
+    nit: str
+    nombre_proveedor: str
+    area: Optional[str] = None
+
+
 class AsignacionBulkCreate(BaseModel):
     """Asignar múltiples NITs a un responsable"""
     responsable_id: int
-    nits: List[str]
-    area: Optional[str] = None
+    nits: List[NitBulkItem]
+    permitir_aprobacion_automatica: Optional[bool] = True
+    activo: Optional[bool] = True
 
 
 # ==================== FUNCIONES AUXILIARES ====================
@@ -157,7 +165,7 @@ def listar_asignaciones_nit(
 def crear_asignacion_nit(
     payload: AsignacionNitCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(["admin"]))
+    current_user=Depends(get_current_responsable)  # Cualquier usuario autenticado
 ):
     """
     Crea una nueva asignación NIT → Responsable.
@@ -210,7 +218,7 @@ def crear_asignacion_nit(
 
     return AsignacionNitResponse(
         **nueva_asignacion.__dict__,
-        responsable_nombre=responsable.nombre
+        responsable=ResponsableSimple.from_orm(responsable)
     )
 
 
@@ -219,7 +227,7 @@ def actualizar_asignacion_nit(
     asignacion_id: int,
     payload: AsignacionNitUpdate,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(["admin"]))
+    current_user=Depends(get_current_responsable)  # Cualquier usuario autenticado
 ):
     """
     Actualiza una asignación NIT → Responsable existente.
@@ -261,12 +269,12 @@ def actualizar_asignacion_nit(
     db.commit()
     db.refresh(asignacion)
 
-    # Obtener nombre del responsable
+    # Obtener datos completos del responsable
     responsable = db.query(Responsable).filter(Responsable.id == asignacion.responsable_id).first()
 
     return AsignacionNitResponse(
         **asignacion.__dict__,
-        responsable_nombre=responsable.nombre if responsable else None
+        responsable=ResponsableSimple.from_orm(responsable) if responsable else None
     )
 
 
@@ -274,7 +282,7 @@ def actualizar_asignacion_nit(
 def eliminar_asignacion_nit(
     asignacion_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(["admin"]))
+    current_user=Depends(get_current_responsable)  # Cualquier usuario autenticado
 ):
     """
     Elimina (marca como inactiva) una asignación NIT → Responsable.
@@ -322,37 +330,42 @@ def crear_asignaciones_bulk(
 
     creadas = 0
     actualizadas = 0
+    omitidas = 0
     errores = []
 
-    for nit in payload.nits:
+    for nit_item in payload.nits:
         try:
             # Verificar si ya existe
             existente = db.query(AsignacionNitResponsable).filter(
-                AsignacionNitResponsable.nit == nit
+                AsignacionNitResponsable.nit == nit_item.nit
             ).first()
 
             if existente:
                 # Actualizar
                 existente.responsable_id = payload.responsable_id
-                existente.area = payload.area or responsable.area
-                existente.activo = True
-                sincronizar_facturas_por_nit(db, nit, payload.responsable_id)
+                existente.nombre_proveedor = nit_item.nombre_proveedor
+                existente.area = nit_item.area or responsable.area
+                existente.permitir_aprobacion_automatica = payload.permitir_aprobacion_automatica
+                existente.activo = payload.activo
+                sincronizar_facturas_por_nit(db, nit_item.nit, payload.responsable_id)
                 actualizadas += 1
             else:
                 # Crear nueva
                 nueva = AsignacionNitResponsable(
-                    nit=nit,
+                    nit=nit_item.nit,
+                    nombre_proveedor=nit_item.nombre_proveedor,
                     responsable_id=payload.responsable_id,
-                    area=payload.area or responsable.area,
-                    permitir_aprobacion_automatica=True,
-                    activo=True
+                    area=nit_item.area or responsable.area,
+                    permitir_aprobacion_automatica=payload.permitir_aprobacion_automatica,
+                    requiere_revision_siempre=False,
+                    activo=payload.activo
                 )
                 db.add(nueva)
-                sincronizar_facturas_por_nit(db, nit, payload.responsable_id)
+                sincronizar_facturas_por_nit(db, nit_item.nit, payload.responsable_id)
                 creadas += 1
 
         except Exception as e:
-            errores.append({"nit": nit, "error": str(e)})
+            errores.append(f"NIT {nit_item.nit}: {str(e)}")
 
     db.commit()
 
@@ -361,10 +374,11 @@ def crear_asignaciones_bulk(
     )
 
     return {
+        "total_procesados": len(payload.nits),
         "creadas": creadas,
         "actualizadas": actualizadas,
-        "errores": errores,
-        "total_procesados": len(payload.nits)
+        "omitidas": omitidas,
+        "errores": errores
     }
 
 
