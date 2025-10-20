@@ -44,6 +44,18 @@ class AsignacionNitUpdate(BaseModel):
     activo: Optional[bool] = None
 
 
+class ResponsableSimple(BaseModel):
+    """Información básica del responsable"""
+    id: int
+    usuario: str
+    nombre: str
+    email: str
+    area: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class AsignacionNitResponse(BaseModel):
     """Respuesta de asignación"""
     id: int
@@ -54,7 +66,8 @@ class AsignacionNitResponse(BaseModel):
     permitir_aprobacion_automatica: bool
     requiere_revision_siempre: bool
     activo: bool
-    responsable_nombre: Optional[str] = None
+    # Objeto responsable completo para compatibilidad con frontend
+    responsable: Optional[ResponsableSimple] = None
 
     class Config:
         from_attributes = True
@@ -120,7 +133,7 @@ def listar_asignaciones_nit(
 
     asignaciones = query.offset(skip).limit(limit).all()
 
-    # Enriquecer con nombre del responsable
+    # Enriquecer con datos completos del responsable
     resultado = []
     for asig in asignaciones:
         responsable = db.query(Responsable).filter(Responsable.id == asig.responsable_id).first()
@@ -133,7 +146,7 @@ def listar_asignaciones_nit(
             "permitir_aprobacion_automatica": asig.permitir_aprobacion_automatica,
             "requiere_revision_siempre": asig.requiere_revision_siempre,
             "activo": asig.activo,
-            "responsable_nombre": responsable.nombre if responsable else None
+            "responsable": ResponsableSimple.from_orm(responsable) if responsable else None
         }
         resultado.append(AsignacionNitResponse(**asig_dict))
 
