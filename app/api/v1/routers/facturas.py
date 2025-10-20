@@ -619,6 +619,8 @@ def aprobar_factura(
         db.refresh(factura)
     else:
         # Si no existe workflow (facturas antiguas), actualizar solo la factura
+        # NOTA: Estos campos legacy serán eliminados en Fase 2.4
+        # TODO: Migrar a crear workflow en lugar de actualizar campos directos
         factura.estado = EstadoFactura.aprobada
         # Usar el nombre completo del usuario, no el username
         factura.aprobado_por = payload.get("aprobado_por", current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)
@@ -707,6 +709,8 @@ def rechazar_factura(
         db.refresh(factura)
     else:
         # Si no existe workflow (facturas antiguas), actualizar solo la factura
+        # NOTA: Estos campos legacy serán eliminados en Fase 2.4
+        # TODO: Migrar a crear workflow en lugar de actualizar campos directos
         factura.estado = EstadoFactura.rechazada
         # Usar el nombre completo del usuario, no el username
         factura.rechazado_por = payload.get("rechazado_por", current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)

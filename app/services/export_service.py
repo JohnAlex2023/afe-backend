@@ -12,7 +12,7 @@ from datetime import datetime
 
 from app.models.factura import Factura
 from app.models.proveedor import Proveedor
-from app.models.responsable_proveedor import ResponsableProveedor
+from app.models.workflow_aprobacion import AsignacionNitResponsable
 from sqlalchemy import and_, desc
 
 
@@ -45,13 +45,14 @@ def export_facturas_to_csv(
 
     # Aplicar filtros
     if responsable_id:
-        proveedores_asignados = db.query(ResponsableProveedor.proveedor_id).filter(
+        # Obtener NITs asignados al responsable
+        nits_asignados = db.query(AsignacionNitResponsable.nit).filter(
             and_(
-                ResponsableProveedor.responsable_id == responsable_id,
-                ResponsableProveedor.activo == True
+                AsignacionNitResponsable.responsable_id == responsable_id,
+                AsignacionNitResponsable.activo == True
             )
         )
-        query = query.filter(Factura.proveedor_id.in_(proveedores_asignados))
+        query = query.filter(Proveedor.nit.in_(nits_asignados))
 
     if nit:
         query = query.filter(Proveedor.nit == nit)
@@ -124,8 +125,8 @@ def export_facturas_to_csv(
             factura.estado.value if hasattr(factura.estado, 'value') else str(factura.estado),
             cantidad_items,
             factura.fecha_vencimiento.strftime('%Y-%m-%d') if factura.fecha_vencimiento else '',
-            factura.aprobado_por or '',
-            factura.fecha_aprobacion.strftime('%Y-%m-%d %H:%M:%S') if factura.fecha_aprobacion else '',
+            factura.aprobado_por_workflow or '',
+            factura.fecha_aprobacion_workflow.strftime('%Y-%m-%d %H:%M:%S') if factura.fecha_aprobacion_workflow else '',
             factura.creado_en.strftime('%Y-%m-%d %H:%M:%S') if factura.creado_en else ''
         ]
         writer.writerow(row)
@@ -145,16 +146,17 @@ def get_export_metadata(
     Returns:
         Dict con total de registros, rango de fechas, etc.
     """
-    query = db.query(Factura)
+    query = db.query(Factura).join(Proveedor)
 
     if responsable_id:
-        proveedores_asignados = db.query(ResponsableProveedor.proveedor_id).filter(
+        # Obtener NITs asignados al responsable
+        nits_asignados = db.query(AsignacionNitResponsable.nit).filter(
             and_(
-                ResponsableProveedor.responsable_id == responsable_id,
-                ResponsableProveedor.activo == True
+                AsignacionNitResponsable.responsable_id == responsable_id,
+                AsignacionNitResponsable.activo == True
             )
         )
-        query = query.filter(Factura.proveedor_id.in_(proveedores_asignados))
+        query = query.filter(Proveedor.nit.in_(nits_asignados))
 
     if fecha_desde:
         query = query.filter(Factura.fecha_emision >= fecha_desde)

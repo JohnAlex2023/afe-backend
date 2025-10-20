@@ -111,6 +111,8 @@ class FacturaRead(FacturaBase):
             self.nombre_responsable = self.responsable.nombre
 
         # Calcular "Acción Por" - quién aprobó o rechazó
+        # NOTA IMPORTANTE: Ahora estos campos pueden venir de campos legacy O de workflow
+        # Los helpers _workflow del modelo prueban ambas fuentes automáticamente
         # 🔥 Si es aprobación automática, mostrar "SISTEMA DE AUTOMATIZACIÓN"
         if self.estado == EstadoFactura.aprobada_auto:
             self.accion_por = "SISTEMA DE AUTOMATIZACIÓN"
