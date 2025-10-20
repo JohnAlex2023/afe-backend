@@ -92,6 +92,15 @@ class Factura(Base):
         order_by="FacturaItem.numero_linea"  # Ordenados por línea
     )
 
+    # ✨ FASE 2: Relación a Workflow (para normalización de datos)
+    workflow_history = relationship(
+        "WorkflowAprobacionFactura",
+        foreign_keys="[WorkflowAprobacionFactura.factura_id]",
+        uselist=False,  # Solo un workflow por factura
+        lazy="select",  # Carga bajo demanda
+        viewonly=True   # No modifica desde Factura
+    )
+
     __table_args__ = (UniqueConstraint("numero_factura", "proveedor_id", name="uix_num_prov"),)
 
     # ==================== COMPUTED PROPERTIES (FASE 1 - PROFESIONAL) ====================
@@ -143,3 +152,63 @@ class Factura(Base):
         diferencia = abs(self.total_a_pagar - self.total_calculado)
         # Tolerancia de 1 centavo por redondeo
         return diferencia > Decimal('0.01')
+
+    # ==================== HELPERS DE WORKFLOW (FASE 2 - NORMALIZACIÓN) ====================
+
+    @property
+    def aprobado_por_workflow(self):
+        """
+        Usuario que aprobó la factura (desde workflow si existe, sino desde campo legacy).
+
+        ⚠️ DEPRECATION NOTICE:
+        El campo 'aprobado_por' en facturas será eliminado en Fase 2.4
+        Usar esta propiedad garantiza acceso al dato correcto.
+
+        Nivel: Fortune 500 Data Normalization
+        """
+        # Primero intentar desde workflow (fuente primaria)
+        if self.workflow_history and self.workflow_history.aprobada_por:
+            return self.workflow_history.aprobada_por
+
+        # Fallback a campo legacy en facturas
+        return self.aprobado_por
+
+    @property
+    def fecha_aprobacion_workflow(self):
+        """Fecha de aprobación (desde workflow primero, sino desde campo legacy)."""
+        if self.workflow_history and self.workflow_history.fecha_aprobacion:
+            return self.workflow_history.fecha_aprobacion
+        return self.fecha_aprobacion
+
+    @property
+    def rechazado_por_workflow(self):
+        """Usuario que rechazó (desde workflow primero, sino desde campo legacy)."""
+        if self.workflow_history and self.workflow_history.rechazada_por:
+            return self.workflow_history.rechazada_por
+        return self.rechazado_por
+
+    @property
+    def fecha_rechazo_workflow(self):
+        """Fecha de rechazo (desde workflow primero, sino desde campo legacy)."""
+        if self.workflow_history and self.workflow_history.fecha_rechazo:
+            return self.workflow_history.fecha_rechazo
+        return self.fecha_rechazo
+
+    @property
+    def motivo_rechazo_workflow(self):
+        """Motivo de rechazo (desde workflow primero, sino desde campo legacy)."""
+        if self.workflow_history and self.workflow_history.detalle_rechazo:
+            return self.workflow_history.detalle_rechazo
+        return self.motivo_rechazo
+
+    @property
+    def tipo_aprobacion_workflow(self):
+        """
+        Tipo de aprobación (solo disponible en workflow).
+
+        Returns:
+            str: 'automatica', 'manual', 'masiva', 'forzada' o None
+        """
+        if self.workflow_history and self.workflow_history.tipo_aprobacion:
+            return self.workflow_history.tipo_aprobacion.value
+        return None
