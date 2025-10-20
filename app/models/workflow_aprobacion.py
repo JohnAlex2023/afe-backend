@@ -13,7 +13,7 @@ Nivel: Enterprise Automation
 
 from sqlalchemy import (
     Column, BigInteger, String, DateTime, Numeric, Text,
-    Enum, JSON, Boolean, ForeignKey, Index
+    Enum, JSON, Boolean, ForeignKey, Index, UniqueConstraint
 )
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -272,11 +272,13 @@ class AsignacionNitResponsable(Base):
     Tabla de configuración: NIT → Responsable.
 
     Define qué responsable debe aprobar las facturas de cada proveedor.
+    IMPORTANTE: Un NIT puede estar asignado a MÚLTIPLES responsables,
+    pero NO puede haber duplicados de la misma combinación NIT + responsable_id.
     """
     __tablename__ = "asignacion_nit_responsable"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    nit = Column(String(20), nullable=False, unique=True, index=True, comment="NIT del proveedor")
+    nit = Column(String(20), nullable=False, index=True, comment="NIT del proveedor")
     nombre_proveedor = Column(String(255), nullable=True, comment="Nombre comercial del proveedor")
 
     responsable_id = Column(BigInteger, ForeignKey("responsables.id"), nullable=False, index=True)
@@ -345,6 +347,13 @@ class AsignacionNitResponsable(Base):
 
     # Relaciones
     responsable = relationship("Responsable", foreign_keys=[responsable_id])
+
+    # Constraints
+    __table_args__ = (
+        UniqueConstraint('nit', 'responsable_id', name='uq_nit_responsable'),
+        Index('idx_asignacion_nit', 'nit'),
+        Index('idx_asignacion_responsable', 'responsable_id'),
+    )
 
 
 class NotificacionWorkflow(Base):

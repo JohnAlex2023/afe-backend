@@ -180,18 +180,23 @@ def crear_asignacion_nit(
             detail=f"Responsable con ID {payload.responsable_id} no encontrado"
         )
 
-    # Verificar si ya existe asignación para este NIT
+    # Verificar si ya existe la misma asignación (NIT + responsable_id)
+    # IMPORTANTE: Un NIT puede estar asignado a MÚLTIPLES responsables,
+    # pero NO puede estar duplicado para el MISMO responsable
     existente = db.query(AsignacionNitResponsable).filter(
-        AsignacionNitResponsable.nit == payload.nit
+        AsignacionNitResponsable.nit == payload.nit,
+        AsignacionNitResponsable.responsable_id == payload.responsable_id
     ).first()
 
     if existente:
+        # Duplicado: mismo NIT y mismo responsable
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Ya existe una asignación para el NIT {payload.nit}"
+            detail=f"El responsable '{responsable.nombre}' ya tiene asignado el NIT {payload.nit}. "
+                   f"Esta asignación ya existe en el sistema."
         )
 
-    # Crear asignación
+    # Crear nueva asignación
     nueva_asignacion = AsignacionNitResponsable(
         nit=payload.nit,
         nombre_proveedor=payload.nombre_proveedor,
@@ -313,7 +318,7 @@ def eliminar_asignacion_nit(
 def crear_asignaciones_bulk(
     payload: AsignacionBulkCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role(["admin"]))
+    current_user=Depends(get_current_responsable)  # Cualquier usuario autenticado
 ):
     """
     Asigna múltiples NITs a un responsable de una sola vez.
@@ -335,22 +340,18 @@ def crear_asignaciones_bulk(
 
     for nit_item in payload.nits:
         try:
-            # Verificar si ya existe
+            # Verificar si ya existe la misma combinación NIT + responsable_id
             existente = db.query(AsignacionNitResponsable).filter(
-                AsignacionNitResponsable.nit == nit_item.nit
+                AsignacionNitResponsable.nit == nit_item.nit,
+                AsignacionNitResponsable.responsable_id == payload.responsable_id
             ).first()
 
             if existente:
-                # Actualizar
-                existente.responsable_id = payload.responsable_id
-                existente.nombre_proveedor = nit_item.nombre_proveedor
-                existente.area = nit_item.area or responsable.area
-                existente.permitir_aprobacion_automatica = payload.permitir_aprobacion_automatica
-                existente.activo = payload.activo
-                sincronizar_facturas_por_nit(db, nit_item.nit, payload.responsable_id)
-                actualizadas += 1
+                # Ya existe esta combinación, omitir
+                omitidas += 1
+                logger.debug(f"Asignación duplicada omitida: NIT {nit_item.nit} → Responsable {payload.responsable_id}")
             else:
-                # Crear nueva
+                # Crear nueva asignación (permite múltiples responsables para el mismo NIT)
                 nueva = AsignacionNitResponsable(
                     nit=nit_item.nit,
                     nombre_proveedor=nit_item.nombre_proveedor,
@@ -370,15 +371,27 @@ def crear_asignaciones_bulk(
     db.commit()
 
     logger.info(
-        f"Asignación bulk completada: {creadas} creadas, {actualizadas} actualizadas, {len(errores)} errores"
+        f"Asignación bulk completada: {creadas} creadas, {omitidas} omitidas, {len(errores)} errores"
     )
+
+    # Construir mensaje informativo
+    mensaje_partes = []
+    if creadas > 0:
+        mensaje_partes.append(f"{creadas} asignación(es) creada(s)")
+    if omitidas > 0:
+        mensaje_partes.append(f"{omitidas} ya existía(n)")
+    if errores:
+        mensaje_partes.append(f"{len(errores)} error(es)")
+
+    mensaje = " | ".join(mensaje_partes) if mensaje_partes else "Sin cambios"
 
     return {
         "total_procesados": len(payload.nits),
         "creadas": creadas,
         "actualizadas": actualizadas,
         "omitidas": omitidas,
-        "errores": errores
+        "errores": errores,
+        "mensaje": mensaje
     }
 
 
