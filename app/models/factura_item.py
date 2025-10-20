@@ -242,6 +242,80 @@ class FacturaItem(Base):
         ),
     )
 
+    # ==================== COMPUTED PROPERTIES (FASE 1 - PROFESIONAL) ====================
+
+    @property
+    def subtotal_calculado(self):
+        """
+        Subtotal calculado dinámicamente: cantidad × precio_unitario - descuentos.
+
+        ⚠️ DEPRECATION NOTICE:
+        El campo 'subtotal' almacenado en DB está marcado para eliminación en Fase 2.
+        Usar esta propiedad garantiza siempre el valor correcto.
+
+        Nivel: Fortune 500 Data Integrity
+        """
+        from decimal import Decimal
+
+        cantidad = self.cantidad or Decimal('0')
+        precio = self.precio_unitario or Decimal('0')
+        descuento = self.descuento_valor or Decimal('0')
+
+        return (cantidad * precio) - descuento
+
+    @property
+    def total_calculado(self):
+        """
+        Total calculado dinámicamente: subtotal + impuestos.
+
+        ⚠️ DEPRECATION NOTICE:
+        El campo 'total' almacenado en DB está marcado para eliminación en Fase 2.
+        Usar esta propiedad garantiza siempre el valor correcto.
+
+        Returns:
+            Decimal: subtotal_calculado + total_impuestos
+        """
+        from decimal import Decimal
+
+        subtotal = self.subtotal_calculado
+        impuestos = self.total_impuestos or Decimal('0')
+
+        return subtotal + impuestos
+
+    @property
+    def tiene_inconsistencia_subtotal(self):
+        """
+        Detecta si hay inconsistencia entre subtotal almacenado vs calculado.
+
+        Returns:
+            bool: True si hay inconsistencia que requiere corrección
+        """
+        from decimal import Decimal
+
+        if self.subtotal is None:
+            return False
+
+        diferencia = abs(self.subtotal - self.subtotal_calculado)
+        # Tolerancia de 1 centavo por redondeo
+        return diferencia > Decimal('0.01')
+
+    @property
+    def tiene_inconsistencia_total(self):
+        """
+        Detecta si hay inconsistencia entre total almacenado vs calculado.
+
+        Returns:
+            bool: True si hay inconsistencia que requiere corrección
+        """
+        from decimal import Decimal
+
+        if self.total is None:
+            return False
+
+        diferencia = abs(self.total - self.total_calculado)
+        # Tolerancia de 1 centavo por redondeo
+        return diferencia > Decimal('0.01')
+
     def __repr__(self):
         return (
             f"<FacturaItem("

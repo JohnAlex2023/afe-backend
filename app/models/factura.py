@@ -91,5 +91,55 @@ class Factura(Base):
         cascade="all, delete-orphan",  # Si se borra factura, se borran items
         order_by="FacturaItem.numero_linea"  # Ordenados por línea
     )
-    
+
     __table_args__ = (UniqueConstraint("numero_factura", "proveedor_id", name="uix_num_prov"),)
+
+    # ==================== COMPUTED PROPERTIES (FASE 1 - PROFESIONAL) ====================
+
+    @property
+    def total_calculado(self):
+        """
+        Total calculado dinámicamente desde subtotal + IVA.
+
+        ⚠️ DEPRECATION NOTICE:
+        El campo 'total_a_pagar' almacenado en DB está marcado para eliminación.
+        Usar esta propiedad garantiza siempre el valor correcto.
+
+        Nivel: Fortune 500 Data Integrity
+        """
+        from decimal import Decimal
+        subtotal = self.subtotal or Decimal('0.00')
+        iva = self.iva or Decimal('0.00')
+        return subtotal + iva
+
+    @property
+    def total_desde_items(self):
+        """
+        Total calculado desde la suma de items individuales.
+
+        Útil para validación y detección de inconsistencias.
+        Si total_calculado != total_desde_items, hay un problema de integridad.
+
+        Returns:
+            Decimal: Suma de total de todos los items
+        """
+        from decimal import Decimal
+        if not self.items:
+            return Decimal('0.00')
+        return sum((item.total or Decimal('0.00')) for item in self.items)
+
+    @property
+    def tiene_inconsistencia_total(self):
+        """
+        Detecta si hay inconsistencia entre total almacenado vs calculado.
+
+        Returns:
+            bool: True si hay inconsistencia que requiere corrección
+        """
+        from decimal import Decimal
+        if self.total_a_pagar is None:
+            return False
+
+        diferencia = abs(self.total_a_pagar - self.total_calculado)
+        # Tolerancia de 1 centavo por redondeo
+        return diferencia > Decimal('0.01')
