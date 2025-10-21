@@ -199,7 +199,7 @@ class EmailTemplateService:
         return f"""
         <html>
         <body style="font-family: Arial, sans-serif;">
-            <h2>✅ Factura Aprobada Automáticamente</h2>
+            <h2>Factura Aprobada Automáticamente</h2>
             <p>Hola {data.get('responsable_nombre', 'Usuario')},</p>
             <p>La factura <strong>{data.get('numero_factura')}</strong> ha sido aprobada automáticamente.</p>
             <ul>
@@ -234,7 +234,7 @@ Sistema de Automatización AFE
         return f"""
         <html>
         <body style="font-family: Arial, sans-serif;">
-            <h2>⚠️ Factura Requiere Revisión</h2>
+            <h2> Factura Requiere Revisión</h2>
             <p>Hola {data.get('responsable_nombre', 'Usuario')},</p>
             <p>La factura <strong>{data.get('numero_factura')}</strong> requiere tu revisión.</p>
             <ul>
@@ -269,7 +269,7 @@ Sistema de Automatización AFE
         return f"""
         <html>
         <body style="font-family: Arial, sans-serif;">
-            <h2>❌ Error en Procesamiento</h2>
+            <h2> Error en Procesamiento</h2>
             <p>Hola Administrador,</p>
             <p>Error procesando factura <strong>{data.get('numero_factura')}</strong>.</p>
             <p>Error: {data.get('error_descripcion')}</p>
@@ -299,7 +299,7 @@ Sistema de Automatización AFE
         return f"""
         <html>
         <body style="font-family: Arial, sans-serif;">
-            <h2>📊 Resumen Diario</h2>
+            <h2>Resumen Diario</h2>
             <p>Hola {data.get('responsable_nombre', 'Usuario')},</p>
             <p>Estadísticas del día:</p>
             <ul>

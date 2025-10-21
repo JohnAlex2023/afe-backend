@@ -29,7 +29,7 @@ router = APIRouter(tags=["Automatización"])
 
 # ==================== ENDPOINT DE INICIALIZACIÓN ENTERPRISE ====================
 
-@router.post("/inicializar-sistema", summary="🚀 Inicialización Enterprise del Sistema Completo")
+@router.post("/inicializar-sistema", summary=" Inicialización Enterprise del Sistema Completo")
 def inicializar_sistema_completo(
     archivo_presupuesto: Optional[str] = None,
     año_fiscal: int = 2025,
@@ -44,13 +44,13 @@ def inicializar_sistema_completo(
 
     Ejecuta la inicialización orquestada de todo el sistema:
 
-    1. ✅ **Verificación de Estado**: Analiza el estado actual
-    2. ✅ **Validación de Pre-requisitos**: Valida datos y configuraciones
-    3. ✅ **Importación de Presupuesto**: Importa desde Excel (si se proporciona)
-    4. ✅ **Auto-configuración NIT-Responsable**: Crea asignaciones automáticamente
-    5. ✅ **Vinculación de Facturas**: Vincula facturas existentes con presupuesto
-    6. ✅ **Activación de Workflow**: Activa workflow de aprobación
-    7. ✅ **Reporte Ejecutivo**: Genera reporte completo
+    1.   **Verificación de Estado**: Analiza el estado actual
+    2.   **Validación de Pre-requisitos**: Valida datos y configuraciones
+    3.   **Importación de Presupuesto**: Importa desde Excel (si se proporciona)
+    4.   **Auto-configuración NIT-Responsable**: Crea asignaciones automáticamente
+    5.   **Vinculación de Facturas**: Vincula facturas existentes con presupuesto
+    6.   **Activación de Workflow**: Activa workflow de aprobación
+    7.   **Reporte Ejecutivo**: Genera reporte completo
 
     **Características Enterprise:**
     - Transacciones atómicas (todo o nada)
@@ -551,7 +551,7 @@ async def enviar_notificacion_resumen_manual(
         )
 
 
-@router.get("/dashboard/metricas", summary="📊 Métricas del Dashboard en Tiempo Real")
+@router.get("/dashboard/metricas", summary="Métricas del Dashboard en Tiempo Real")
 async def obtener_metricas_dashboard(
     db: Session = Depends(get_db)
 ):

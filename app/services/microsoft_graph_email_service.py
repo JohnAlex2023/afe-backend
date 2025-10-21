@@ -82,11 +82,11 @@ class MicrosoftGraphEmailService:
             # Guardar expiración con 1 minuto de margen
             self.token_expires = datetime.now() + timedelta(seconds=result["expires_in"] - 60)
 
-            logger.info("✅ Token de Microsoft Graph obtenido exitosamente")
+            logger.info("  Token de Microsoft Graph obtenido exitosamente")
             return self.token
 
         except Exception as e:
-            logger.error(f"❌ Error obteniendo token de Graph: {str(e)}")
+            logger.error(f" Error obteniendo token de Graph: {str(e)}")
             raise
 
     def send_email(
@@ -132,13 +132,13 @@ class MicrosoftGraphEmailService:
                     importance=importance
                 )
 
-                logger.info(f"✅ Email enviado exitosamente a {', '.join(to_email)}")
+                logger.info(f"  Email enviado exitosamente a {', '.join(to_email)}")
                 return result
 
             except Exception as e:
                 last_error = str(e)
                 logger.warning(
-                    f"⚠️  Intento {attempt + 1}/{self.max_retries} falló al enviar email: {str(e)}"
+                    f"  Intento {attempt + 1}/{self.max_retries} falló al enviar email: {str(e)}"
                 )
 
                 if attempt < self.max_retries - 1:
@@ -148,7 +148,7 @@ class MicrosoftGraphEmailService:
                     time.sleep(sleep_time)
 
         # Si llegamos aquí, todos los intentos fallaron
-        logger.error(f"❌ Error enviando email después de {self.max_retries} intentos: {last_error}")
+        logger.error(f" Error enviando email después de {self.max_retries} intentos: {last_error}")
         return {
             'success': False,
             'error': last_error,

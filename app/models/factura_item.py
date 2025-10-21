@@ -249,7 +249,7 @@ class FacturaItem(Base):
         """
         Subtotal calculado dinámicamente: cantidad × precio_unitario - descuentos.
 
-        ⚠️ DEPRECATION NOTICE:
+         DEPRECATION NOTICE:
         El campo 'subtotal' almacenado en DB está marcado para eliminación en Fase 2.
         Usar esta propiedad garantiza siempre el valor correcto.
 
@@ -268,7 +268,7 @@ class FacturaItem(Base):
         """
         Total calculado dinámicamente: subtotal + impuestos.
 
-        ⚠️ DEPRECATION NOTICE:
+         DEPRECATION NOTICE:
         El campo 'total' almacenado en DB está marcado para eliminación en Fase 2.
         Usar esta propiedad garantiza siempre el valor correcto.
 

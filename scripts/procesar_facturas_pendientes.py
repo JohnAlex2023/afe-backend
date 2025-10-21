@@ -57,7 +57,7 @@ def procesar_facturas_pendientes(limite: int = 100, verbose: bool = True):
 
         if not facturas_sin_workflow:
             if verbose:
-                print("✅ No hay facturas pendientes de procesar")
+                print("  No hay facturas pendientes de procesar")
             return {
                 "total_procesadas": 0,
                 "exitosas": 0,
@@ -65,8 +65,8 @@ def procesar_facturas_pendientes(limite: int = 100, verbose: bool = True):
             }
 
         if verbose:
-            print(f"📋 Facturas encontradas: {len(facturas_sin_workflow)}")
-            print(f"🔄 Iniciando procesamiento...")
+            print(f" Facturas encontradas: {len(facturas_sin_workflow)}")
+            print(f" Iniciando procesamiento...")
             print()
 
         # Inicializar servicio
@@ -99,11 +99,11 @@ def procesar_facturas_pendientes(limite: int = 100, verbose: bool = True):
                     if resultado.get("aprobada_automaticamente"):
                         stats["aprobadas_automaticamente"] += 1
                         if verbose:
-                            print(f"  ✅ APROBADA AUTOMÁTICAMENTE")
+                            print(f"    APROBADA AUTOMÁTICAMENTE")
                     elif resultado.get("requiere_revision"):
                         stats["en_revision"] += 1
                         if verbose:
-                            print(f"  ⚠️  EN REVISIÓN (similitud: {resultado.get('porcentaje_similitud', 0)}%)")
+                            print(f"    EN REVISIÓN (similitud: {resultado.get('porcentaje_similitud', 0)}%)")
 
                     stats["workflows_creados"].append({
                         "factura_id": factura.id,
@@ -119,7 +119,7 @@ def procesar_facturas_pendientes(limite: int = 100, verbose: bool = True):
                         "error": error_msg
                     })
                     if verbose:
-                        print(f"  ❌ ERROR: {error_msg}")
+                        print(f"   ERROR: {error_msg}")
 
             except Exception as e:
                 stats["errores"].append({
@@ -128,7 +128,7 @@ def procesar_facturas_pendientes(limite: int = 100, verbose: bool = True):
                     "error": str(e)
                 })
                 if verbose:
-                    print(f"  ❌ EXCEPCIÓN: {e}")
+                    print(f"   EXCEPCIÓN: {e}")
 
         # Resumen final
         if verbose:
@@ -190,10 +190,10 @@ def main():
             sys.exit(0)  # Todo OK
 
     except KeyboardInterrupt:
-        print("\n❌ Procesamiento interrumpido por el usuario")
+        print("\n Procesamiento interrumpido por el usuario")
         sys.exit(130)
     except Exception as e:
-        print(f"\n❌ ERROR CRÍTICO: {e}")
+        print(f"\n ERROR CRÍTICO: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

@@ -64,7 +64,7 @@ def analizar_patrones_periodico(
         # Log de resultados
         if resultado['exito']:
             stats = resultado['estadisticas']
-            logger.info("✅ ANÁLISIS COMPLETADO EXITOSAMENTE")
+            logger.info("  ANÁLISIS COMPLETADO EXITOSAMENTE")
             logger.info(f"   Facturas analizadas: {stats['facturas_analizadas']}")
             logger.info(f"   Patrones detectados: {stats['patrones_detectados']}")
             logger.info(f"   Patrones nuevos: {stats['patrones_nuevos']}")
@@ -73,12 +73,12 @@ def analizar_patrones_periodico(
             logger.info(f"   Patrones degradados: {stats['patrones_degradados']}")
             logger.info(f"   Errores: {stats['errores']}")
         else:
-            logger.error(f"❌ ERROR EN ANÁLISIS: {resultado.get('mensaje')}")
+            logger.error(f" ERROR EN ANÁLISIS: {resultado.get('mensaje')}")
 
         return resultado
 
     except Exception as e:
-        logger.error(f"❌ ERROR CRÍTICO EN TAREA PROGRAMADA: {str(e)}")
+        logger.error(f" ERROR CRÍTICO EN TAREA PROGRAMADA: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
 
@@ -156,11 +156,11 @@ def configurar_apscheduler():
             kwargs={'ventana_meses': 12, 'forzar_recalculo': False}
         )
 
-        logger.info("✅ APScheduler configurado para análisis de patrones")
+        logger.info("  APScheduler configurado para análisis de patrones")
         return scheduler
 
     except ImportError:
-        logger.error("❌ APScheduler no disponible. Instalar: pip install apscheduler")
+        logger.error(" APScheduler no disponible. Instalar: pip install apscheduler")
         return None
 
 
@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
     python -m app.tasks.analisis_patrones_task
     """
-    print("🚀 Ejecutando análisis de patrones manualmente...")
+    print(" Ejecutando análisis de patrones manualmente...")
     print()
 
     resultado = analizar_patrones_periodico(
@@ -183,7 +183,7 @@ if __name__ == "__main__":
     )
 
     print()
-    print("📊 RESULTADO:")
+    print("RESULTADO:")
     print(f"   Éxito: {resultado['exito']}")
     print(f"   Mensaje: {resultado.get('mensaje', 'N/A')}")
 

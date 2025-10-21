@@ -47,7 +47,7 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
         print(f"   Contraseña válida: {password_valid}")
 
     if not usuario or not verify_password(credentials.password, usuario.hashed_password):
-        print(f"   ❌ Login failed")
+        print(f"    Login failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña incorrectos"

@@ -11,7 +11,7 @@ from app.api.v1.routers import (
     automatizacion,
     historial_pagos,
     workflow,
-    asignacion_nit,  # ✅ NUEVO: Reemplazo de responsable_proveedor
+    asignacion_nit,  #   NUEVO: Reemplazo de responsable_proveedor
     flujo_automatizacion,
     email_config,
 )
@@ -34,6 +34,6 @@ api_router.include_router(automation.router, prefix="/automation", tags=["Automa
 api_router.include_router(automatizacion.router, tags=["Automatización - Mes Anterior"])
 api_router.include_router(historial_pagos.router, tags=["Historial de Pagos"])
 api_router.include_router(workflow.router, tags=["Workflow Aprobación"])
-api_router.include_router(asignacion_nit.router, tags=["Asignación NIT"])  # ✅ NUEVO
+api_router.include_router(asignacion_nit.router, tags=["Asignación NIT"])  #   NUEVO
 api_router.include_router(flujo_automatizacion.router, tags=["Flujo de Automatización"])
 api_router.include_router(email_config.router, tags=["Email Configuration"])

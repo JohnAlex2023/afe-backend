@@ -75,10 +75,18 @@ def update_responsable(db: Session, r_id: int, data: ResponsableUpdate) -> Optio
 
 
 def delete_responsable(db: Session, r_id: int) -> bool:
+    """
+    Desactiva un responsable en lugar de eliminarlo físicamente.
+
+    Esto evita problemas con foreign keys en asignacion_nit_responsable
+    y mantiene la integridad referencial del sistema.
+    """
     responsable = get_responsable_by_id(db, r_id)
     if not responsable:
         return False
-    db.delete(responsable)
+
+    # Soft delete: desactivar en lugar de eliminar
+    responsable.activo = False
     db.commit()
     return True
 

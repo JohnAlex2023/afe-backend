@@ -281,7 +281,7 @@ class FlujoAutomatizacionFacturas:
         Returns:
             Dict con resultados de la comparación
         """
-        logger.info("🔍 Comparando facturas pendientes con patrones históricos...")
+        logger.info(" Comparando facturas pendientes con patrones históricos...")
 
         # Determinar período actual
         if not periodo_analisis:
@@ -293,7 +293,7 @@ class FlujoAutomatizacionFacturas:
             solo_proveedores
         )
 
-        logger.info(f"   ✅ {len(facturas_pendientes)} facturas pendientes a analizar")
+        logger.info(f"     {len(facturas_pendientes)} facturas pendientes a analizar")
 
         facturas_aprobadas = []
         facturas_revision = []
@@ -316,7 +316,7 @@ class FlujoAutomatizacionFacturas:
                 self.stats['facturas_pendientes_analizadas'] += 1
 
             except Exception as e:
-                logger.error(f"   ❌ Error procesando factura {factura.id}: {str(e)}")
+                logger.error(f"    Error procesando factura {factura.id}: {str(e)}")
                 self.stats['errores'] += 1
 
         # Commit de cambios
@@ -448,7 +448,7 @@ class FlujoAutomatizacionFacturas:
         factura.fecha_procesamiento_auto = datetime.utcnow()
         factura.actualizado_en = datetime.utcnow()
 
-        logger.info(f"   ✅ APROBADA AUTO: {factura.numero_factura} - {decision['motivo']}")
+        logger.info(f"     APROBADA AUTO: {factura.numero_factura} - {decision['motivo']}")
 
     def _marcar_para_revision(
         self,
@@ -465,7 +465,7 @@ class FlujoAutomatizacionFacturas:
         factura.fecha_procesamiento_auto = datetime.utcnow()
         factura.actualizado_en = datetime.utcnow()
 
-        logger.info(f"   ⚠️  REVISIÓN: {factura.numero_factura} - {decision['motivo']}")
+        logger.info(f"     REVISIÓN: {factura.numero_factura} - {decision['motivo']}")
 
     # ============================================================================
     # PASO 3: NOTIFICACIONES
@@ -511,10 +511,10 @@ class FlujoAutomatizacionFacturas:
 
                 self.stats['notificaciones_enviadas'] += 1
 
-                logger.info(f"   ✅ Notificación enviada a: {datos['email']}")
+                logger.info(f"     Notificación enviada a: {datos['email']}")
 
             except Exception as e:
-                logger.error(f"   ❌ Error enviando notificación: {str(e)}")
+                logger.error(f"    Error enviando notificación: {str(e)}")
                 self.stats['errores'] += 1
 
         return {
@@ -569,7 +569,7 @@ Hola {datos['nombre']},
 
 Te informamos sobre el procesamiento automático de facturas:
 
-✅ FACTURAS APROBADAS AUTOMÁTICAMENTE: {len(datos['aprobadas'])}
+  FACTURAS APROBADAS AUTOMÁTICAMENTE: {len(datos['aprobadas'])}
 """
 
         for factura in datos['aprobadas']:
@@ -577,7 +577,7 @@ Te informamos sobre el procesamiento automático de facturas:
             mensaje += f"    Motivo: {factura['motivo']}\n"
 
         mensaje += f"""
-⚠️ FACTURAS QUE REQUIEREN REVISIÓN: {len(datos['revision'])}
+ FACTURAS QUE REQUIEREN REVISIÓN: {len(datos['revision'])}
 """
 
         for factura in datos['revision']:

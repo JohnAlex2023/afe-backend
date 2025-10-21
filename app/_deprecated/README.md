@@ -4,7 +4,7 @@ Esta carpeta contiene archivos obsoletos que fueron reemplazados por la nueva ar
 
 ---
 
-## ❌ Archivos Deprecados (Octubre 19, 2025)
+##  Archivos Deprecados (Octubre 19, 2025)
 
 ### **Sistema Antiguo: `responsable_proveedor`**
 
@@ -29,17 +29,17 @@ Los siguientes archivos fueron reemplazados por el nuevo sistema `asignacion_nit
 
 ---
 
-## ✅ Nueva Arquitectura
+##   Nueva Arquitectura
 
 ### **Sistema Unificado: `asignacion_nit_responsable`**
 
 **Modelo**: `app/models/workflow_aprobacion.py::AsignacionNitResponsable`
 
 **Ventajas**:
-- ✅ Una sola fuente de verdad
-- ✅ Asignación por NIT (más flexible)
-- ✅ Configuración de workflows automáticos
-- ✅ Sin duplicación de datos
+-   Una sola fuente de verdad
+-   Asignación por NIT (más flexible)
+-   Configuración de workflows automáticos
+-   Sin duplicación de datos
 
 **Endpoints**:
 - `GET /api/v1/asignacion-nit/` - Listar asignaciones
@@ -56,12 +56,12 @@ Ver: `ARQUITECTURA_UNIFICACION_RESPONSABLES.md` en la raíz del proyecto.
 
 ---
 
-## ⚠️ IMPORTANTE
+##  IMPORTANTE
 
 **NO elimines estos archivos** hasta confirmar que:
-1. ✅ La migración de base de datos se ejecutó correctamente
-2. ✅ Todos los tests pasan
-3. ✅ El frontend fue actualizado para usar los nuevos endpoints
-4. ✅ El sistema funciona en producción por al menos 1 mes
+1.   La migración de base de datos se ejecutó correctamente
+2.   Todos los tests pasan
+3.   El frontend fue actualizado para usar los nuevos endpoints
+4.   El sistema funciona en producción por al menos 1 mes
 
 Después de ese período, estos archivos pueden ser eliminados permanentemente.

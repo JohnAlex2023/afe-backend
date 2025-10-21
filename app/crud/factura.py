@@ -31,16 +31,10 @@ def count_facturas(
     """
     query = db.query(func.count(Factura.id))
 
-    # Filtrar por responsable (solo facturas de sus NITs asignados)
+    # Filtrar por responsable (facturas asignadas directamente)
     if responsable_id:
-        # ✅ NUEVA ARQUITECTURA: Usar asignacion_nit_responsable
-        nits_asignados = db.query(AsignacionNitResponsable.nit).filter(
-            and_(
-                AsignacionNitResponsable.responsable_id == responsable_id,
-                AsignacionNitResponsable.activo == True
-            )
-        )
-        query = query.join(Proveedor).filter(Proveedor.nit.in_(nits_asignados))
+        # ARQUITECTURA SIMPLIFICADA
+        query = query.filter(Factura.responsable_id == responsable_id)
 
     if nit:
         query = query.join(Proveedor).filter(Proveedor.nit == nit)
@@ -79,19 +73,11 @@ def list_facturas(
         joinedload(Factura.responsable)
     )
 
-    # Filtrar por responsable (solo facturas de sus NITs asignados)
+    # Filtrar por responsable (facturas asignadas directamente)
     if responsable_id:
-        # ✅ NUEVA ARQUITECTURA: Usar asignacion_nit_responsable
-        # Subconsulta para obtener NITs asignados al responsable
-        nits_asignados = db.query(AsignacionNitResponsable.nit).filter(
-            and_(
-                AsignacionNitResponsable.responsable_id == responsable_id,
-                AsignacionNitResponsable.activo == True
-            )
-        )
-
-        # Filtrar facturas cuyos proveedores tengan esos NITs
-        query = query.join(Proveedor).filter(Proveedor.nit.in_(nits_asignados))
+        # ARQUITECTURA SIMPLIFICADA: Filtrar directamente por responsable_id
+        # Más eficiente y evita problemas de sincronización con NITs
+        query = query.filter(Factura.responsable_id == responsable_id)
 
     if nit:
         # Hacemos JOIN con Proveedor y filtramos por NIT
@@ -146,16 +132,10 @@ def list_facturas_cursor(
         joinedload(Factura.responsable)
     )
 
-    # Filtrar por responsable (solo facturas de sus NITs asignados)
+    # Filtrar por responsable (facturas asignadas directamente)
     if responsable_id:
-        # ✅ NUEVA ARQUITECTURA: Usar asignacion_nit_responsable
-        nits_asignados = db.query(AsignacionNitResponsable.nit).filter(
-            and_(
-                AsignacionNitResponsable.responsable_id == responsable_id,
-                AsignacionNitResponsable.activo == True
-            )
-        )
-        query = query.join(Proveedor).filter(Proveedor.nit.in_(nits_asignados))
+        # ARQUITECTURA SIMPLIFICADA
+        query = query.filter(Factura.responsable_id == responsable_id)
 
     if nit:
         query = query.join(Proveedor).filter(Proveedor.nit == nit)
@@ -231,7 +211,7 @@ def list_all_facturas_for_dashboard(
     Retorna TODAS las facturas sin límites de paginación.
     Optimizado para dashboards administrativos que requieren vista completa.
 
-    ⚠️ USAR CON PRECAUCIÓN:
+     USAR CON PRECAUCIÓN:
     - Solo para usuarios admin
     - Optimizado con eager loading de relaciones (proveedor, responsable)
     - Para datasets >50k, considerar agregar filtros de fecha
@@ -258,14 +238,10 @@ def list_all_facturas_for_dashboard(
 
     # Filtrar por responsable si se especifica
     if responsable_id:
-        # ✅ NUEVA ARQUITECTURA: Usar asignacion_nit_responsable
-        nits_asignados = db.query(AsignacionNitResponsable.nit).filter(
-            and_(
-                AsignacionNitResponsable.responsable_id == responsable_id,
-                AsignacionNitResponsable.activo == True
-            )
-        )
-        query = query.join(Proveedor).filter(Proveedor.nit.in_(nits_asignados))
+        # ARQUITECTURA SIMPLIFICADA Y CORRECTA:
+        # Filtrar directamente por responsable_id en la tabla facturas
+        # Esto es más eficiente y evita problemas de sincronización con asignaciones
+        query = query.filter(Factura.responsable_id == responsable_id)
 
     # Orden cronológico empresarial: más recientes primero
     return query.order_by(

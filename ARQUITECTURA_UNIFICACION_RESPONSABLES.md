@@ -6,7 +6,7 @@
 
 ---
 
-## 📋 Resumen Ejecutivo
+##  Resumen Ejecutivo
 
 Se unificó la asignación de responsables a proveedores usando **una sola tabla** (`asignacion_nit_responsable`) en lugar de dos tablas duplicadas, eliminando inconsistencias y simplificando el mantenimiento.
 
@@ -30,14 +30,14 @@ Existían **2 tablas** con propósitos superpuestos:
 
 ### Consecuencias
 
-- ❌ **Duplicación de datos** - Misma información en 2 lugares
-- ❌ **Inconsistencias** - Datos desincronizados
-- ❌ **Complejidad** - Scripts debían consultar ambas tablas
-- ❌ **Bugs** - Fácil olvidar actualizar una tabla
+-  **Duplicación de datos** - Misma información en 2 lugares
+-  **Inconsistencias** - Datos desincronizados
+-  **Complejidad** - Scripts debían consultar ambas tablas
+-  **Bugs** - Fácil olvidar actualizar una tabla
 
 ---
 
-## ✅ Solución Implementada
+##   Solución Implementada
 
 ### Nueva Arquitectura (Unificada)
 
@@ -45,10 +45,10 @@ Existían **2 tablas** con propósitos superpuestos:
 
 #### Ventajas
 
-- ✅ **Más flexible** - Asigna por NIT (varios proveedores pueden compartir NIT)
-- ✅ **Configuración centralizada** - Workflows, umbrales, etc.
-- ✅ **Escalable** - Preparada para automatización avanzada
-- ✅ **Una sola fuente de verdad** - Sin duplicados
+-   **Más flexible** - Asigna por NIT (varios proveedores pueden compartir NIT)
+-   **Configuración centralizada** - Workflows, umbrales, etc.
+-   **Escalable** - Preparada para automatización avanzada
+-   **Una sola fuente de verdad** - Sin duplicados
 
 ---
 
@@ -58,10 +58,10 @@ Existían **2 tablas** con propósitos superpuestos:
 
 #### Funciones Actualizadas
 
-- ✅ `list_facturas()` - Líneas 82-95
-- ✅ `count_facturas()` - Líneas 34-43
-- ✅ `list_facturas_cursor()` - Líneas 149-158
-- ✅ `list_all_facturas_for_dashboard()` - Líneas 261-270
+-   `list_facturas()` - Líneas 82-95
+-   `count_facturas()` - Líneas 34-43
+-   `list_facturas_cursor()` - Líneas 149-158
+-   `list_all_facturas_for_dashboard()` - Líneas 261-270
 
 #### Cambio Principal
 
@@ -94,22 +94,22 @@ query = query.join(Proveedor).filter(Proveedor.nit.in_(nits_asignados))
 Archivo: `scripts/migrar_asignaciones_a_nit_responsable.py`
 
 **Resultados:**
-- ✅ 4 asignaciones nuevas creadas
-- ✅ 9 asignaciones actualizadas
-- ✅ 0 errores
+-   4 asignaciones nuevas creadas
+-   9 asignaciones actualizadas
+-   0 errores
 
 ### 3. **Resincronización de Facturas**
 
 Archivo: `scripts/resincronizar_responsables_facturas.py`
 
 **Resultados:**
-- ✅ 205 facturas con responsable asignado (80.4%)
-- ✅ 190 facturas → Alex
-- ✅ 15 facturas → John
+-   205 facturas con responsable asignado (80.4%)
+-   190 facturas → Alex
+-   15 facturas → John
 
 ---
 
-## 📊 Estado Actual
+## Estado Actual
 
 ### Datos en Producción
 
@@ -130,12 +130,12 @@ Archivo: `scripts/resincronizar_responsables_facturas.py`
 
 ---
 
-## 🚀 Próximos Pasos
+##  Próximos Pasos
 
 ### Fase 2: Deprecar `responsable_proveedor`
 
-1. ✅ Migrar todos los datos → **COMPLETADO**
-2. ✅ Actualizar CRUD → **COMPLETADO**
+1.   Migrar todos los datos → **COMPLETADO**
+2.   Actualizar CRUD → **COMPLETADO**
 3. ⏳ Actualizar endpoints del API (si es necesario)
 4. ⏳ Marcar tabla como `@deprecated`
 5. ⏳ Eventualmente eliminar la tabla
@@ -152,13 +152,13 @@ Desde el frontend en "Responsables", asignar los 9 NITs pendientes.
 
 **NO hacer:**
 ```python
-# ❌ NO usar responsable_proveedor
+#  NO usar responsable_proveedor
 ResponsableProveedor(responsable_id=5, proveedor_id=10)
 ```
 
 **SÍ hacer:**
 ```python
-# ✅ Usar asignacion_nit_responsable
+#   Usar asignacion_nit_responsable
 AsignacionNitResponsable(
     nit="900156470-3",
     responsable_id=5,
@@ -179,7 +179,7 @@ facturas = list_facturas(db, responsable_id=5)
 
 ---
 
-## ✅ Validación
+##   Validación
 
 ### Tests Ejecutados
 
@@ -188,9 +188,9 @@ facturas = list_facturas(db, responsable_id=5)
 python test_ambos_responsables.py
 
 # Resultado:
-# ✅ Alex: 190 facturas
-# ✅ John: 15 facturas
-# ✅ Total: 205 facturas con responsable
+#   Alex: 190 facturas
+#   John: 15 facturas
+#   Total: 205 facturas con responsable
 ```
 
 ---

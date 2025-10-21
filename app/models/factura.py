@@ -101,7 +101,7 @@ class Factura(Base):
         """
         Total calculado dinámicamente desde subtotal + IVA.
 
-        ⚠️ DEPRECATION NOTICE:
+         DEPRECATION NOTICE:
         El campo 'total_a_pagar' almacenado en DB está marcado para eliminación.
         Usar esta propiedad garantiza siempre el valor correcto.
 
@@ -151,7 +151,7 @@ class Factura(Base):
         """
         Usuario que aprobó la factura (desde workflow).
 
-        ✅ FASE 2.4 COMPLETADA:
+          FASE 2.4 COMPLETADA:
         Los campos de aprobación/rechazo ahora viven exclusivamente en workflow.
         Datos 100% normalizados (3NF perfecto).
 

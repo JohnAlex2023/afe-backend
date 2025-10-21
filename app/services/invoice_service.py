@@ -64,19 +64,19 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
         {"msg": "Nueva factura creada desde Microsoft Graph"}
     )
 
-    # 🚀 ACTIVAR WORKFLOW AUTOMÁTICO PARA LA NUEVA FACTURA
+    #  ACTIVAR WORKFLOW AUTOMÁTICO PARA LA NUEVA FACTURA
     try:
         from app.services.workflow_automatico import WorkflowAutomaticoService
         workflow_service = WorkflowAutomaticoService(db)
         workflow_resultado = workflow_service.procesar_factura_nueva(inv.id)
 
         if workflow_resultado.get("exito"):
-            logger.info(f"✅ Workflow creado para factura {inv.id}: {workflow_resultado.get('tipo_aprobacion', 'N/A')}")
+            logger.info(f"  Workflow creado para factura {inv.id}: {workflow_resultado.get('tipo_aprobacion', 'N/A')}")
         else:
-            logger.warning(f"⚠️ Workflow creado con advertencia para factura {inv.id}: {workflow_resultado.get('mensaje', 'Sin mensaje')}")
+            logger.warning(f" Workflow creado con advertencia para factura {inv.id}: {workflow_resultado.get('mensaje', 'Sin mensaje')}")
 
     except Exception as e:
-        logger.error(f"❌ Error al crear workflow para factura {inv.id}: {str(e)}")
+        logger.error(f" Error al crear workflow para factura {inv.id}: {str(e)}")
         # No falla la creación de la factura si el workflow falla
         create_audit(
             db,

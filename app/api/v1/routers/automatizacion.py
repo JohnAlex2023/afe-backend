@@ -160,7 +160,7 @@ async def obtener_estadisticas_automatizacion(
     current_user=Depends(get_current_responsable)
 ):
     """
-    📊 Obtiene estadísticas de automatización de los últimos N días.
+    Obtiene estadísticas de automatización de los últimos N días.
 
     **Métricas incluidas:**
     - Total de facturas procesadas automáticamente
@@ -252,7 +252,7 @@ async def listar_facturas_pendientes_procesamiento(
     current_user=Depends(get_current_responsable)
 ):
     """
-    📋 Lista facturas pendientes de procesamiento automático.
+     Lista facturas pendientes de procesamiento automático.
 
     Muestra facturas en estado 'en_revision' o 'pendiente' que aún
     no han sido procesadas por el sistema de automatización.
@@ -342,7 +342,7 @@ async def procesar_factura_individual(
     current_user=Depends(get_current_responsable)
 ):
     """
-    🎯 Procesa una factura individual para aprobación automática.
+     Procesa una factura individual para aprobación automática.
 
     Permite probar la automatización con una factura específica.
     Útil para validar el comportamiento antes de procesar en lote.

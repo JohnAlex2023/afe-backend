@@ -45,6 +45,9 @@ def _render_template(template_html: str, **kwargs) -> str:
     """
     Renderiza una plantilla reemplazando variables.
 
+    Usa {{variable}} para marcar las variables en las plantillas HTML.
+    Las llaves simples {} se usan para CSS y no se reemplazan.
+
     Args:
         template_html: Contenido HTML de la plantilla
         **kwargs: Variables para reemplazar en la plantilla
@@ -52,7 +55,12 @@ def _render_template(template_html: str, **kwargs) -> str:
     Returns:
         str: HTML renderizado
     """
-    return template_html.format(**kwargs)
+    # Reemplazar variables manualmente para evitar conflictos con CSS
+    result = template_html
+    for key, value in kwargs.items():
+        # Buscar patrón {key} y reemplazarlo
+        result = result.replace(f"{{{key}}}", str(value))
+    return result
 
 
 def enviar_notificacion_factura_aprobada(
@@ -101,7 +109,7 @@ def enviar_notificacion_factura_aprobada(
     email_service = get_unified_email_service()
     return email_service.send_email(
         to_email=email_responsable,
-        subject=f"✅ Factura {numero_factura} - APROBADA",
+        subject=f"  Factura {numero_factura} - APROBADA",
         body_html=html_body,
         importance="high"
     )
@@ -154,7 +162,7 @@ def enviar_notificacion_factura_rechazada(
     email_service = get_unified_email_service()
     return email_service.send_email(
         to_email=email_responsable,
-        subject=f"❌ Factura {numero_factura} - RECHAZADA",
+        subject=f" Factura {numero_factura} - RECHAZADA",
         body_html=html_body,
         importance="high"
     )

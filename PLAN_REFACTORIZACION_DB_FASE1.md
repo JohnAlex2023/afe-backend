@@ -11,11 +11,11 @@
 
 Como equipo senior, vamos a ser **incremental y seguro**:
 
-1. ✅ **NO eliminar campos** todavía (alto riesgo de breaking changes)
-2. ✅ **Agregar constraints** y validaciones (mejora calidad)
-3. ✅ **Definir políticas FK** (mejora integridad)
-4. ✅ **Convertir campos calculados** a properties (código Python)
-5. ✅ **Deprecar campos** en modelos (documentar para futuro)
+1.   **NO eliminar campos** todavía (alto riesgo de breaking changes)
+2.   **Agregar constraints** y validaciones (mejora calidad)
+3.   **Definir políticas FK** (mejora integridad)
+4.   **Convertir campos calculados** a properties (código Python)
+5.   **Deprecar campos** en modelos (documentar para futuro)
 
 **Filosofía**: Mejorar sin romper. Los cambios grandes (eliminar redundancia) van en Fase 2.
 
@@ -143,9 +143,9 @@ class Factura(Base):
     # Campos base (se mantienen)
     subtotal = Column(Numeric(15, 2))
     iva = Column(Numeric(15, 2))
-    total_a_pagar = Column(Numeric(15, 2))  # ⚠️ DEPRECATED, usar property
+    total_a_pagar = Column(Numeric(15, 2))  #  DEPRECATED, usar property
 
-    # ✅ COMPUTED PROPERTY (siempre correcto)
+    #   COMPUTED PROPERTY (siempre correcto)
     @property
     def total_calculado(self) -> Decimal:
         """
@@ -184,7 +184,7 @@ class FacturaItem(Base):
 
     subtotal = Column(Numeric(15, 2))
     total_impuestos = Column(Numeric(15, 2))
-    total = Column(Numeric(15, 2))  # ⚠️ DEPRECATED
+    total = Column(Numeric(15, 2))  #  DEPRECATED
 
     @property
     def total_calculado(self) -> Decimal:
@@ -213,26 +213,26 @@ class FacturaItem(Base):
 class Factura(Base):
     __tablename__ = "facturas"
 
-    # ⚠️ DEPRECATED FIELDS - Usar workflow en su lugar
+    #  DEPRECATED FIELDS - Usar workflow en su lugar
     # Estos campos serán eliminados en v2.0 (Fase 2)
     aprobado_por = Column(
         String(100),
         nullable=True,
-        comment="⚠️ DEPRECATED: Usar workflow.aprobada_por. Eliminar en v2.0"
+        comment=" DEPRECATED: Usar workflow.aprobada_por. Eliminar en v2.0"
     )
     fecha_aprobacion = Column(
         DateTime(timezone=True),
         nullable=True,
-        comment="⚠️ DEPRECATED: Usar workflow.fecha_aprobacion. Eliminar en v2.0"
+        comment=" DEPRECATED: Usar workflow.fecha_aprobacion. Eliminar en v2.0"
     )
     rechazado_por = Column(
         String(100),
         nullable=True,
-        comment="⚠️ DEPRECATED: Usar workflow.rechazada_por. Eliminar en v2.0"
+        comment=" DEPRECATED: Usar workflow.rechazada_por. Eliminar en v2.0"
     )
     # ... otros campos deprecated
 
-    # ✅ Helper method para acceder a datos del workflow
+    #   Helper method para acceder a datos del workflow
     def get_aprobado_por(self) -> Optional[str]:
         """
         Obtiene quién aprobó la factura.
@@ -371,15 +371,15 @@ alembic current
 
 ### Código que NO requiere cambios:
 
-✅ Lecturas de `total_a_pagar`, `aprobado_por`, etc. → Siguen funcionando
-✅ Escrituras que ya calculan correctamente → Siguen funcionando
-✅ Queries existentes → Siguen funcionando
+  Lecturas de `total_a_pagar`, `aprobado_por`, etc. → Siguen funcionando
+  Escrituras que ya calculan correctamente → Siguen funcionando
+  Queries existentes → Siguen funcionando
 
 ### Código que OPCIONALMENTE puede mejorarse:
 
-⚠️ Usar `factura.total_calculado` en lugar de `factura.total_a_pagar`
-⚠️ Usar `factura.get_aprobado_por()` en lugar de acceso directo
-⚠️ Nuevos endpoints pueden empezar a usar workflow directamente
+ Usar `factura.total_calculado` en lugar de `factura.total_a_pagar`
+ Usar `factura.get_aprobado_por()` en lugar de acceso directo
+ Nuevos endpoints pueden empezar a usar workflow directamente
 
 ### Código que DEBE cambiarse (muy poco):
 

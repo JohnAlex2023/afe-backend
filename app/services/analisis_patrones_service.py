@@ -109,7 +109,7 @@ class AnalizadorPatronesService:
                 estados=estados_facturas
             )
 
-            logger.info(f"   ✅ {len(facturas)} facturas obtenidas para análisis")
+            logger.info(f"     {len(facturas)} facturas obtenidas para análisis")
             self.stats['facturas_analizadas'] = len(facturas)
 
             if len(facturas) < self.MIN_FACTURAS_PATRON:
@@ -118,15 +118,15 @@ class AnalizadorPatronesService:
 
             # 2. Agrupar facturas por proveedor + concepto
             grupos = self._agrupar_facturas_por_patron(facturas)
-            logger.info(f"   ✅ {len(grupos)} grupos de patrones detectados")
+            logger.info(f"     {len(grupos)} grupos de patrones detectados")
 
             # 3. Calcular estadísticas para cada grupo
             patrones_calculados = self._calcular_estadisticas_grupos(grupos, ventana_meses)
-            logger.info(f"   ✅ Estadísticas calculadas para {len(patrones_calculados)} patrones")
+            logger.info(f"     Estadísticas calculadas para {len(patrones_calculados)} patrones")
 
             # 4. Persistir o actualizar patrones
             self._persistir_patrones(patrones_calculados, forzar_recalculo)
-            logger.info(f"   ✅ Patrones persistidos: {self.stats['patrones_nuevos']} nuevos, {self.stats['patrones_actualizados']} actualizados")
+            logger.info(f"     Patrones persistidos: {self.stats['patrones_nuevos']} nuevos, {self.stats['patrones_actualizados']} actualizados")
 
             # 5. Analizar cambios en patrones existentes
             cambios_detectados = self._detectar_cambios_patrones(patrones_calculados)

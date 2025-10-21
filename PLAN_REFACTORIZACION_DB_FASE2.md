@@ -13,12 +13,12 @@ Fase 2 elimina **toda la redundancia** identificada en Fase 1, llevando la base 
 
 ### Objetivos
 
-1. ✅ Corregir **518 inconsistencias** detectadas en datos
-2. ✅ Eliminar campos calculados redundantes (usando generated columns)
-3. ✅ Normalizar datos de workflow (mover de facturas a workflow)
-4. ✅ Crear helpers transparentes para acceso a datos
-5. ✅ Actualizar todo el código para usar nuevas propiedades
-6. ✅ Zero downtime, rollback seguro en cada paso
+1.   Corregir **518 inconsistencias** detectadas en datos
+2.   Eliminar campos calculados redundantes (usando generated columns)
+3.   Normalizar datos de workflow (mover de facturas a workflow)
+4.   Crear helpers transparentes para acceso a datos
+5.   Actualizar todo el código para usar nuevas propiedades
+6.   Zero downtime, rollback seguro en cada paso
 
 ### Impacto Esperado
 
@@ -78,7 +78,7 @@ Fase 2.5: Generated Columns (total_a_pagar, subtotal, total)
 #### Para Facturas
 
 ```sql
--- ✅ ESTRATEGIA: total_a_pagar es la verdad absoluta (viene del XML oficial)
+--   ESTRATEGIA: total_a_pagar es la verdad absoluta (viene del XML oficial)
 -- Recalcular subtotal e IVA si es necesario
 
 -- Casos:
@@ -96,7 +96,7 @@ AND total_a_pagar IS NOT NULL;
 #### Para Items
 
 ```sql
--- ✅ ESTRATEGIA: item.total es la verdad (viene del XML)
+--   ESTRATEGIA: item.total es la verdad (viene del XML)
 -- Recalcular subtotal desde cantidad × precio
 
 -- Casos típicos:
@@ -187,7 +187,7 @@ def corregir_items(db: Session):
 Datos de aprobación/rechazo duplicados en dos lugares:
 
 ```python
-# ❌ REDUNDANTE: Mismos datos en 2 tablas
+#  REDUNDANTE: Mismos datos en 2 tablas
 facturas:
     aprobado_por
     fecha_aprobacion
@@ -223,7 +223,7 @@ class Factura(Base):
         """
         Usuario que aprobó (desde workflow si existe, sino desde factura).
 
-        ⚠️ DEPRECATION: aprobado_por en facturas será eliminado en Fase 2.4
+         DEPRECATION: aprobado_por en facturas será eliminado en Fase 2.4
         """
         if self.workflow:
             return self.workflow.aprobada_por
@@ -268,12 +268,12 @@ class Factura(Base):
 **Beneficio:** Código accede a datos correctos sin saber de dónde vienen
 
 ```python
-# ✅ CÓDIGO NUEVO (usa helpers)
+#   CÓDIGO NUEVO (usa helpers)
 factura = get_factura(123)
 print(f"Aprobada por: {factura.aprobado_por_workflow}")
 # → Devuelve dato de workflow si existe, sino de factura
 
-# ❌ CÓDIGO VIEJO (acceso directo)
+#  CÓDIGO VIEJO (acceso directo)
 print(f"Aprobada por: {factura.aprobado_por}")
 # → Solo ve dato en facturas, puede estar desactualizado
 ```
@@ -554,13 +554,13 @@ alembic downgrade -1
 
 ### Base de Datos Final (10/10)
 
-- ✅ 0 violaciones de 3NF
-- ✅ 0 campos redundantes
-- ✅ 0 inconsistencias de datos
-- ✅ 100% datos normalizados
-- ✅ Generated columns para cálculos
-- ✅ Helpers transparentes en modelos
-- ✅ Código limpio y mantenible
+-   0 violaciones de 3NF
+-   0 campos redundantes
+-   0 inconsistencias de datos
+-   100% datos normalizados
+-   Generated columns para cálculos
+-   Helpers transparentes en modelos
+-   Código limpio y mantenible
 
 ### Métricas
 
@@ -575,5 +575,5 @@ alembic downgrade -1
 
 **Documento preparado por:** Equipo de Desarrollo Senior (10+ años exp.)
 **Revisado:** 2025-10-19
-**Estado:** ✅ LISTO PARA EJECUCIÓN
+**Estado:**   LISTO PARA EJECUCIÓN
 **Aprobación requerida:** SÍ (cambios de schema)

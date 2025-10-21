@@ -5,7 +5,7 @@
 **Fecha:** 2025-10-15
 **Versión:** 1.0
 **Nivel:** Fortune 500 Enterprise Grade
-**Estado:** ✅ Producción Ready
+**Estado:**   Producción Ready
 
 ---
 
@@ -38,20 +38,20 @@ Sistema enterprise integral para gestión automática de facturas corporativas q
 
 | Componente | Métrica | Valor | Estado |
 |------------|---------|-------|--------|
-| **Extracción** | Facturas procesadas | 243 | ✅ |
-| **Clasificación** | Proveedores clasificados | 15/16 (93.8%) | ✅ |
-| **Auto-aprobación** | Tasa actual | 11.1% | ✅ |
+| **Extracción** | Facturas procesadas | 243 |   |
+| **Clasificación** | Proveedores clasificados | 15/16 (93.8%) |   |
+| **Auto-aprobación** | Tasa actual | 11.1% |   |
 | **Auto-aprobación** | Proyección 6 meses | 35-45% | 📈 |
-| **Workflow** | Facturas con responsable | 242 (100%) | ✅ |
-| **Notificaciones** | Sistema operativo | Sí | ✅ |
+| **Workflow** | Facturas con responsable | 242 (100%) |   |
+| **Notificaciones** | Sistema operativo | Sí |   |
 
 ## 1.3 Beneficios Clave
 
-✅ **Automatización end-to-end:** Email → Extracción → Clasificación → Aprobación → Notificación
-✅ **Seguridad enterprise:** Proveedores nuevos 100% revisión manual
-✅ **Eficiencia operativa:** Reducción de 7 horas/mes en revisión manual
-✅ **Escalabilidad:** Diseñado para 1000+ proveedores
-✅ **Trazabilidad completa:** Cada decisión auditada en base de datos
+  **Automatización end-to-end:** Email → Extracción → Clasificación → Aprobación → Notificación
+  **Seguridad enterprise:** Proveedores nuevos 100% revisión manual
+  **Eficiencia operativa:** Reducción de 7 horas/mes en revisión manual
+  **Escalabilidad:** Diseñado para 1000+ proveedores
+  **Trazabilidad completa:** Cada decisión auditada en base de datos
 
 ---
 
@@ -357,7 +357,7 @@ def _puede_aprobar_automaticamente_v2():
         if not factura.orden_compra and not factura.numero_orden_compra:
             return False  # Falta OC requerida
 
-    # ✅ TODAS LAS REGLAS APROBADAS
+    #   TODAS LAS REGLAS APROBADAS
     return True
 ```
 
@@ -437,7 +437,7 @@ workflow.estado = EN_REVISION    →  factura.estado = PENDIENTE
 
 ### Auto-aprobación Exitosa
 ```
-Asunto: ✅ Factura Auto-Aprobada - [Proveedor]
+Asunto:   Factura Auto-Aprobada - [Proveedor]
 Contenido:
 - NIT y nombre proveedor
 - Valor total
@@ -449,7 +449,7 @@ Contenido:
 
 ### Requiere Revisión Manual
 ```
-Asunto: ⚠️ Factura Requiere Revisión - [Proveedor]
+Asunto:  Factura Requiere Revisión - [Proveedor]
 Contenido:
 - NIT y nombre proveedor
 - Valor total
@@ -466,11 +466,11 @@ Contenido:
 
 EMAIL_TEMPLATES = {
     'auto_aprobada': {
-        'subject': '✅ Factura Auto-Aprobada - {proveedor}',
+        'subject': '  Factura Auto-Aprobada - {proveedor}',
         'template': 'templates/auto_aprobada.html'
     },
     'requiere_revision': {
-        'subject': '⚠️ Factura Requiere Revisión - {proveedor}',
+        'subject': ' Factura Requiere Revisión - {proveedor}',
         'template': 'templates/requiere_revision.html'
     }
 }
@@ -786,20 +786,20 @@ AND creado_en >= DATE_SUB(NOW(), INTERVAL 30 DAY);
 
 | Métrica | Objetivo | Actual | Estado |
 |---------|----------|--------|--------|
-| Tasa global auto-aprobación | 30-40% | 11.1% | ⚠️ En maduración |
-| Proveedores clasificados | 100% | 93.8% | ✅ Excelente |
-| Tiempo promedio aprobación | < 5 min | Variable | 📊 Por medir |
-| Facturas con alertas | < 10% | Por medir | 📊 Por medir |
-| Notificaciones enviadas | 100% | 100% | ✅ Perfecto |
+| Tasa global auto-aprobación | 30-40% | 11.1% |  En maduración |
+| Proveedores clasificados | 100% | 93.8% |   Excelente |
+| Tiempo promedio aprobación | < 5 min | Variable | Por medir |
+| Facturas con alertas | < 10% | Por medir | Por medir |
+| Notificaciones enviadas | 100% | 100% |   Perfecto |
 
 ## 9.3 Alertas Automáticas
 
 Configurar alertas para:
-- ⚠️ Proveedor que cambió de nivel de confianza
-- ⚠️ CV de proveedor aumentó significativamente
-- ⚠️ Factura > 7 días en PENDIENTE_REVISION sin acción
-- ⚠️ Tasa de auto-aprobación cayó > 20% respecto al mes anterior
-- ⚠️ Error en extracción de facturas (falló > 2 veces consecutivas)
+-  Proveedor que cambió de nivel de confianza
+-  CV de proveedor aumentó significativamente
+-  Factura > 7 días en PENDIENTE_REVISION sin acción
+-  Tasa de auto-aprobación cayó > 20% respecto al mes anterior
+-  Error en extracción de facturas (falló > 2 veces consecutivas)
 
 ---
 

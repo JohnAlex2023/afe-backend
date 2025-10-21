@@ -2,10 +2,10 @@
 """
 Router para gestión de Responsables.
 
-⚠️ IMPORTANTE: Algunos endpoints relacionados con responsable-proveedor
+ IMPORTANTE: Algunos endpoints relacionados con responsable-proveedor
 fueron movidos a /api/v1/asignacion-nit/*
 
-✅ NUEVOS ENDPOINTS: Ver /api/v1/asignacion-nit/
+  NUEVOS ENDPOINTS: Ver /api/v1/asignacion-nit/
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -143,7 +143,7 @@ def delete_responsable_endpoint(
 
 
 # ==================== ENDPOINTS DE ASIGNACIONES ====================
-# ⚠️ NOTA: Los endpoints de asignación responsable-proveedor fueron
+#  NOTA: Los endpoints de asignación responsable-proveedor fueron
 # movidos a /api/v1/asignacion-nit/*
 #
 # - GET /asignacion-nit/ - Listar asignaciones

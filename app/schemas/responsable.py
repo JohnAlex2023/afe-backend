@@ -54,7 +54,7 @@ class ResponsableUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=8)
 
 
-# ❌ DEPRECATED: Estas clases no se usan - ver AsignacionNitCreate en workflow_aprobacion.py
+#  DEPRECATED: Estas clases no se usan - ver AsignacionNitCreate en workflow_aprobacion.py
 # Schema para asignar proveedores a un responsable
 # NOTA: Mantener temporalmente para compatibilidad, pero usar AsignacionNitCreate
 from typing import List

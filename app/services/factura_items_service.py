@@ -104,7 +104,7 @@ class FacturaItemsService:
         # Commit
         try:
             self.db.commit()
-            logger.info(f"✅ {len(items_creados)} items creados para factura {factura_id}")
+            logger.info(f"  {len(items_creados)} items creados para factura {factura_id}")
 
             return {
                 'exito': True,

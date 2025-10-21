@@ -8,7 +8,7 @@
 
 ---
 
-## 📋 Resumen de Cambios
+##  Resumen de Cambios
 
 El backend eliminó la tabla `responsable_proveedor` y ahora usa **SOLO** `asignacion_nit_responsable`.
 
@@ -16,14 +16,14 @@ El backend eliminó la tabla `responsable_proveedor` y ahora usa **SOLO** `asign
 
 ---
 
-## 🔄 Endpoints Migrados
+##  Endpoints Migrados
 
-### **ANTES (❌ Deprecated)**
+### **ANTES ( Deprecated)**
 ```
 /api/v1/responsable-proveedor/*
 ```
 
-### **AHORA (✅ Usar estos)**
+### **AHORA (  Usar estos)**
 ```
 /api/v1/asignacion-nit/*
 ```
@@ -34,7 +34,7 @@ El backend eliminó la tabla `responsable_proveedor` y ahora usa **SOLO** `asign
 
 ### **1. Listar Asignaciones**
 
-#### ❌ ANTES
+####  ANTES
 ```typescript
 GET /api/v1/responsable-proveedor/
 Query params: ?responsable_id=5&proveedor_id=10&activo=true
@@ -50,7 +50,7 @@ Response: [
 ]
 ```
 
-#### ✅ AHORA
+####   AHORA
 ```typescript
 GET /api/v1/asignacion-nit/
 Query params: ?responsable_id=5&nit=900156470-3&activo=true
@@ -79,7 +79,7 @@ Response: [
 
 ### **2. Crear Asignación**
 
-#### ❌ ANTES
+####  ANTES
 ```typescript
 POST /api/v1/responsable-proveedor/
 Body: {
@@ -89,7 +89,7 @@ Body: {
 }
 ```
 
-#### ✅ AHORA
+####   AHORA
 ```typescript
 POST /api/v1/asignacion-nit/
 Body: {
@@ -111,7 +111,7 @@ Body: {
 
 ### **3. Actualizar Asignación**
 
-#### ❌ ANTES
+####  ANTES
 ```typescript
 PUT /api/v1/responsable-proveedor/{id}
 Body: {
@@ -120,7 +120,7 @@ Body: {
 }
 ```
 
-#### ✅ AHORA
+####   AHORA
 ```typescript
 PUT /api/v1/asignacion-nit/{id}
 Body: {
@@ -141,12 +141,12 @@ Body: {
 
 ### **4. Eliminar Asignación**
 
-#### ❌ ANTES
+####  ANTES
 ```typescript
 DELETE /api/v1/responsable-proveedor/{id}
 ```
 
-#### ✅ AHORA
+####   AHORA
 ```typescript
 DELETE /api/v1/asignacion-nit/{id}
 // Marca como inactiva, no elimina físicamente
@@ -158,7 +158,7 @@ DELETE /api/v1/asignacion-nit/{id}
 
 ### **5. NUEVO: Asignación Masiva**
 
-#### ✅ NUEVO ENDPOINT
+####   NUEVO ENDPOINT
 ```typescript
 POST /api/v1/asignacion-nit/bulk
 Body: {
@@ -185,7 +185,7 @@ Response: {
 
 ### **6. NUEVO: Asignaciones por Responsable**
 
-#### ✅ NUEVO ENDPOINT
+####   NUEVO ENDPOINT
 ```typescript
 GET /api/v1/asignacion-nit/por-responsable/{responsable_id}
 Query params: ?activo=true
@@ -208,7 +208,7 @@ Response: [
 
 ## 🔧 Actualización de Modelos TypeScript
 
-### **Modelo Antiguo (❌ Eliminar)**
+### **Modelo Antiguo ( Eliminar)**
 ```typescript
 interface AsignacionResponsableProveedor {
   id: number;
@@ -219,7 +219,7 @@ interface AsignacionResponsableProveedor {
 }
 ```
 
-### **Modelo Nuevo (✅ Usar)**
+### **Modelo Nuevo (  Usar)**
 ```typescript
 interface AsignacionNIT {
   id: number;
@@ -323,7 +323,7 @@ export const asignacionNitService = {
 ### **Ejemplo: Componente de Asignación**
 
 ```typescript
-// ❌ ANTES
+//  ANTES
 const AsignacionComponent = () => {
   const [asignaciones, setAsignaciones] = useState<AsignacionResponsableProveedor[]>([]);
 
@@ -346,7 +346,7 @@ const AsignacionComponent = () => {
 ```
 
 ```typescript
-// ✅ AHORA
+//   AHORA
 import { asignacionNitService } from '../services/asignacionNitService';
 
 const AsignacionComponent = () => {
@@ -374,7 +374,7 @@ const AsignacionComponent = () => {
 
 ---
 
-## ✅ Checklist de Migración
+##   Checklist de Migración
 
 ### **Fase 1: Preparación**
 - [ ] Crear nuevo servicio `asignacionNitService.ts`
@@ -441,15 +441,15 @@ Si tienes dudas durante la migración:
 
 ---
 
-## 🎯 Resultado Esperado
+##  Resultado Esperado
 
 Después de esta migración:
-- ✅ Frontend usa nuevos endpoints `/asignacion-nit/*`
-- ✅ Asignaciones por NIT (más flexible)
-- ✅ Información enriquecida (nombres de responsable y proveedor)
-- ✅ Soporte para workflows automáticos (futuro)
-- ✅ Código más limpio y mantenible
+-   Frontend usa nuevos endpoints `/asignacion-nit/*`
+-   Asignaciones por NIT (más flexible)
+-   Información enriquecida (nombres de responsable y proveedor)
+-   Soporte para workflows automáticos (futuro)
+-   Código más limpio y mantenible
 
 ---
 
-**¡Buena suerte con la migración! 🚀**
+**¡Buena suerte con la migración! **

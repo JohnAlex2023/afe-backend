@@ -41,7 +41,7 @@ def importar_presupuesto():
         # Usa la API REST para crear líneas de presupuesto manualmente
         # o migra los datos mediante scripts SQL directos.
 
-        print("⚠️  Este script está deprecado.")
+        print("  Este script está deprecado.")
         print("El servicio ExcelPresupuestoImporter ha sido eliminado.")
         print()
         print("Para importar presupuesto, usa una de estas alternativas:")
@@ -63,18 +63,18 @@ def importar_presupuesto():
             limite=None  # Todas las facturas
         )
 
-        print(f"✅ Vinculación completada:")
+        print(f"  Vinculación completada:")
         print(f"   Total procesadas: {resultado_vinculacion['total_procesadas']}")
         print(f"   Vinculadas exitosamente: {resultado_vinculacion['total_vinculadas']}")
         print(f"   Sin vincular: {resultado_vinculacion['total_sin_vincular']}")
 
         if resultado_vinculacion['errores']:
-            print(f"   ⚠️  Errores: {len(resultado_vinculacion['errores'])}")
+            print(f"     Errores: {len(resultado_vinculacion['errores'])}")
 
         print()
 
         # PASO 2: Mostrar dashboard
-        print("📊 PASO 2: Dashboard de presupuesto...")
+        print("PASO 2: Dashboard de presupuesto...")
         print("-" * 80)
 
         dashboard = crud_presupuesto.get_dashboard_presupuesto(db, año_fiscal=2025)
@@ -94,7 +94,7 @@ def importar_presupuesto():
 
         print()
         print("=" * 80)
-        print("✅ IMPORTACIÓN COMPLETADA EXITOSAMENTE")
+        print("  IMPORTACIÓN COMPLETADA EXITOSAMENTE")
         print("=" * 80)
         print()
         print("Próximos pasos:")
@@ -104,7 +104,7 @@ def importar_presupuesto():
         print()
 
     except Exception as e:
-        print(f"❌ ERROR: {str(e)}")
+        print(f" ERROR: {str(e)}")
         import traceback
         traceback.print_exc()
 

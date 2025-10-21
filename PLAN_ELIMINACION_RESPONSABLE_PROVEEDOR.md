@@ -5,38 +5,38 @@
 
 ---
 
-## 📋 Archivos Afectados (13 archivos)
+##  Archivos Afectados (13 archivos)
 
 ### **Categoría 1: Modelos y CRUD** (Eliminar completamente)
-1. ✅ `app/models/responsable_proveedor.py` - **ELIMINAR**
-2. ✅ `app/crud/responsable_proveedor.py` - **ELIMINAR**
-3. ✅ `app/services/responsable_proveedor_service.py` - **ELIMINAR**
+1.   `app/models/responsable_proveedor.py` - **ELIMINAR**
+2.   `app/crud/responsable_proveedor.py` - **ELIMINAR**
+3.   `app/services/responsable_proveedor_service.py` - **ELIMINAR**
 
 ### **Categoría 2: Routers API** (Reescribir)
-4. 🔄 `app/api/v1/routers/responsable_proveedor.py` - **RENOMBRAR** a `asignacion_nit.py` y reescribir
-5. 🔄 `app/api/v1/routers/responsables.py` - **ACTUALIZAR** endpoints
+4.  `app/api/v1/routers/responsable_proveedor.py` - **RENOMBRAR** a `asignacion_nit.py` y reescribir
+5.  `app/api/v1/routers/responsables.py` - **ACTUALIZAR** endpoints
 
 ### **Categoría 3: Schemas** (Actualizar)
-6. 🔄 `app/schemas/responsable.py` - **ELIMINAR** schemas de ResponsableProveedor
+6.  `app/schemas/responsable.py` - **ELIMINAR** schemas de ResponsableProveedor
 
 ### **Categoría 4: Servicios** (Actualizar)
-7. 🔄 `app/services/export_service.py` - **ACTUALIZAR** si usa ResponsableProveedor
+7.  `app/services/export_service.py` - **ACTUALIZAR** si usa ResponsableProveedor
 
 ### **Categoría 5: Scripts** (Marcar como obsoletos)
-8. ⚠️ `scripts/asignar_responsables_proveedores.py` - **OBSOLETO** (marcar)
-9. ⚠️ `scripts/sincronizar_asignaciones_responsables.py` - **OBSOLETO** (marcar)
+8.  `scripts/asignar_responsables_proveedores.py` - **OBSOLETO** (marcar)
+9.  `scripts/sincronizar_asignaciones_responsables.py` - **OBSOLETO** (marcar)
 10. ℹ️ `scripts/migrar_asignaciones_a_nit_responsable.py` - **MANTENER** (histórico)
 11. ℹ️ `scripts/listar_responsables_y_asignaciones.py` - **ACTUALIZAR** (remover parte de ResponsableProveedor)
 
 ### **Categoría 6: Init y Documentación**
-12. 🔄 `app/models/__init__.py` - **ELIMINAR** import de ResponsableProveedor
+12.  `app/models/__init__.py` - **ELIMINAR** import de ResponsableProveedor
 13. ℹ️ `ARQUITECTURA_UNIFICACION_RESPONSABLES.md` - **YA ACTUALIZADO**
 
 ---
 
-## 🎯 Estrategia de Migración
+##  Estrategia de Migración
 
-### **Fase 1: Preparación** ✅ COMPLETADA
+### **Fase 1: Preparación**   COMPLETADA
 - [x] Migrar datos a `asignacion_nit_responsable`
 - [x] Actualizar CRUD de facturas
 - [x] Documentar cambio
@@ -65,7 +65,7 @@
 
 ---
 
-## 🚀 Acción Inmediata
+##  Acción Inmediata
 
 Voy a crear los nuevos archivos y actualizar los existentes.
 

@@ -67,7 +67,7 @@ class EmailConfigCache:
         Args:
             db: Sesión de base de datos
         """
-        logger.info("🔄 Refrescando caché de configuración de extracción de correos...")
+        logger.info(" Refrescando caché de configuración de extracción de correos...")
 
         try:
             cuentas = get_cuentas_activas_para_extraccion(db)
@@ -95,11 +95,11 @@ class EmailConfigCache:
             self._last_refresh = datetime.utcnow()
 
             logger.info(
-                f"✅ Caché refrescado: {len(config_list)} cuentas activas, {total_nits} NITs totales"
+                f"  Caché refrescado: {len(config_list)} cuentas activas, {total_nits} NITs totales"
             )
 
         except Exception as e:
-            logger.error(f"❌ Error al refrescar caché de configuración: {str(e)}")
+            logger.error(f" Error al refrescar caché de configuración: {str(e)}")
             # Mantener el caché anterior si existe
             if self._cache is None:
                 self._cache = []
@@ -332,6 +332,6 @@ def registrar_extraccion(
 
     create_historial_extraccion(db, historial)
     logger.info(
-        f"📊 Historial registrado: cuenta_id={cuenta_id}, "
+        f"Historial registrado: cuenta_id={cuenta_id}, "
         f"facturas_creadas={facturas_creadas}, exito={exito}"
     )

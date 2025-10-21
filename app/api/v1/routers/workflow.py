@@ -1034,7 +1034,7 @@ def obtener_estadisticas_comparacion(
     db: Session = Depends(get_db)
 ):
     """
-    📊 **Estadísticas del Sistema de Comparación de Items**
+    **Estadísticas del Sistema de Comparación de Items**
 
     Retorna métricas globales del sistema de comparación automática.
 

@@ -50,6 +50,24 @@ def upgrade() -> None:
     print("[INFO] FASE 2.5: IMPLEMENTANDO GENERATED COLUMNS")
     print("="*80)
 
+    # ========== LIMPIEZA: Eliminar objetos si ya existen ==========
+    print("\n[0/5] Limpiando objetos duplicados si existen...")
+    connection = op.get_bind()
+
+    # Eliminar constraint si existe
+    try:
+        connection.execute(sa.text("ALTER TABLE facturas DROP CHECK chk_facturas_total_coherente"))
+    except Exception:
+        pass
+
+    # Eliminar columna si existe
+    try:
+        connection.execute(sa.text("ALTER TABLE facturas DROP COLUMN total_calculado_validacion"))
+    except Exception:
+        pass
+
+    print("      [OK] Limpieza completada")
+
     # ========== PARTE 1: FACTURAS - Columna de Validación ==========
     print("\n[1/5] Agregando columna de validación para total_a_pagar...")
 
@@ -62,6 +80,18 @@ def upgrade() -> None:
     """)
 
     print("      [OK] Columna total_calculado_validacion agregada")
+
+    # Corregir datos inconsistentes ANTES de agregar el constraint
+    print("[1.5/5] Corrigiendo facturas con total_a_pagar inconsistente...")
+    connection = op.get_bind()
+
+    # Actualizar total_a_pagar para que coincida con subtotal + iva
+    connection.execute(sa.text("""
+        UPDATE facturas
+        SET total_a_pagar = subtotal + iva
+        WHERE ABS(total_a_pagar - (subtotal + iva)) > 0.01
+    """))
+    print("      [OK] Facturas corregidas")
 
     # Agregar constraint que valida coherencia
     print("[2/5] Agregando constraint de validación...")

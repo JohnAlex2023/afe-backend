@@ -19,7 +19,7 @@ try:
     existing = db.query(Usuario).filter(Usuario.usuario == "alex.taimal").first()
 
     if existing:
-        print(f"✅ Usuario 'alex.taimal' ya existe (ID: {existing.id})")
+        print(f"  Usuario 'alex.taimal' ya existe (ID: {existing.id})")
     else:
         # Crear usuario
         usuario = Usuario(
@@ -36,13 +36,13 @@ try:
         db.commit()
         db.refresh(usuario)
 
-        print(f"✅ Usuario creado exitosamente!")
+        print(f"  Usuario creado exitosamente!")
         print(f"   Usuario: alex.taimal")
         print(f"   Contraseña: zentria2025")
         print(f"   ID: {usuario.id}")
 
 except Exception as e:
-    print(f"❌ Error: {e}")
+    print(f" Error: {e}")
     db.rollback()
 finally:
     db.close()

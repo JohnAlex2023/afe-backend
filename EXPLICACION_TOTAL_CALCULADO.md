@@ -7,7 +7,7 @@
 
 ---
 
-## 🎯 DIFERENCIA FUNDAMENTAL
+##  DIFERENCIA FUNDAMENTAL
 
 ### `total_a_pagar` (Campo almacenado)
 
@@ -24,11 +24,11 @@ total_a_pagar = Column(Numeric(15, 2))
 ```
 
 **Uso:**
-- ✅ **Comparación de facturas mes a mes** (automatización)
-- ✅ Validación de duplicados
-- ✅ Decisión de aprobación automática
-- ✅ **ESTE ES EL VALOR OFICIAL LEGAL DE LA FACTURA**
-- ✅ **SE USA EN TODO EL SISTEMA DE AUTOMATIZACIÓN**
+-   **Comparación de facturas mes a mes** (automatización)
+-   Validación de duplicados
+-   Decisión de aprobación automática
+-   **ESTE ES EL VALOR OFICIAL LEGAL DE LA FACTURA**
+-   **SE USA EN TODO EL SISTEMA DE AUTOMATIZACIÓN**
 
 **Ejemplo en código actual:**
 ```python
@@ -54,16 +54,16 @@ def total_calculado(self):
 **Origen:** Calculado desde campos internos de la BD
 
 **Uso:**
-- ✅ **Solo para VALIDAR** que los datos importados sean consistentes
-- ✅ Detectar errores de extracción del XML
-- ✅ Auditoría de calidad de datos
-- ❌ **NUNCA se usa para comparaciones de facturas**
-- ❌ **NUNCA se usa para automatización**
-- ❌ **NUNCA se usa en decisiones de negocio**
+-   **Solo para VALIDAR** que los datos importados sean consistentes
+-   Detectar errores de extracción del XML
+-   Auditoría de calidad de datos
+-  **NUNCA se usa para comparaciones de facturas**
+-  **NUNCA se usa para automatización**
+-  **NUNCA se usa en decisiones de negocio**
 
 ---
 
-## 📋 CASO PRÁCTICO: Automatización Mes a Mes
+##  CASO PRÁCTICO: Automatización Mes a Mes
 
 ### Escenario Real
 
@@ -73,7 +73,7 @@ factura_octubre = Factura(
     numero_factura="FV-12345",
     proveedor_id=100,  # Proveedor: "Hosting AWS"
 
-    # ✅ VALOR OFICIAL EXTRAÍDO DEL XML (PayableAmount)
+    #   VALOR OFICIAL EXTRAÍDO DEL XML (PayableAmount)
     total_a_pagar=Decimal('1000000.00'),
 
     # Valores de desglose (también del XML)
@@ -86,7 +86,7 @@ factura_noviembre = Factura(
     numero_factura="FV-12346",
     proveedor_id=100,  # Mismo proveedor
 
-    # ✅ VALOR OFICIAL EXTRAÍDO DEL XML (PayableAmount)
+    #   VALOR OFICIAL EXTRAÍDO DEL XML (PayableAmount)
     total_a_pagar=Decimal('1000000.00'),
 
     # Valores de desglose
@@ -100,7 +100,7 @@ factura_noviembre = Factura(
 ```python
 # app/services/flujo_automatizacion_facturas.py
 
-# ✅ CORRECTO: Comparar usando total_a_pagar del XML
+#   CORRECTO: Comparar usando total_a_pagar del XML
 monto_actual = factura_noviembre.total_a_pagar  # $1,000,000 del XML
 monto_anterior = factura_octubre.total_a_pagar  # $1,000,000 del XML
 
@@ -115,7 +115,7 @@ if monto_actual == monto_anterior:
     )
 
     if resultado['confianza'] >= 95:
-        # ✅ APROBAR AUTOMÁTICAMENTE
+        #   APROBAR AUTOMÁTICAMENTE
         factura_noviembre.estado = EstadoFactura.aprobada_auto
         factura_noviembre.confianza_automatica = resultado['confianza'] / 100
 ```
@@ -126,7 +126,7 @@ if monto_actual == monto_anterior:
 # Después de importar factura desde XML
 factura_nueva = extraer_factura_desde_xml(archivo_xml)
 
-# ⚠️ VALIDAR que los datos del XML sean coherentes
+#  VALIDAR que los datos del XML sean coherentes
 if factura_nueva.tiene_inconsistencia_total:
     # Los datos del XML no cuadran!
     diferencia = abs(
@@ -155,7 +155,7 @@ if factura_nueva.tiene_inconsistencia_total:
 
 ---
 
-## 🔍 ANÁLISIS DEL CÓDIGO ACTUAL
+##  ANÁLISIS DEL CÓDIGO ACTUAL
 
 ### 1. Comparación de Facturas (Automatización)
 
@@ -180,7 +180,7 @@ def comparar_factura_vs_historial(factura_id, meses_historico=12):
         # NUNCA se usa item.total_calculado para esto
 ```
 
-**Conclusión:** ✅ El sistema usa valores del XML, no calculados
+**Conclusión:**   El sistema usa valores del XML, no calculados
 
 ### 2. Decisión de Aprobación Automática
 
@@ -188,7 +188,7 @@ def comparar_factura_vs_historial(factura_id, meses_historico=12):
 
 ```python
 # Calcular desviación del monto vs patrón histórico
-monto_actual = factura.total_a_pagar or Decimal('0')  # ✅ Del XML
+monto_actual = factura.total_a_pagar or Decimal('0')  #   Del XML
 desviacion_porcentual = abs(
     (monto_actual - patron.monto_promedio) / patron.monto_promedio * 100
 )
@@ -198,7 +198,7 @@ if desviacion_porcentual <= patron.tolerancia_permitida:
     aprobar_automaticamente = True
 ```
 
-**Conclusión:** ✅ Usa `total_a_pagar` (del XML), nunca `total_calculado`
+**Conclusión:**   Usa `total_a_pagar` (del XML), nunca `total_calculado`
 
 ### 3. Dónde se usa `total_calculado`
 
@@ -238,11 +238,11 @@ factura_con_error = Factura(
     numero_factura="ERR-001",
 
     # PayableAmount del XML
-    total_a_pagar=Decimal('1000000.00'),  # ✅ Correcto
+    total_a_pagar=Decimal('1000000.00'),  #   Correcto
 
     # Pero alguien importó mal el subtotal e IVA
-    subtotal=Decimal('500000.00'),  # ❌ Error: debería ser 840,336.13
-    iva=Decimal('200000.00')        # ❌ Error: debería ser 159,663.87
+    subtotal=Decimal('500000.00'),  #  Error: debería ser 840,336.13
+    iva=Decimal('200000.00')        #  Error: debería ser 159,663.87
 )
 
 # Sin total_calculado: No detectamos el error
@@ -260,21 +260,21 @@ if factura_con_error.tiene_inconsistencia_total:
 
 ---
 
-## ✅ CONCLUSIÓN FINAL
+##   CONCLUSIÓN FINAL
 
 ### Lo que NO cambia (Fase 1)
 
-- ❌ NO se elimina `total_a_pagar` de la base de datos
-- ❌ NO se modifica la lógica de automatización
-- ❌ NO se usa `total_calculado` en comparaciones de facturas
-- ❌ NO se usa `total_calculado` en decisiones de aprobación
+-  NO se elimina `total_a_pagar` de la base de datos
+-  NO se modifica la lógica de automatización
+-  NO se usa `total_calculado` en comparaciones de facturas
+-  NO se usa `total_calculado` en decisiones de aprobación
 
 ### Lo que SÍ se agregó (Fase 1)
 
-- ✅ Propiedad `total_calculado` para **validación**
-- ✅ Propiedad `tiene_inconsistencia_total` para **detectar errores**
-- ✅ Scripts de auditoría de calidad de datos
-- ✅ **Todo lo anterior NO afecta la automatización**
+-   Propiedad `total_calculado` para **validación**
+-   Propiedad `tiene_inconsistencia_total` para **detectar errores**
+-   Scripts de auditoría de calidad de datos
+-   **Todo lo anterior NO afecta la automatización**
 
 ### Estrategia de Eliminación (Fase 2 - Opcional)
 
@@ -294,16 +294,16 @@ if factura_con_error.tiene_inconsistencia_total:
 
 ---
 
-## 🎯 RESPUESTA A TU PREGUNTA ORIGINAL
+##  RESPUESTA A TU PREGUNTA ORIGINAL
 
 > "Para comparaciones entre facturas de meses pasados y automatizar estados, se debe tomar el total_a_pagar extraído, nunca se debe hacer cálculos"
 
 **RESPUESTA: CORRECTO AL 100%**
 
-- ✅ El sistema **YA usa `total_a_pagar`** (valor del XML) para automatización
-- ✅ `total_calculado` es **solo para validación**, no para automatización
-- ✅ Fase 1 **NO modifica** la lógica de comparación existente
-- ✅ La automatización **sigue funcionando igual** que antes
+-   El sistema **YA usa `total_a_pagar`** (valor del XML) para automatización
+-   `total_calculado` es **solo para validación**, no para automatización
+-   Fase 1 **NO modifica** la lógica de comparación existente
+-   La automatización **sigue funcionando igual** que antes
 
 **No hay ningún riesgo.** Simplemente agregamos una capa de validación para detectar errores de importación, pero la lógica de negocio permanece intacta.
 
@@ -317,10 +317,10 @@ if factura_con_error.tiene_inconsistencia_total:
 | `app/services/comparador_items.py` | 158 | Usa `item.total` (del XML) |
 | `app/models/factura.py` | 99-145 | Define `total_calculado` (solo validación) |
 
-**Total de usos de `total_calculado` en automatización: 0 ✅**
+**Total de usos de `total_calculado` en automatización: 0  **
 
 ---
 
 **Documento creado**: 2025-10-19
 **Propósito**: Clarificar que Fase 1 NO afecta automatización
-**Estado**: ✅ Sistema de automatización funciona igual que antes
+**Estado**:   Sistema de automatización funciona igual que antes

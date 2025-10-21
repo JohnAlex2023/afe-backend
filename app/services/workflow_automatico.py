@@ -244,7 +244,7 @@ class WorkflowAutomaticoService:
         # Cambiar estado a EN_ANALISIS
         workflow.estado = EstadoFacturaWorkflow.EN_ANALISIS
         workflow.fecha_cambio_estado = datetime.now()
-        self._sincronizar_estado_factura(workflow)  # ✅ Sincronizar
+        self._sincronizar_estado_factura(workflow)  #   Sincronizar
         tiempo_inicio = datetime.now()
 
         # ============================================================================
@@ -309,7 +309,7 @@ class WorkflowAutomaticoService:
                 "error_comparacion": str(e),
                 "requiere_revision_manual": True
             }
-            self._sincronizar_estado_factura(workflow)  # ✅ Sincronizar
+            self._sincronizar_estado_factura(workflow)  #   Sincronizar
             self.db.commit()
 
             return {
@@ -412,7 +412,7 @@ class WorkflowAutomaticoService:
                 return False
 
         # ============================================================================
-        # TODAS LAS REGLAS APROBADAS ✅
+        # TODAS LAS REGLAS APROBADAS  
         # ============================================================================
         return True
 
@@ -433,12 +433,12 @@ class WorkflowAutomaticoService:
         workflow.aprobada_por = "SISTEMA_AUTO"
         workflow.fecha_aprobacion = datetime.now()
         workflow.observaciones_aprobacion = (
-            f"✅ Aprobación automática - Confianza: {workflow.porcentaje_similitud}%\n"
+            f"  Aprobación automática - Confianza: {workflow.porcentaje_similitud}%\n"
             f"Análisis de items: {workflow.criterios_comparacion.get('items_ok', 0)}/{workflow.criterios_comparacion.get('items_analizados', 0)} items verificados\n"
             f"Método: ComparadorItemsService Enterprise v1.0"
         )
 
-        # ✅ SINCRONIZAR ESTADO CON FACTURA
+        #   SINCRONIZAR ESTADO CON FACTURA
         self._sincronizar_estado_factura(workflow)
 
         self.db.commit()
@@ -448,7 +448,7 @@ class WorkflowAutomaticoService:
             workflow=workflow,
             tipo=TipoNotificacion.FACTURA_APROBADA,
             destinatarios=[],  # Se llenará con emails del responsable y contabilidad
-            asunto=f"✅ Factura Aprobada Automáticamente - {factura.numero_factura}",
+            asunto=f"  Factura Aprobada Automáticamente - {factura.numero_factura}",
             cuerpo=f"""
             La factura {factura.numero_factura} ha sido aprobada automáticamente.
 
@@ -480,7 +480,7 @@ class WorkflowAutomaticoService:
         workflow.estado = EstadoFacturaWorkflow.PENDIENTE_REVISION
         workflow.fecha_cambio_estado = datetime.now()
 
-        # ✅ SINCRONIZAR ESTADO CON FACTURA
+        #   SINCRONIZAR ESTADO CON FACTURA
         self._sincronizar_estado_factura(workflow)
 
         self.db.commit()
@@ -494,18 +494,18 @@ class WorkflowAutomaticoService:
             workflow=workflow,
             tipo=TipoNotificacion.PENDIENTE_REVISION,
             destinatarios=[],  # Email del responsable
-            asunto=f"⚠️ Factura Pendiente de Revisión - {workflow.factura.numero_factura}",
+            asunto=f" Factura Pendiente de Revisión - {workflow.factura.numero_factura}",
             cuerpo=f"""
             La factura {workflow.factura.numero_factura} requiere su revisión manual.
 
-            📊 ANÁLISIS AUTOMÁTICO:
+            ANÁLISIS AUTOMÁTICO:
             - Items analizados: {resultado_comparacion.get('items_analizados', 0)}
             - Items OK: {resultado_comparacion.get('items_ok', 0)}
             - Items con alertas: {resultado_comparacion.get('items_con_alertas', 0)}
             - Items nuevos: {resultado_comparacion.get('nuevos_items_count', 0)}
             - Confianza: {resultado_comparacion.get('confianza', 0)}%
 
-            ⚠️ ALERTAS DETECTADAS:
+             ALERTAS DETECTADAS:
             {alertas_resumen}
 
             Por favor, revise y apruebe o rechace la factura en el sistema.
@@ -589,7 +589,7 @@ class WorkflowAutomaticoService:
             workflow=workflow,
             tipo=TipoNotificacion.FACTURA_RECIBIDA,
             destinatarios=[],  # Email del responsable
-            asunto=f"📩 Nueva Factura Recibida - {factura.numero_factura}",
+            asunto=f" Nueva Factura Recibida - {factura.numero_factura}",
             cuerpo=f"""
             Se ha recibido una nueva factura asignada a su área.
 
@@ -629,7 +629,7 @@ class WorkflowAutomaticoService:
         workflow.fecha_aprobacion = datetime.now()
         workflow.observaciones_aprobacion = observaciones
 
-        # ✅ SINCRONIZAR ESTADO CON FACTURA
+        #   SINCRONIZAR ESTADO CON FACTURA
         self._sincronizar_estado_factura(workflow)
 
         self.db.commit()
@@ -639,7 +639,7 @@ class WorkflowAutomaticoService:
             workflow=workflow,
             tipo=TipoNotificacion.FACTURA_APROBADA,
             destinatarios=[],  # Contabilidad
-            asunto=f"✅ Factura Aprobada - {workflow.factura.numero_factura}",
+            asunto=f"  Factura Aprobada - {workflow.factura.numero_factura}",
             cuerpo=f"Factura aprobada manualmente por {aprobado_por}"
         )
 
@@ -680,7 +680,7 @@ class WorkflowAutomaticoService:
         workflow.fecha_rechazo = datetime.now()
         workflow.detalle_rechazo = detalle
 
-        # ✅ SINCRONIZAR ESTADO CON FACTURA
+        #   SINCRONIZAR ESTADO CON FACTURA
         self._sincronizar_estado_factura(workflow)
 
         self.db.commit()
@@ -690,7 +690,7 @@ class WorkflowAutomaticoService:
             workflow=workflow,
             tipo=TipoNotificacion.FACTURA_RECHAZADA,
             destinatarios=[],  # Proveedor, responsable, contabilidad
-            asunto=f"❌ Factura Rechazada - {workflow.factura.numero_factura}",
+            asunto=f" Factura Rechazada - {workflow.factura.numero_factura}",
             cuerpo=f"Motivo: {motivo}\n{detalle or ''}"
         )
 
@@ -738,7 +738,7 @@ class WorkflowAutomaticoService:
 
                     # Reclasificar cada 90 días (3 meses)
                     if dias_desde_clasificacion < 90:
-                        return  # ✅ Clasificación reciente, no hacer nada
+                        return  #   Clasificación reciente, no hacer nada
 
         # Clasificar o reclasificar
         try:
@@ -749,13 +749,13 @@ class WorkflowAutomaticoService:
 
             # Log para auditoría (opcional)
             if resultado['clasificado'] and not resultado.get('ya_clasificado'):
-                print(f"🔄 Proveedor {asignacion.nit} clasificado automáticamente: "
+                print(f" Proveedor {asignacion.nit} clasificado automáticamente: "
                       f"{resultado['tipo_servicio'].value} - {resultado['nivel_confianza'].value}")
 
         except Exception as e:
             # Si hay error en clasificación, simplemente skip y continuar
             # El proveedor sin clasificación irá a revisión manual (umbral 100%)
-            print(f"⚠️  Error clasificando proveedor: {str(e)[:100]}")
+            print(f"  Error clasificando proveedor: {str(e)[:100]}")
             print(f"   El proveedor continuará sin clasificación automática")
             # No hacer nada más - dejar que el workflow continúe sin clasificación
             # La función obtener_umbral_aprobacion manejará el caso de proveedor sin clasificar

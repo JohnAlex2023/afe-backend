@@ -6,7 +6,7 @@ Create Date: 2025-10-19 20:00:00.000000
 
 Elimina la tabla responsable_proveedor que fue reemplazada por asignacion_nit_responsable.
 
-✅ UNIFICACIÓN ARQUITECTÓNICA COMPLETADA
+  UNIFICACIÓN ARQUITECTÓNICA COMPLETADA
 - Todos los datos migrados a asignacion_nit_responsable
 - CRUD actualizado para usar solo asignacion_nit_responsable
 - Nuevos endpoints: /api/v1/asignacion-nit

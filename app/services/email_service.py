@@ -135,13 +135,13 @@ class EmailService:
                     reply_to=reply_to
                 )
 
-                logger.info(f"✅ Email enviado exitosamente a {', '.join(to_email)}")
+                logger.info(f"  Email enviado exitosamente a {', '.join(to_email)}")
                 return result
 
             except Exception as e:
                 last_error = str(e)
                 logger.warning(
-                    f"⚠️  Intento {attempt + 1}/{self.max_retries} falló al enviar email: {str(e)}"
+                    f"  Intento {attempt + 1}/{self.max_retries} falló al enviar email: {str(e)}"
                 )
 
                 if attempt < self.max_retries - 1:
@@ -151,7 +151,7 @@ class EmailService:
                     time.sleep(sleep_time)
 
         # Si llegamos aquí, todos los intentos fallaron
-        logger.error(f"❌ Error enviando email después de {self.max_retries} intentos: {last_error}")
+        logger.error(f" Error enviando email después de {self.max_retries} intentos: {last_error}")
         return {
             'success': False,
             'error': last_error,

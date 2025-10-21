@@ -374,18 +374,18 @@ class AutomationService:
             'factura_id': factura.id,
             'numero_factura': factura.numero_factura,
             'decision': resultado_decision.decision.value,
-            'automatizada': automatizada,  # ✅ Campo agregado
+            'automatizada': automatizada,  #   Campo agregado
             'confianza': float(resultado_decision.confianza),
             'razon': resultado_decision.motivo,
             'motivo': resultado_decision.motivo,
             'estado_anterior': factura.estado,
             'estado_nuevo': estado_final,
-            'estado': estado_final,  # ✅ Campo agregado
+            'estado': estado_final,  #   Campo agregado
             'es_recurrente': resultado_patron.es_recurrente,
             'patron_temporal': resultado_patron.patron_temporal.tipo,
             'requiere_accion_manual': resultado_decision.requiere_accion_manual,
-            'fingerprint_generado': bool(factura.concepto_hash),  # ✅ Campo agregado
-            'patrones_detectados': len(resultado_patron.facturas_referencia) > 0,  # ✅ Campo agregado
+            'fingerprint_generado': bool(factura.concepto_hash),  #   Campo agregado
+            'patrones_detectados': len(resultado_patron.facturas_referencia) > 0,  #   Campo agregado
             'procesado_exitosamente': True
         }
         
@@ -427,15 +427,15 @@ class AutomationService:
             'factura_id': factura.id,
             'numero_factura': factura.numero_factura,
             'procesado_exitosamente': False,
-            'automatizada': False,  # ✅ Campo agregado
-            'confianza': 0.0,  # ✅ Campo agregado
-            'razon': f"Error: {error}",  # ✅ Campo agregado
-            'estado': factura.estado,  # ✅ Campo agregado
+            'automatizada': False,  #   Campo agregado
+            'confianza': 0.0,  #   Campo agregado
+            'razon': f"Error: {error}",  #   Campo agregado
+            'estado': factura.estado,  #   Campo agregado
             'error': error,
             'decision': 'error',
             'requiere_accion_manual': True,
-            'fingerprint_generado': False,  # ✅ Campo agregado
-            'patrones_detectados': False   # ✅ Campo agregado
+            'fingerprint_generado': False,  #   Campo agregado
+            'patrones_detectados': False   #   Campo agregado
         }
 
     def _generar_resumen_procesamiento(
@@ -449,12 +449,12 @@ class AutomationService:
             tiempo_total = (self.stats['tiempo_fin'] - self.stats['tiempo_inicio']).total_seconds()
         
         resumen = {
-            'facturas_procesadas': self.stats['facturas_procesadas'],  # ✅ Campo de nivel superior
-            'aprobadas_automaticamente': self.stats['aprobadas_automaticamente'],  # ✅ Campo de nivel superior
-            'enviadas_revision': self.stats['enviadas_revision'],  # ✅ Campo de nivel superior
-            'errores': self.stats['errores'],  # ✅ Campo de nivel superior
-            'tiempo_inicio': self.stats['tiempo_inicio'],  # ✅ Campo de nivel superior
-            'tiempo_fin': self.stats['tiempo_fin'],  # ✅ Campo de nivel superior
+            'facturas_procesadas': self.stats['facturas_procesadas'],  #   Campo de nivel superior
+            'aprobadas_automaticamente': self.stats['aprobadas_automaticamente'],  #   Campo de nivel superior
+            'enviadas_revision': self.stats['enviadas_revision'],  #   Campo de nivel superior
+            'errores': self.stats['errores'],  #   Campo de nivel superior
+            'tiempo_inicio': self.stats['tiempo_inicio'],  #   Campo de nivel superior
+            'tiempo_fin': self.stats['tiempo_fin'],  #   Campo de nivel superior
             'resumen_general': {
                 'facturas_procesadas': self.stats['facturas_procesadas'],
                 'aprobadas_automaticamente': self.stats['aprobadas_automaticamente'],

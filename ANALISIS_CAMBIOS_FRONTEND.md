@@ -5,13 +5,13 @@
 
 ---
 
-## 🔍 CAMBIOS CRÍTICOS QUE AFECTAN FRONTEND
+##  CAMBIOS CRÍTICOS QUE AFECTAN FRONTEND
 
 ### 1. **ELIMINACIÓN DE CAMPOS EN FACTURA** (Fase 2.4)
 
 #### Campos ELIMINADOS de `facturas`:
 ```python
-# ❌ YA NO EXISTEN en backend
+#  YA NO EXISTEN en backend
 factura.aprobado_por
 factura.fecha_aprobacion
 factura.rechazado_por
@@ -21,7 +21,7 @@ factura.motivo_rechazo
 
 #### Campos NUEVOS (acceso vía helpers):
 ```python
-# ✅ USAR AHORA
+#   USAR AHORA
 factura.aprobado_por_workflow
 factura.fecha_aprobacion_workflow
 factura.rechazado_por_workflow
@@ -41,7 +41,7 @@ factura.tipo_aprobacion_workflow
 
 #### Campos READ-ONLY ahora:
 ```python
-# ❌ NO SE PUEDEN INSERTAR/ACTUALIZAR directamente
+#  NO SE PUEDEN INSERTAR/ACTUALIZAR directamente
 factura_items.subtotal  # GENERATED
 factura_items.total     # GENERATED
 ```
@@ -56,14 +56,14 @@ factura_items.total     # GENERATED
 
 #### Modelo/Endpoint ELIMINADO:
 ```python
-# ❌ YA NO EXISTE
+#  YA NO EXISTE
 /api/v1/responsable-proveedor
 app/models/responsable_proveedor.py
 ```
 
 #### Nuevo endpoint:
 ```python
-# ✅ USAR AHORA
+#   USAR AHORA
 /api/v1/asignacion-nit
 ```
 
@@ -73,26 +73,26 @@ app/models/responsable_proveedor.py
 
 ---
 
-## 📋 PLAN DE SINCRONIZACIÓN
+##  PLAN DE SINCRONIZACIÓN
 
 ### PASO 1: Actualizar Interfaces TypeScript
 
 **Archivo:** `frontend/src/types/factura.ts` (o similar)
 
 ```typescript
-// ❌ ANTES (interfaces viejas)
+//  ANTES (interfaces viejas)
 interface Factura {
   id: number;
   numero_factura: string;
   total_a_pagar: number;
-  aprobado_por: string | null;        // ❌ Eliminado
-  fecha_aprobacion: string | null;    // ❌ Eliminado
-  rechazado_por: string | null;       // ❌ Eliminado
-  fecha_rechazo: string | null;       // ❌ Eliminado
-  motivo_rechazo: string | null;      // ❌ Eliminado
+  aprobado_por: string | null;        //  Eliminado
+  fecha_aprobacion: string | null;    //  Eliminado
+  rechazado_por: string | null;       //  Eliminado
+  fecha_rechazo: string | null;       //  Eliminado
+  motivo_rechazo: string | null;      //  Eliminado
 }
 
-// ✅ DESPUÉS (interfaces actualizadas)
+//   DESPUÉS (interfaces actualizadas)
 interface Factura {
   id: number;
   numero_factura: string;
@@ -115,7 +115,7 @@ interface FacturaItem {
   descuento_valor: number | null;
   total_impuestos: number | null;
 
-  // ⚠️ READONLY - Calculados por MySQL
+  //  READONLY - Calculados por MySQL
   subtotal: number;  // GENERATED
   total: number;     // GENERATED
 }
@@ -128,11 +128,11 @@ interface FacturaItem {
 **Componente:** Lista de facturas
 
 ```tsx
-// ❌ ANTES
+//  ANTES
 <td>{factura.aprobado_por}</td>
 <td>{factura.fecha_aprobacion}</td>
 
-// ✅ DESPUÉS
+//   DESPUÉS
 <td>{factura.aprobado_por_workflow}</td>
 <td>{factura.fecha_aprobacion_workflow}</td>
 ```
@@ -140,15 +140,15 @@ interface FacturaItem {
 **Componente:** Formulario de aprobación
 
 ```tsx
-// ❌ ANTES
+//  ANTES
 const aprobarFactura = async (id: number, usuario: string) => {
   await api.put(`/facturas/${id}/aprobar`, {
-    aprobado_por: usuario,           // ❌ Campo eliminado
+    aprobado_por: usuario,           //  Campo eliminado
     fecha_aprobacion: new Date()
   });
 };
 
-// ✅ DESPUÉS
+//   DESPUÉS
 const aprobarFactura = async (id: number, usuario: string) => {
   // El backend ahora crea/actualiza workflow automáticamente
   await api.put(`/facturas/${id}/aprobar`, {
@@ -164,7 +164,7 @@ const aprobarFactura = async (id: number, usuario: string) => {
 **Componente:** Edición de items
 
 ```tsx
-// ❌ ANTES (permitía editar subtotal y total)
+//  ANTES (permitía editar subtotal y total)
 <input
   type="number"
   value={item.subtotal}
@@ -176,7 +176,7 @@ const aprobarFactura = async (id: number, usuario: string) => {
   onChange={(e) => setItem({...item, total: e.target.value})}
 />
 
-// ✅ DESPUÉS (solo editar campos base, subtotal/total se calculan)
+//   DESPUÉS (solo editar campos base, subtotal/total se calculan)
 <input
   type="number"
   value={item.cantidad}
@@ -215,7 +215,7 @@ const calcularTotal = (item: FacturaItem) => {
 **Servicio API:**
 
 ```typescript
-// ❌ ANTES
+//  ANTES
 const asignarResponsableProveedor = async (proveedorId: number, responsableId: number) => {
   return api.post('/api/v1/responsable-proveedor', {
     proveedor_id: proveedorId,
@@ -223,7 +223,7 @@ const asignarResponsableProveedor = async (proveedorId: number, responsableId: n
   });
 };
 
-// ✅ DESPUÉS
+//   DESPUÉS
 const asignarResponsableNIT = async (nit: string, responsableId: number) => {
   return api.post('/api/v1/asignacion-nit', {
     nit: nit,
@@ -239,7 +239,7 @@ const asignarResponsableNIT = async (nit: string, responsableId: number) => {
 **Endpoint:** `GET /api/v1/facturas/{id}`
 
 ```json
-// ✅ Respuesta actual del backend
+//   Respuesta actual del backend
 {
   "id": 1,
   "numero_factura": "FETE14569",
@@ -283,7 +283,7 @@ find src/ -type f -name "*.ts" -o -name "*.tsx" | xargs sed -i 's/fecha_aprobaci
 
 ---
 
-## ⚠️ CAMBIOS QUE REQUIEREN REVISIÓN MANUAL
+##  CAMBIOS QUE REQUIEREN REVISIÓN MANUAL
 
 1. **Validaciones de formularios**
    - Si había validación de `subtotal` o `total` → Eliminar
@@ -299,7 +299,7 @@ find src/ -type f -name "*.ts" -o -name "*.tsx" | xargs sed -i 's/fecha_aprobaci
 
 ---
 
-## 📊 CHECKLIST DE SINCRONIZACIÓN
+## CHECKLIST DE SINCRONIZACIÓN
 
 ### Interfaces TypeScript
 - [ ] Actualizar `Factura` interface
@@ -334,15 +334,15 @@ find src/ -type f -name "*.ts" -o -name "*.tsx" | xargs sed -i 's/fecha_aprobaci
 
 1. **Intentar enviar `subtotal` o `total` en items**
    ```typescript
-   // ❌ ESTO FALLARÁ
+   //  ESTO FALLARÁ
    await api.post('/items', {
      cantidad: 10,
      precio_unitario: 100,
-     subtotal: 1000,  // ❌ Backend rechazará
-     total: 1000      // ❌ Backend rechazará
+     subtotal: 1000,  //  Backend rechazará
+     total: 1000      //  Backend rechazará
    });
 
-   // ✅ CORRECTO
+   //   CORRECTO
    await api.post('/items', {
      cantidad: 10,
      precio_unitario: 100
@@ -352,19 +352,19 @@ find src/ -type f -name "*.ts" -o -name "*.tsx" | xargs sed -i 's/fecha_aprobaci
 
 2. **Acceder a campos eliminados**
    ```typescript
-   // ❌ Retornará undefined
+   //  Retornará undefined
    console.log(factura.aprobado_por);
 
-   // ✅ Usar campos workflow
+   //   Usar campos workflow
    console.log(factura.aprobado_por_workflow);
    ```
 
 3. **Usar endpoint viejo de responsable-proveedor**
    ```typescript
-   // ❌ Retornará 404
+   //  Retornará 404
    await api.get('/api/v1/responsable-proveedor');
 
-   // ✅ Usar nuevo endpoint
+   //   Usar nuevo endpoint
    await api.get('/api/v1/asignacion-nit');
    ```
 
@@ -381,9 +381,9 @@ find src/ -type f -name "*.ts" -o -name "*.tsx" | xargs sed -i 's/fecha_aprobaci
 
 ---
 
-## 🎯 SINCRONIZACIÓN COMPLETADA - 2025-10-19
+##  SINCRONIZACIÓN COMPLETADA - 2025-10-19
 
-### ✅ CAMBIOS APLICADOS EXITOSAMENTE
+###   CAMBIOS APLICADOS EXITOSAMENTE
 
 #### Backend:
 1. **Modelo actualizado** (`workflow_aprobacion.py`)
@@ -394,7 +394,7 @@ find src/ -type f -name "*.ts" -o -name "*.tsx" | xargs sed -i 's/fecha_aprobaci
 2. **Migración aplicada** (`c9b4479ff345`)
    - DROP CONSTRAINT `nit` (UNIQUE)
    - CREATE CONSTRAINT `uq_nit_responsable` (nit, responsable_id)
-   - Estado: ✅ Aplicada exitosamente
+   - Estado:   Aplicada exitosamente
 
 3. **API actualizada** (`asignacion_nit.py`)
    - Validación: verifica (nit, responsable_id) en lugar de solo nit
@@ -410,23 +410,23 @@ find src/ -type f -name "*.ts" -o -name "*.tsx" | xargs sed -i 's/fecha_aprobaci
    - `AsignacionesTab.tsx`: payload completo + manejo de errores
    - `PorResponsableTab.tsx`: validación defensiva contra undefined
 
-### 🚀 ESTADO ACTUAL
+###  ESTADO ACTUAL
 
-- ✅ Backend: Commit `effdc30`
-- ✅ Frontend: Commit `56d628d`
-- ✅ Migraciones: Aplicadas hasta `c9b4479ff345`
-- ✅ Tests: Validados manualmente
+-   Backend: Commit `effdc30`
+-   Frontend: Commit `56d628d`
+-   Migraciones: Aplicadas hasta `c9b4479ff345`
+-   Tests: Validados manualmente
 
-### 📊 COMPORTAMIENTO VERIFICADO
+### COMPORTAMIENTO VERIFICADO
 
 | Escenario | Resultado Esperado | Estado |
 |-----------|-------------------|--------|
-| Crear asignación nueva | 201 Created | ✅ |
-| Duplicar NIT + mismo responsable | 400 + mensaje profesional | ✅ |
-| Mismo NIT + diferente responsable | 201 Created | ✅ |
-| Bulk con duplicados | Omite + reporta en resumen | ✅ |
-| Tab "Asignaciones" | Carga sin errores | ✅ |
-| Tab "Por Responsable" | No crashea con datos vacíos | ✅ |
+| Crear asignación nueva | 201 Created |   |
+| Duplicar NIT + mismo responsable | 400 + mensaje profesional |   |
+| Mismo NIT + diferente responsable | 201 Created |   |
+| Bulk con duplicados | Omite + reporta en resumen |   |
+| Tab "Asignaciones" | Carga sin errores |   |
+| Tab "Por Responsable" | No crashea con datos vacíos |   |
 
 ---
 

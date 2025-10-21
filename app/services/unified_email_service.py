@@ -46,21 +46,21 @@ class UnifiedEmailService:
                     from_email=settings.graph_from_email,
                     from_name=settings.graph_from_name
                 )
-                logger.info("✅ Microsoft Graph Email Service inicializado")
+                logger.info("  Microsoft Graph Email Service inicializado")
             except Exception as e:
-                logger.warning(f"⚠️  Error inicializando Graph service: {str(e)}")
+                logger.warning(f"  Error inicializando Graph service: {str(e)}")
 
         # Inicializar SMTP si está configurado
         if self._is_smtp_configured():
             try:
                 self.smtp_service = EmailService()
-                logger.info("✅ SMTP Email Service inicializado (fallback)")
+                logger.info("  SMTP Email Service inicializado (fallback)")
             except Exception as e:
-                logger.warning(f"⚠️  Error inicializando SMTP service: {str(e)}")
+                logger.warning(f"  Error inicializando SMTP service: {str(e)}")
 
         # Validar que al menos uno esté configurado
         if not self.graph_service and not self.smtp_service:
-            logger.error("❌ Ningún servicio de email está configurado")
+            logger.error(" Ningún servicio de email está configurado")
 
     def _is_graph_configured(self) -> bool:
         """Verifica si Microsoft Graph está configurado."""
@@ -125,13 +125,13 @@ class UnifiedEmailService:
                 )
 
                 if result.get('success'):
-                    logger.info(f"✅ Email enviado exitosamente vía Microsoft Graph a {', '.join(to_email)}")
+                    logger.info(f"  Email enviado exitosamente vía Microsoft Graph a {', '.join(to_email)}")
                     return result
 
-                logger.warning(f"⚠️  Graph falló: {result.get('error')}, intentando con SMTP...")
+                logger.warning(f"  Graph falló: {result.get('error')}, intentando con SMTP...")
 
             except Exception as e:
-                logger.warning(f"⚠️  Error con Microsoft Graph: {str(e)}, intentando con SMTP...")
+                logger.warning(f"  Error con Microsoft Graph: {str(e)}, intentando con SMTP...")
 
         # Fallback a SMTP
         if self.smtp_service:
@@ -147,15 +147,15 @@ class UnifiedEmailService:
                 )
 
                 if result.get('success'):
-                    logger.info(f"✅ Email enviado exitosamente vía SMTP a {', '.join(to_email)}")
+                    logger.info(f"  Email enviado exitosamente vía SMTP a {', '.join(to_email)}")
                     result['provider'] = 'smtp_fallback'
                     return result
 
-                logger.error(f"❌ SMTP también falló: {result.get('error')}")
+                logger.error(f" SMTP también falló: {result.get('error')}")
                 return result
 
             except Exception as e:
-                logger.error(f"❌ Error con SMTP: {str(e)}")
+                logger.error(f" Error con SMTP: {str(e)}")
                 return {
                     'success': False,
                     'error': f'SMTP fallback error: {str(e)}',
@@ -164,7 +164,7 @@ class UnifiedEmailService:
 
         # Si llegamos aquí, ningún servicio está disponible
         error_msg = "No hay servicios de email configurados"
-        logger.error(f"❌ {error_msg}")
+        logger.error(f" {error_msg}")
         return {
             'success': False,
             'error': error_msg,

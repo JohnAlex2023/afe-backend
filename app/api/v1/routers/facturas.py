@@ -40,7 +40,7 @@ import math
 router = APIRouter(tags=["Facturas"])
 
 
-# ✨ ENDPOINT PRINCIPAL PARA GRANDES VOLÚMENES ✨
+#  ENDPOINT PRINCIPAL PARA GRANDES VOLÚMENES 
 # -----------------------------------------------------
 # Listar facturas con CURSOR PAGINATION (Scroll Infinito)
 # -----------------------------------------------------
@@ -63,10 +63,10 @@ def list_with_cursor(
     **Endpoint empresarial para scroll infinito con performance constante.**
 
     Ventajas sobre paginación offset:
-    - ✅ Performance constante O(1) sin importar el tamaño del dataset
-    - ✅ No hay "deep pagination problem" (página 10,000 es instantánea)
-    - ✅ Ideal para scroll infinito en frontend
-    - ✅ Usado por: Stripe, Twitter, GitHub, Facebook
+    - Performance constante O(1) sin importar el tamaño del dataset
+    - No hay "deep pagination problem" (página 10,000 es instantánea)
+    -  Ideal para scroll infinito en frontend
+    -  Usado por: Stripe, Twitter, GitHub, Facebook
 
     **Cómo usar:**
 
@@ -184,7 +184,7 @@ def list_with_cursor(
     )
 
 
-# ✨ ENDPOINT COMPLETO PARA DASHBOARD ADMINISTRATIVO ✨
+#  ENDPOINT COMPLETO PARA DASHBOARD ADMINISTRATIVO 
 # -----------------------------------------------------
 # Obtener TODAS las facturas sin límites (Dashboard completo)
 # -----------------------------------------------------
@@ -200,17 +200,17 @@ def list_all_for_dashboard(
     current_user=Depends(get_current_responsable),
 ):
     """
-    **🚀 ENDPOINT EMPRESARIAL PARA DASHBOARD COMPLETO**
+    ** ENDPOINT EMPRESARIAL PARA DASHBOARD COMPLETO**
 
     Retorna TODAS las facturas del sistema sin límites de paginación.
     Diseñado específicamente para dashboards administrativos que necesitan
     vista completa de todas las operaciones.
 
     **Casos de uso:**
-    - 📊 Dashboards administrativos con vista completa
-    - 📈 Análisis de tendencias sobre todo el dataset
-    - 🔍 Reportes ejecutivos que requieren datos completos
-    - 💼 Vistas gerenciales sin restricciones de paginación
+    -  Dashboards administrativos con vista completa
+    -  Análisis de tendencias sobre todo el dataset
+    -  Reportes ejecutivos que requieren datos completos
+    -  Vistas gerenciales sin restricciones de paginación
 
     **Control de acceso:**
     - Admin sin `solo_asignadas`: Ve TODAS las facturas del sistema
@@ -218,10 +218,10 @@ def list_all_for_dashboard(
     - Responsable: Automáticamente ve solo sus proveedores asignados
 
     **Performance:**
-    - ✅ Usa índice `idx_facturas_orden_cronologico` para queries optimizadas
-    - ✅ Sin OFFSET (evita deep pagination problem)
-    - ✅ Lazy loading de relaciones para minimizar memoria
-    - ⚠️ Para datasets >50k facturas, considerar usar `/facturas/cursor` con scroll infinito
+    - Usa índice `idx_facturas_orden_cronologico` para queries optimizadas
+    -  Sin OFFSET (evita deep pagination problem)
+    -  Lazy loading de relaciones para minimizar memoria
+    -  Para datasets >50k facturas, considerar usar `/facturas/cursor` con scroll infinito
 
     **Orden de resultados:**
     Cronológico descendente: Año ↓ → Mes ↓ → Fecha ↓ (más recientes primero)
@@ -636,6 +636,57 @@ def aprobar_factura(
         extra={"factura_id": factura_id, "usuario": current_user.usuario, "con_workflow": workflow is not None}
     )
 
+    # Enviar notificación por email al responsable
+    try:
+        from app.services.email_notifications import enviar_notificacion_factura_aprobada
+
+        # Buscar email del responsable (múltiples fuentes)
+        email_responsable = None
+        nombre_responsable = None
+
+        # 1. Buscar en responsable directo de la factura
+        if factura.responsable and factura.responsable.email:
+            email_responsable = factura.responsable.email
+            nombre_responsable = factura.responsable.nombre or factura.responsable.usuario
+            logger.info(f"Email encontrado en responsable directo: {email_responsable}")
+
+        # 2. Si no, buscar en asignaciones NIT del proveedor
+        elif factura.proveedor and hasattr(factura.proveedor, 'asignaciones_nit'):
+            for asignacion in factura.proveedor.asignaciones_nit:
+                if asignacion.responsable and asignacion.responsable.email:
+                    email_responsable = asignacion.responsable.email
+                    nombre_responsable = asignacion.responsable.nombre or asignacion.responsable.usuario
+                    logger.info(f"Email encontrado en asignación NIT: {email_responsable}")
+                    break
+
+        # 3. Si encontramos email, enviar notificación
+        if email_responsable:
+            # Formatear monto
+            monto_formateado = f"${factura.total_calculado:,.2f} COP" if factura.total_calculado else "N/A"
+
+            # Enviar notificación
+            resultado = enviar_notificacion_factura_aprobada(
+                email_responsable=email_responsable,
+                nombre_responsable=nombre_responsable,
+                numero_factura=factura.numero_factura or f"ID-{factura.id}",
+                nombre_proveedor=factura.proveedor.razon_social if factura.proveedor else "N/A",
+                nit_proveedor=factura.proveedor.nit if factura.proveedor else "N/A",
+                monto_factura=monto_formateado,
+                aprobado_por=current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario,
+                fecha_aprobacion=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            )
+
+            if resultado.get('success'):
+                logger.info(f"Notificacion de aprobacion enviada a {email_responsable} via {resultado.get('provider')}")
+            else:
+                logger.warning(f"No se pudo enviar notificacion: {resultado.get('error')}")
+        else:
+            logger.warning(f"No se encontro email del responsable para factura {factura.numero_factura}")
+
+    except Exception as e:
+        logger.error(f"Error al enviar notificacion de factura aprobada: {str(e)}", exc_info=True)
+        # No fallar la aprobación si falla el envío del email
+
     return factura
 
 
@@ -725,10 +776,62 @@ def rechazar_factura(
         extra={"factura_id": factura_id, "usuario": current_user.usuario, "con_workflow": workflow is not None}
     )
 
+    # Enviar notificación por email al responsable
+    try:
+        from app.services.email_notifications import enviar_notificacion_factura_rechazada
+
+        # Buscar email del responsable (múltiples fuentes)
+        email_responsable = None
+        nombre_responsable = None
+
+        # 1. Buscar en responsable directo de la factura
+        if factura.responsable and factura.responsable.email:
+            email_responsable = factura.responsable.email
+            nombre_responsable = factura.responsable.nombre or factura.responsable.usuario
+            logger.info(f"Email encontrado en responsable directo: {email_responsable}")
+
+        # 2. Si no, buscar en asignaciones NIT del proveedor
+        elif factura.proveedor and hasattr(factura.proveedor, 'asignaciones_nit'):
+            for asignacion in factura.proveedor.asignaciones_nit:
+                if asignacion.responsable and asignacion.responsable.email:
+                    email_responsable = asignacion.responsable.email
+                    nombre_responsable = asignacion.responsable.nombre or asignacion.responsable.usuario
+                    logger.info(f"Email encontrado en asignación NIT: {email_responsable}")
+                    break
+
+        # 3. Si encontramos email, enviar notificación
+        if email_responsable:
+            # Formatear monto
+            monto_formateado = f"${factura.total_calculado:,.2f} COP" if factura.total_calculado else "N/A"
+
+            # Enviar notificación
+            resultado = enviar_notificacion_factura_rechazada(
+                email_responsable=email_responsable,
+                nombre_responsable=nombre_responsable,
+                numero_factura=factura.numero_factura or f"ID-{factura.id}",
+                nombre_proveedor=factura.proveedor.razon_social if factura.proveedor else "N/A",
+                nit_proveedor=factura.proveedor.nit if factura.proveedor else "N/A",
+                monto_factura=monto_formateado,
+                rechazado_por=current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario,
+                motivo_rechazo=payload.get("motivo"),
+                fecha_rechazo=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            )
+
+            if resultado.get('success'):
+                logger.info(f"Notificacion de rechazo enviada a {email_responsable} via {resultado.get('provider')}")
+            else:
+                logger.warning(f"No se pudo enviar notificacion: {resultado.get('error')}")
+        else:
+            logger.warning(f"No se encontro email del responsable para factura {factura.numero_factura}")
+
+    except Exception as e:
+        logger.error(f"Error al enviar notificacion de factura rechazada: {str(e)}", exc_info=True)
+        # No fallar el rechazo si falla el envío del email
+
     return factura
 
 
-# ✨ ENDPOINTS PARA CLASIFICACIÓN POR PERÍODOS MENSUALES ✨
+#  ENDPOINTS PARA CLASIFICACIÓN POR PERÍODOS MENSUALES 
 
 # -----------------------------------------------------
 # Obtener resumen de facturas agrupadas por mes
@@ -1041,7 +1144,7 @@ def get_jerarquia(
     )
 
 
-# ✨ ENDPOINT DE EXPORTACIÓN PARA REPORTES COMPLETOS ✨
+#  ENDPOINT DE EXPORTACIÓN PARA REPORTES COMPLETOS 
 # -----------------------------------------------------
 # Exportar facturas a CSV
 # -----------------------------------------------------
@@ -1066,10 +1169,10 @@ def export_to_csv(
     Permite descargar reportes completos sin límites de paginación.
 
     **Casos de uso:**
-    - 📊 Análisis en Excel/Google Sheets
-    - 📈 Reportes financieros para gerencia
-    - 🔍 Auditorías contables
-    - 💾 Backup de datos
+    -  Análisis en Excel/Google Sheets
+    -  Reportes financieros para gerencia
+    -  Auditorías contables
+    -  Backup de datos
 
     **Recomendaciones:**
     - Use filtros de fecha para limitar el dataset

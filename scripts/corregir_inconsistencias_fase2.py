@@ -220,7 +220,7 @@ class CorrectorInconsistencias:
 
             if abs(subtotal_correcto - subtotal_esperado) > Decimal('1.00'):
                 logger.warning(
-                    f"  ⚠️  Item {item.id} (Factura {item.factura_id}): "
+                    f"    Item {item.id} (Factura {item.factura_id}): "
                     f"Subtotal calculado ${subtotal_correcto} != "
                     f"Cantidad×Precio ${subtotal_esperado} (diferencia significativa)"
                 )
@@ -293,7 +293,7 @@ def main():
     print("="*80)
 
     # Confirmar ejecución
-    print("\n⚠️  ADVERTENCIA:")
+    print("\n  ADVERTENCIA:")
     print("Este script modificará datos en la base de datos.")
     print("Asegúrate de tener un backup antes de continuar.")
     print("\nEstrategia:")
@@ -344,7 +344,7 @@ def main():
         print("Debe retornar 0 inconsistencias\n")
 
     except Exception as e:
-        logger.error(f"\n❌ Error durante corrección: {e}")
+        logger.error(f"\n Error durante corrección: {e}")
         db.rollback()
         raise
     finally:

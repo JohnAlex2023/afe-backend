@@ -219,8 +219,8 @@ GET /api/v1/facturas/export?mes=2024-12&estado=APROBADA
    │  ├─ Identifica NIT del proveedor
    │  ├─ Asigna al responsable
    │  ├─ Compara item por item con mes anterior
-   │  ├─ Si es idéntica → APROBADA AUTO ✅
-   │  └─ Si hay diferencias → EN REVISIÓN ⚠️
+   │  ├─ Si es idéntica → APROBADA AUTO  
+   │  └─ Si hay diferencias → EN REVISIÓN 
    └─ Actualiza estados en BD
 ```
 
@@ -244,13 +244,13 @@ python scripts/procesar_facturas_pendientes.py --limite 100
 PROCESAMIENTO AUTOMÁTICO DE FACTURAS PENDIENTES
 ======================================================================
 
-📋 Facturas encontradas: 45
-🔄 Iniciando procesamiento...
+ Facturas encontradas: 45
+ Iniciando procesamiento...
 
 [1/45] Procesando factura FE-001...
-  ✅ APROBADA AUTOMÁTICAMENTE
+    APROBADA AUTOMÁTICAMENTE
 [2/45] Procesando factura FE-002...
-  ⚠️  EN REVISIÓN (similitud: 87%)
+    EN REVISIÓN (similitud: 87%)
 ...
 
 ======================================================================
@@ -335,7 +335,7 @@ scheduler.start()
 
 | Estado | Descripción | Acción Requerida |
 |--------|-------------|------------------|
-| **APROBADA_AUTO** | Idéntica al mes anterior | Ninguna - Ya aprobada ✅ |
+| **APROBADA_AUTO** | Idéntica al mes anterior | Ninguna - Ya aprobada   |
 | **PENDIENTE_REVISION** | Tiene diferencias | Revisión manual |
 | **EN_REVISION** | Asignada a responsable | Aprobar o rechazar |
 | **APROBADA_MANUAL** | Revisada y aprobada | Ninguna |
