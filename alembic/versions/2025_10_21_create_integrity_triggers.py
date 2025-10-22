@@ -21,31 +21,84 @@ def upgrade():
     """
     Create triggers to guarantee invoice-assignment synchronization at database level.
 
+    IMPLEMENTACIÓN PROFESIONAL ENTERPRISE:
+    Los triggers se crean por separado en lugar de usar DELIMITER.
+    DELIMITER no es soportado en SQLAlchemy op.execute().
+
+    Triggers creados:
+    1. after_asignacion_soft_delete: Desasigna facturas cuando se marca como inactiva
+    2. after_asignacion_activate: Asigna facturas cuando se crea/restaura asignación
+    3. after_asignacion_restore: Reasigna facturas cuando se restaura asignación
+
     Benefits:
     - Works even if Python code has bugs
     - Works with manual SQL operations
     - Works with any future framework/language
     - Cannot be bypassed or forgotten
     - Atomic with the transaction
+    - Idempotent: puede ejecutarse múltiples veces sin fallar
     """
 
-    # Read SQL file
-    import os
-    sql_file = os.path.join(
-        os.path.dirname(__file__),
-        '2025_10_21_triggers_integridad_asignaciones.sql'
-    )
+    # Trigger 1: Desasignar facturas cuando se marca como inactiva
+    op.execute("""
+        DROP TRIGGER IF EXISTS after_asignacion_soft_delete
+    """)
 
-    with open(sql_file, 'r', encoding='utf-8') as f:
-        sql_content = f.read()
+    op.execute("""
+        CREATE TRIGGER after_asignacion_soft_delete
+        AFTER UPDATE ON asignacion_nit_responsable
+        FOR EACH ROW
+        BEGIN
+            IF OLD.activo = TRUE AND NEW.activo = FALSE THEN
+                UPDATE facturas
+                SET responsable_id = NULL,
+                    actualizado_en = NOW()
+                WHERE responsable_id = OLD.responsable_id;
+            END IF;
+        END
+    """)
 
-    # Execute triggers
-    op.execute(sql_content)
+    # Trigger 2: Asignar facturas cuando se crea asignación
+    op.execute("""
+        DROP TRIGGER IF EXISTS after_asignacion_activate
+    """)
 
-    print("✅ Triggers de integridad creados exitosamente")
-    print("   - after_asignacion_soft_delete: Desasigna facturas al eliminar")
-    print("   - after_asignacion_activate: Asigna facturas al crear")
-    print("   - after_asignacion_restore: Reasigna facturas al restaurar")
+    op.execute("""
+        CREATE TRIGGER after_asignacion_activate
+        AFTER INSERT ON asignacion_nit_responsable
+        FOR EACH ROW
+        BEGIN
+            IF NEW.activo = TRUE THEN
+                UPDATE facturas f
+                INNER JOIN proveedores p ON f.proveedor_id = p.id
+                SET f.responsable_id = NEW.responsable_id,
+                    f.actualizado_en = NOW()
+                WHERE p.nit LIKE CONCAT(NEW.nit, '%')
+                  AND f.responsable_id IS NULL;
+            END IF;
+        END
+    """)
+
+    # Trigger 3: Reasignar facturas cuando se restaura asignación
+    op.execute("""
+        DROP TRIGGER IF EXISTS after_asignacion_restore
+    """)
+
+    op.execute("""
+        CREATE TRIGGER after_asignacion_restore
+        AFTER UPDATE ON asignacion_nit_responsable
+        FOR EACH ROW
+        BEGIN
+            IF OLD.activo = FALSE AND NEW.activo = TRUE THEN
+                UPDATE facturas f
+                INNER JOIN proveedores p ON f.proveedor_id = p.id
+                SET f.responsable_id = NEW.responsable_id,
+                    f.actualizado_en = NOW()
+                WHERE p.nit LIKE CONCAT(NEW.nit, '%')
+                  AND f.responsable_id IS NULL;
+            END IF;
+        END
+    """)
 
 
 def downgrade():
