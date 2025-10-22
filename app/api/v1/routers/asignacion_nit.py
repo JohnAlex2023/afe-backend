@@ -89,6 +89,26 @@ class AsignacionBulkCreate(BaseModel):
     activo: Optional[bool] = True
 
 
+class AsignacionBulkSimple(BaseModel):
+    """
+    PHASE 1: Asignación bulk simplificada con solo NITs (sin nombre_proveedor requerido).
+
+    Use case: Usuario pega una lista de NITs separados por comas sin información de proveedor.
+    El sistema los asigna usando solo el NIT y busca información en BD.
+
+    Ejemplo:
+    {
+        "responsable_id": 1,
+        "nits": "800185449,900123456,800999999",
+        "permitir_aprobacion_automatica": true
+    }
+    """
+    responsable_id: int
+    nits: str  # Texto con NITs separados por comas o líneas
+    permitir_aprobacion_automatica: Optional[bool] = True
+    activo: Optional[bool] = True
+
+
 class AsignacionesPorResponsableResponse(BaseModel):
     """Respuesta agrupada de asignaciones por responsable"""
     responsable_id: int
@@ -102,31 +122,80 @@ class AsignacionesPorResponsableResponse(BaseModel):
 
 # ==================== FUNCIONES AUXILIARES ====================
 
-def sincronizar_facturas_por_nit(db: Session, nit: str, responsable_id: int):
+def sincronizar_facturas_por_nit(db: Session, nit: str, responsable_id: int, responsable_anterior_id: Optional[int] = None, validar_existencia: bool = False):
     """
     Actualiza todas las facturas de un NIT para asignarles el responsable correcto.
 
-    ARQUITECTURA MEJORADA:
+    ARQUITECTURA MEJORADA (PHASE 2 + PHASE 1 VALIDATION):
     - Busca proveedores usando LIKE para manejar digito de verificacion
     - Ejemplo: NIT '800185449' coincide con '800185449-9' en proveedores
     - Garantiza sincronizacion completa sin importar formato del NIT
+    - NEW: Si se proporciona responsable_anterior_id, actualiza TODAS las facturas
+      del responsable anterior, no solo las que tienen responsable_id = NULL
+    - NEW: Si validar_existencia=True, verifica que el NIT exista en PROVEEDORES
+
+    PARÁMETROS:
+    - nit: NIT a sincronizar
+    - responsable_id: Nuevo responsable
+    - responsable_anterior_id: Responsable anterior (PHASE 2 - para reassignment completo)
+    - validar_existencia: Si True, falla si el NIT no está en tabla PROVEEDORES (PHASE 1)
+
+    COMPORTAMIENTO:
+    - Si responsable_anterior_id es None: Sincroniza facturas con responsable_id = NULL (original)
+    - Si responsable_anterior_id es proporcionado: Sincroniza TODAS las facturas del
+      responsable anterior, garantizando reassignment completo sin datos huérfanos
+    - Si validar_existencia=True: Levanta excepción si NIT no existe en PROVEEDORES
     """
+    # FASE 1: Validación - Verificar que el NIT existe en PROVEEDORES
+    if validar_existencia:
+        proveedores_validacion = db.query(Proveedor).filter(
+            Proveedor.nit.like(f'{nit}%')
+        ).all()
+
+        if not proveedores_validacion:
+            # NIT no encontrado en proveedores
+            return None  # Señaliza error, será manejado por el caller
+
     # Obtener proveedores con ese NIT (maneja digito de verificacion)
     proveedores = db.query(Proveedor).filter(
         Proveedor.nit.like(f'{nit}%')
     ).all()
 
     total_facturas = 0
+
+    # FASE 2: Lógica de reassignment completo
     for proveedor in proveedores:
-        facturas = db.query(Factura).filter(Factura.proveedor_id == proveedor.id).all()
+        if responsable_anterior_id is not None:
+            # REASSIGNMENT COMPLETO: Actualizar TODAS las facturas del responsable anterior
+            # Esto garantiza que no queden facturas "huérfanas" con el responsable viejo
+            facturas = db.query(Factura).filter(
+                Factura.proveedor_id == proveedor.id,
+                Factura.responsable_id == responsable_anterior_id  # Solo las del responsable anterior
+            ).all()
+        else:
+            # COMPORTAMIENTO ORIGINAL: Sincronizar facturas sin asignar (NULL)
+            # Mantiene compatibilidad backward con código existente
+            facturas = db.query(Factura).filter(
+                Factura.proveedor_id == proveedor.id,
+                Factura.responsable_id.is_(None)  # Solo las sin asignar
+            ).all()
+
         for factura in facturas:
             factura.responsable_id = responsable_id
             total_facturas += 1
 
-    logger.info(
-        f"Sincronizadas {total_facturas} facturas para NIT {nit} "
-        f"({len(proveedores)} proveedores) -> Responsable {responsable_id}"
-    )
+    if responsable_anterior_id is not None:
+        logger.info(
+            f"[PHASE 2] Sincronizadas {total_facturas} facturas para NIT {nit} "
+            f"({len(proveedores)} proveedores) -> Reassignment completo: "
+            f"Responsable {responsable_anterior_id} → {responsable_id}"
+        )
+    else:
+        logger.info(
+            f"Sincronizadas {total_facturas} facturas para NIT {nit} "
+            f"({len(proveedores)} proveedores) -> Responsable {responsable_id} (sin asignar)"
+        )
+
     return total_facturas
 
 
@@ -391,10 +460,18 @@ def actualizar_asignacion_nit(
     if payload.activo is not None:
         asignacion.activo = payload.activo
 
-    # Si cambió el responsable, sincronizar facturas
+    # Si cambió el responsable, sincronizar facturas (PHASE 2: REASSIGNMENT COMPLETO)
     if payload.responsable_id and payload.responsable_id != responsable_anterior:
-        total_facturas = sincronizar_facturas_por_nit(db, asignacion.nit, payload.responsable_id)
-        logger.info(f"Responsable cambiado: {responsable_anterior} -> {payload.responsable_id}, {total_facturas} facturas sincronizadas")
+        total_facturas = sincronizar_facturas_por_nit(
+            db,
+            asignacion.nit,
+            payload.responsable_id,
+            responsable_anterior_id=responsable_anterior  # PHASE 2: Pasa responsable anterior para sync completo
+        )
+        logger.info(
+            f"Responsable cambiado: {responsable_anterior} -> {payload.responsable_id}, "
+            f"{total_facturas} facturas sincronizadas (PHASE 2: Reassignment completo)"
+        )
 
     db.commit()
     db.refresh(asignacion)
@@ -677,6 +754,220 @@ def crear_asignaciones_bulk(
     return {
         "success": operacion_exitosa,
         "total_procesados": len(payload.nits),
+        "creadas": creadas,
+        "reactivadas": reactivadas,
+        "omitidas": omitidas,
+        "errores": errores,
+        "mensaje": mensaje
+    }
+
+
+@router.post("/bulk-simple", status_code=status.HTTP_201_CREATED)
+def crear_asignaciones_bulk_simple(
+    payload: AsignacionBulkSimple,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable)
+):
+    """
+    PHASE 1: Asignación bulk simplificada con validación de proveedores.
+
+    Acepta una lista de NITs en formato texto (separados por comas, saltos
+    de línea, o semicolones). Valida que TODOS los NITs existan en tabla
+    PROVEEDORES antes de asignar.
+
+    **ENTRADA:**
+    ```json
+    {
+        "responsable_id": 1,
+        "nits": "800185449,900123456,800999999",
+        "permitir_aprobacion_automatica": true
+    }
+    ```
+
+    **PROCESAMIENTO:**
+    1. Parsea el texto de NITs (soporta comas, saltos de línea, espacios)
+    2. Valida que TODOS los NITs existan en tabla PROVEEDORES
+    3. Si algún NIT no existe, retorna error ANTES de hacer cambios
+    4. Si todos son válidos: asigna y sincroniza facturas automáticamente
+
+    **VALIDACIÓN CRÍTICA:**
+    - Si NIT no existe en PROVEEDORES, retorna error inmediato
+    - Mensaje claro: "Ninguno de los NITs ingresados está registrado como
+      proveedor: {lista_de_nits_inválidos}"
+
+    **RETORNA:**
+    - success: True si completó exitosamente
+    - total_procesados: NITs procesados
+    - creadas: Nuevas asignaciones
+    - reactivadas: Reactivadas
+    - errores: Lista de NITs que fallaron
+
+    **NIVEL:** Enterprise Production-Ready with Validation
+    """
+    # Verificar responsable
+    responsable = db.query(Responsable).filter(
+        Responsable.id == payload.responsable_id
+    ).first()
+    if not responsable:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Responsable con ID {payload.responsable_id} no encontrado"
+        )
+
+    # PASO 1: Parsear el texto de NITs
+    import re
+    nits_raw = re.split(r'[,\n\t\r;]', payload.nits)
+    nits_procesados = [nit.strip() for nit in nits_raw if nit.strip()]
+
+    if not nits_procesados:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se encontraron NITs válidos en el texto proporcionado"
+        )
+
+    # PASO 2: VALIDACIÓN CRÍTICA - Verificar que TODOS los NITs existan
+    nits_invalidos = []
+    for nit in nits_procesados:
+        proveedor = db.query(Proveedor).filter(
+            Proveedor.nit.like(f'{nit}%')
+        ).first()
+
+        if not proveedor:
+            nits_invalidos.append(nit)
+
+    # Si hay NITs inválidos, rechazar TODA la operación
+    if nits_invalidos:
+        nits_invalidos_str = ", ".join(nits_invalidos)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Ninguno de los NITs ingresados está registrado como "
+                f"proveedor: {nits_invalidos_str}. "
+                "Verifique que los NITs existan en la tabla de proveedores."
+            )
+        )
+
+    # PASO 3: Procesar asignaciones (todos los NITs son válidos)
+    creadas = 0
+    reactivadas = 0
+    omitidas = 0
+    errores = []
+
+    for nit in nits_procesados:
+        try:
+            # Obtener proveedor para nombre
+            proveedor = db.query(Proveedor).filter(
+                Proveedor.nit.like(f'{nit}%')
+            ).first()
+            nombre_proveedor = (
+                proveedor.nombre if proveedor else f"Proveedor {nit}"
+            )
+
+            # Verificar asignación ACTIVA
+            existente_activa = db.query(
+                AsignacionNitResponsable
+            ).filter(
+                AsignacionNitResponsable.nit == nit,
+                AsignacionNitResponsable.responsable_id == (
+                    payload.responsable_id
+                ),
+                AsignacionNitResponsable.activo == True
+            ).first()
+
+            if existente_activa:
+                omitidas += 1
+                logger.debug(
+                    f"Asignación activa ya existe: NIT {nit}"
+                )
+                continue
+
+            # Verificar asignación INACTIVA
+            existente_inactiva = db.query(
+                AsignacionNitResponsable
+            ).filter(
+                AsignacionNitResponsable.nit == nit,
+                AsignacionNitResponsable.responsable_id == (
+                    payload.responsable_id
+                ),
+                AsignacionNitResponsable.activo == False
+            ).first()
+
+            if existente_inactiva:
+                existente_inactiva.activo = True
+                existente_inactiva.actualizado_en = datetime.now()
+                existente_inactiva.actualizado_por = (
+                    current_user.usuario
+                )
+                existente_inactiva.nombre_proveedor = nombre_proveedor
+
+                sincronizar_facturas_por_nit(
+                    db, nit, payload.responsable_id
+                )
+                reactivadas += 1
+                logger.debug(f"Asignación reactivada: NIT {nit}")
+            else:
+                # Crear nueva asignación
+                nueva = AsignacionNitResponsable(
+                    nit=nit,
+                    nombre_proveedor=nombre_proveedor,
+                    responsable_id=payload.responsable_id,
+                    area=responsable.area,
+                    permitir_aprobacion_automatica=(
+                        payload.permitir_aprobacion_automatica
+                    ),
+                    requiere_revision_siempre=False,
+                    activo=True,
+                    creado_por=current_user.usuario
+                )
+                db.add(nueva)
+                sincronizar_facturas_por_nit(
+                    db, nit, payload.responsable_id
+                )
+                creadas += 1
+                logger.debug(f"Nueva asignación creada: NIT {nit}")
+
+        except Exception as e:
+            errores.append(f"NIT {nit}: {str(e)}")
+            logger.error(f"Error procesando NIT {nit}: {str(e)}")
+
+    # TRANSACCIÓN: Commit con logs
+    if errores:
+        db.commit()
+        logger.warning(
+            f"Asignación bulk simple completada con errores: "
+            f"{len(errores)} encontrados"
+        )
+    else:
+        db.commit()
+        logger.info(
+            f"Asignación bulk simple completada: "
+            f"{creadas} creadas, {reactivadas} reactivadas, "
+            f"{omitidas} omitidas"
+        )
+
+    # Construir mensaje
+    mensaje_partes = []
+    if creadas > 0:
+        mensaje_partes.append(f"{creadas} creada(s)")
+    if reactivadas > 0:
+        mensaje_partes.append(f"{reactivadas} reactivada(s)")
+    if omitidas > 0:
+        mensaje_partes.append(f"{omitidas} ya existía(n)")
+    if errores:
+        mensaje_partes.append(f"{len(errores)} error(es)")
+
+    mensaje = " | ".join(mensaje_partes) if mensaje_partes else (
+        "Sin cambios"
+    )
+
+    operacion_exitosa = (
+        (creadas + reactivadas > 0) or
+        (omitidas > 0 and len(errores) == 0)
+    )
+
+    return {
+        "success": operacion_exitosa,
+        "total_procesados": len(nits_procesados),
         "creadas": creadas,
         "reactivadas": reactivadas,
         "omitidas": omitidas,

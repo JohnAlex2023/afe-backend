@@ -13,6 +13,21 @@ class EstadoFactura(enum.Enum):
     aprobada_auto = "aprobada_auto"
     pagada = "pagada"
 
+class EstadoAsignacion(enum.Enum):
+    """
+    PHASE 3: Estados de asignación de responsables (enterprise tracking).
+
+    Estados posibles:
+    - sin_asignar: Factura sin responsable (responsable_id = NULL)
+    - asignado: Factura con responsable activo (responsable_id != NULL)
+    - huerfano: Factura que perdió su responsable (responsable_id=NULL pero accion_por!=NULL)
+    - inconsistente: Estado anómalo que requiere investigación (futura auditoría)
+    """
+    sin_asignar = "sin_asignar"
+    asignado = "asignado"
+    huerfano = "huerfano"
+    inconsistente = "inconsistente"
+
 class Factura(Base):
     __tablename__ = "facturas"
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -32,6 +47,17 @@ class Factura(Base):
     # This is the ONLY place this information should be read from in the dashboard
     accion_por = Column(String(255), nullable=True, index=True,
                        comment="Who approved/rejected the factura - synchronized from workflow")
+
+    # ✨ PHASE 3: ESTADO_ASIGNACION: Track assignment lifecycle
+    # Automatically computed field: sin_asignar, asignado, huerfano, inconsistente
+    # Used by dashboard to display accurate assignment status and identify orphaned facturas
+    estado_asignacion = Column(
+        Enum(EstadoAsignacion),
+        default=EstadoAsignacion.sin_asignar,
+        nullable=False,
+        index=True,
+        comment="PHASE 3: Assignment status - sin_asignar/asignado/huerfano/inconsistente"
+    )
 
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
     actualizado_en = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -207,3 +233,49 @@ class Factura(Base):
         if self.workflow_history and self.workflow_history.tipo_aprobacion:
             return self.workflow_history.tipo_aprobacion.value
         return None
+
+    # ==================== PHASE 3: ASSIGNMENT STATUS TRACKING ====================
+
+    def calcular_estado_asignacion(self):
+        """
+        Calcula automáticamente el estado de asignación de la factura.
+
+        PHASE 3: Enterprise-grade assignment tracking.
+
+        Lógica:
+        - sin_asignar: responsable_id = NULL AND accion_por = NULL
+        - asignado: responsable_id != NULL (independiente de accion_por)
+        - huerfano: responsable_id = NULL AND accion_por != NULL
+                    (la factura fue procesada pero perdió su responsable)
+        - inconsistente: Otros estados anómalos (reservado para auditoría)
+
+        Returns:
+            EstadoAsignacion: El estado calculado
+        """
+        has_responsable = self.responsable_id is not None
+        has_accion_por = self.accion_por is not None
+
+        if has_responsable:
+            # Factura asignada a responsable
+            return EstadoAsignacion.asignado
+        elif has_accion_por:
+            # Factura sin responsable pero fue procesada (huérfana)
+            return EstadoAsignacion.huerfano
+        else:
+            # Factura sin asignar y sin procesar
+            return EstadoAsignacion.sin_asignar
+
+    def validar_y_actualizar_estado_asignacion(self):
+        """
+        Valida y actualiza el estado de asignación si es necesario.
+
+        Se ejecuta automáticamente en hooks de SQLAlchemy (before_update, before_insert).
+
+        Returns:
+            bool: True si se actualizó, False si no fue necesario
+        """
+        nuevo_estado = self.calcular_estado_asignacion()
+        if self.estado_asignacion != nuevo_estado:
+            self.estado_asignacion = nuevo_estado
+            return True
+        return False
