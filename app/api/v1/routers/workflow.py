@@ -413,7 +413,9 @@ def listar_workflows(
             "responsable_id": w.responsable_id,
             "area": w.area_responsable,
             "aprobada": w.aprobada,
+            "aprobada_por": w.aprobada_por,
             "rechazada": w.rechazada,
+            "rechazada_por": w.rechazada_por,
             "creado_en": w.creado_en
         }
         for w in workflows
@@ -812,7 +814,7 @@ def obtener_factura_con_workflow(
                 "fecha_vencimiento": str(factura_anterior.fecha_vencimiento) if factura_anterior.fecha_vencimiento else None,
                 "subtotal": float(factura_anterior.subtotal) if factura_anterior.subtotal else 0,
                 "iva": float(factura_anterior.iva) if factura_anterior.iva else 0,
-                "total": float(factura_anterior.total) if factura_anterior.total else 0,
+                "total": float(factura_anterior.total_a_pagar) if factura_anterior.total_a_pagar else 0,
                 "total_a_pagar": float(factura_anterior.total_a_pagar) if factura_anterior.total_a_pagar else 0
             } if factura_anterior else None
         }
