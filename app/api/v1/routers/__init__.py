@@ -14,6 +14,7 @@ from app.api.v1.routers import (
     asignacion_nit,  #   NUEVO: Reemplazo de responsable_proveedor
     flujo_automatizacion,
     email_config,
+    email_health,  # Health check para servicios de email
 )
 
 # Router principal con prefijo global
@@ -37,3 +38,4 @@ api_router.include_router(workflow.router, tags=["Workflow Aprobación"])
 api_router.include_router(asignacion_nit.router, tags=["Asignación NIT"])  #   NUEVO
 api_router.include_router(flujo_automatizacion.router, tags=["Flujo de Automatización"])
 api_router.include_router(email_config.router, tags=["Email Configuration"])
+api_router.include_router(email_health.router, tags=["Email Health"])

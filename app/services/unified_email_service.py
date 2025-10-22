@@ -48,7 +48,10 @@ class UnifiedEmailService:
                 )
                 logger.info("  Microsoft Graph Email Service inicializado")
             except Exception as e:
-                logger.warning(f"  Error inicializando Graph service: {str(e)}")
+                logger.error(
+                    f"  ERROR CRITICO inicializando Graph service: {str(e)}",
+                    exc_info=True
+                )
 
         # Inicializar SMTP si está configurado
         if self._is_smtp_configured():
@@ -56,7 +59,10 @@ class UnifiedEmailService:
                 self.smtp_service = EmailService()
                 logger.info("  SMTP Email Service inicializado (fallback)")
             except Exception as e:
-                logger.warning(f"  Error inicializando SMTP service: {str(e)}")
+                logger.error(
+                    f"  ERROR inicializando SMTP service: {str(e)}",
+                    exc_info=True
+                )
 
         # Validar que al menos uno esté configurado
         if not self.graph_service and not self.smtp_service:
@@ -164,7 +170,10 @@ class UnifiedEmailService:
 
         # Si llegamos aquí, ningún servicio está disponible
         error_msg = "No hay servicios de email configurados"
-        logger.error(f" {error_msg}")
+        logger.error(
+            f"CRITICO: Intento de envio de email FALLIDO - {error_msg}. "
+            f"graph_service={self.graph_service}, smtp_service={self.smtp_service}"
+        )
         return {
             'success': False,
             'error': error_msg,
@@ -219,6 +228,51 @@ class UnifiedEmailService:
             return "smtp"
         else:
             return "none"
+
+    def reinitialize(self) -> None:
+        """
+        Reinicializa los servicios de email.
+
+        Util si hay cambios en las variables de entorno o para
+        recuperarse de fallos de inicializacion previos.
+        """
+        logger.info("Reinicializando servicios de email...")
+
+        self.graph_service = None
+        self.smtp_service = None
+
+        # Inicializar Graph si está configurado
+        if self._is_graph_configured():
+            try:
+                self.graph_service = get_graph_email_service(
+                    tenant_id=settings.graph_tenant_id,
+                    client_id=settings.graph_client_id,
+                    client_secret=settings.graph_client_secret,
+                    from_email=settings.graph_from_email,
+                    from_name=settings.graph_from_name
+                )
+                logger.info("Graph service reinicializado exitosamente")
+            except Exception as e:
+                logger.error(
+                    f"Error reinicializando Graph service: {str(e)}",
+                    exc_info=True
+                )
+
+        # Inicializar SMTP si está configurado
+        if self._is_smtp_configured():
+            try:
+                self.smtp_service = EmailService()
+                logger.info("SMTP service reinicializado exitosamente")
+            except Exception as e:
+                logger.error(
+                    f"Error reinicializando SMTP service: {str(e)}",
+                    exc_info=True
+                )
+
+        if not self.graph_service and not self.smtp_service:
+            logger.warning(
+                "ADVERTENCIA: Ninguno de los servicios esta disponible"
+            )
 
 
 # Singleton global
