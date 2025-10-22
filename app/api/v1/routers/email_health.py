@@ -6,11 +6,8 @@ Permite monitorear el estado de Microsoft Graph y SMTP en tiempo real.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 
-from app.db.session import get_db
-from app.models.usuario import Usuario
-from app.core.dependencies import get_current_user
+from app.core.security import require_role
 from app.services.unified_email_service import get_unified_email_service
 from app.utils.logger import logger
 
@@ -19,8 +16,7 @@ router = APIRouter()
 
 @router.get("/email/health")
 async def email_health_status(
-    current_user: Usuario = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user = Depends(require_role("admin"))
 ):
     """
     Verifica el estado de los servicios de email.
@@ -30,9 +26,7 @@ async def email_health_status(
     Returns:
         Estadísticas de los servicios de email disponibles.
     """
-    # Validar que sea admin
-    if current_user.rol.nombre != "Admin":
-        raise HTTPException(status_code=403, detail="Solo admins")
+    # El decorador require_role ya valida que sea admin
 
     service = get_unified_email_service()
 
@@ -57,8 +51,7 @@ async def email_health_status(
 
 @router.post("/email/reinitialize")
 async def reinitialize_email_services(
-    current_user: Usuario = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user = Depends(require_role("admin"))
 ):
     """
     Reinicializa los servicios de email.
@@ -68,17 +61,13 @@ async def reinitialize_email_services(
 
     Solo accesible para administradores.
     """
-    # Validar que sea admin
-    if current_user.rol.nombre != "Admin":
-        raise HTTPException(status_code=403, detail="Solo admins")
+    # El decorador require_role ya valida que sea admin
 
     try:
         service = get_unified_email_service()
         service.reinitialize()
 
-        logger.info(
-            f"Email services reinicializados por {current_user.usuario}"
-        )
+        logger.info("Email services reinicializados por admin")
 
         return {
             "status": "success",
@@ -86,8 +75,8 @@ async def reinitialize_email_services(
             "active_provider": service.get_active_provider()
         }
     except Exception as e:
-        logger.error(f"Error reinicializando servicios: {str(e)}")
+        logger.error("Error reinicializando servicios: %s", str(e))
         raise HTTPException(
             status_code=500,
             detail=f"Error: {str(e)}"
-        )
+        ) from e
