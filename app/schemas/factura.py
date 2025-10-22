@@ -87,7 +87,9 @@ class FacturaRead(FacturaBase):
     motivo_rechazo_workflow: Optional[str] = None
     tipo_aprobacion_workflow: Optional[str] = None
 
-    # Campos calculados para la columna "Acción Por"
+    # ✨ ACCION_POR: Leído directamente desde BD (sincronizado automáticamente)
+    # Single source of truth - NO SE CALCULA, VIENE DE LA DB
+    # Se sincroniza automáticamente en workflow_automatico.py:_sincronizar_estado_factura()
     nombre_responsable: Optional[str] = None
     accion_por: Optional[str] = None
     fecha_accion: Optional[datetime] = None
@@ -98,7 +100,7 @@ class FacturaRead(FacturaBase):
 
     @model_validator(mode='after')
     def populate_calculated_fields(self):
-        """Poblar campos calculados desde relaciones"""
+        """Poblar campos calculados desde relaciones (NO incluye accion_por)"""
         # Poblar NIT y nombre desde proveedor
         if self.proveedor:
             self.nit_emisor = self.proveedor.nit
@@ -112,17 +114,23 @@ class FacturaRead(FacturaBase):
         if self.responsable:
             self.nombre_responsable = self.responsable.nombre
 
-        # Calcular "Acción Por" - quién aprobó o rechazó
-        # NOTA: Ahora estos campos vienen desde workflow_aprobacion_facturas vía helpers
-        # Si es aprobación automática, mostrar "SISTEMA DE AUTOMATIZACIÓN"
-        if self.estado == EstadoFactura.aprobada_auto:
+        # ✨ ACCION_POR: Ya viene desde la BD sincronizado
+        # No se calcula más aquí - se lee directamente del campo factura.accion_por
+        # Que fue populado en workflow_automatico.py:_sincronizar_estado_factura()
+        # Los campos workflow_history son solo para debugging/auditoría
+
+        # Si accion_por aún no está poblado y es aprobación automática,
+        # asignar el valor por defecto (fallback para datos históricos)
+        if not self.accion_por and self.estado == EstadoFactura.aprobada_auto:
             self.accion_por = "SISTEMA DE AUTOMATIZACIÓN"
-            self.fecha_accion = self.fecha_aprobacion_workflow
-        elif self.aprobado_por_workflow:
-            self.accion_por = self.aprobado_por_workflow
-            self.fecha_accion = self.fecha_aprobacion_workflow
-        elif self.rechazado_por_workflow:
-            self.accion_por = self.rechazado_por_workflow
-            self.fecha_accion = self.fecha_rechazo_workflow
+
+        # Asignar fecha_accion basado en accion_por
+        if self.accion_por:
+            if self.accion_por == "SISTEMA DE AUTOMATIZACIÓN":
+                self.fecha_accion = self.fecha_aprobacion_workflow
+            elif self.aprobado_por_workflow == self.accion_por:
+                self.fecha_accion = self.fecha_aprobacion_workflow
+            elif self.rechazado_por_workflow == self.accion_por:
+                self.fecha_accion = self.fecha_rechazo_workflow
 
         return self

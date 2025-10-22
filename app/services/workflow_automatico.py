@@ -87,11 +87,15 @@ class WorkflowAutomaticoService:
             if workflow.aprobada:
                 workflow.factura.aprobado_por = workflow.aprobada_por
                 workflow.factura.fecha_aprobacion = workflow.fecha_aprobacion
+                # ✨ ACCION_POR: Single source of truth para dashboard
+                workflow.factura.accion_por = workflow.aprobada_por
 
             if workflow.rechazada:
                 workflow.factura.rechazado_por = workflow.rechazada_por
                 workflow.factura.fecha_rechazo = workflow.fecha_rechazo
                 workflow.factura.motivo_rechazo = workflow.detalle_rechazo
+                # ✨ ACCION_POR: Single source of truth para dashboard
+                workflow.factura.accion_por = workflow.rechazada_por
 
     def procesar_factura_nueva(self, factura_id: int) -> Dict[str, Any]:
         """
