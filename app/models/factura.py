@@ -88,7 +88,7 @@ class Factura(Base):
         "WorkflowAprobacionFactura",
         foreign_keys="[WorkflowAprobacionFactura.factura_id]",
         uselist=False,  # Solo un workflow por factura
-        lazy="select",  # Carga bajo demanda
+        lazy="select",  # Lazy loading con explicit selectinload en CRUD
         viewonly=True   # No modifica desde Factura
     )
 

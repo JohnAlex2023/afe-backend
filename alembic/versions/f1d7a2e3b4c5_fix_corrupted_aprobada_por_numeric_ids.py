@@ -26,32 +26,33 @@ depends_on = None
 
 def upgrade() -> None:
     """
-    Find workflows where aprobada_por is a pure number and convert to actual name.
+    Find workflows where aprobada_por or rechazada_por are pure numbers and convert to actual names.
     """
     bind = op.get_bind()
     session = Session(bind=bind)
 
     try:
-        # Find all workflows where aprobada_por looks like a numeric ID
-        query = text("""
-            SELECT waf.id, waf.aprobada_por, r.nombre
-            FROM workflow_aprobacion_facturas waf
-            LEFT JOIN responsables r ON CAST(waf.aprobada_por AS INTEGER) = r.id
+        # Fix aprobada_por
+        query_aprobada = text("""
+            UPDATE workflow_aprobacion_facturas waf
+            SET aprobada_por = r.nombre
+            FROM responsables r
             WHERE waf.aprobada_por ~ '^[0-9]+$'
-            AND waf.aprobada == true
+            AND CAST(waf.aprobada_por AS INTEGER) = r.id
+            AND waf.aprobada = true
         """)
+        session.execute(query_aprobada)
 
-        results = session.execute(query).fetchall()
-
-        for row_id, aprobada_por_id, nombre in results:
-            if nombre:
-                # Update with actual name
-                update_query = text("""
-                    UPDATE workflow_aprobacion_facturas
-                    SET aprobada_por = :nombre
-                    WHERE id = :id
-                """)
-                session.execute(update_query, {"nombre": nombre, "id": row_id})
+        # Fix rechazada_por
+        query_rechazada = text("""
+            UPDATE workflow_aprobacion_facturas waf
+            SET rechazada_por = r.nombre
+            FROM responsables r
+            WHERE waf.rechazada_por ~ '^[0-9]+$'
+            AND CAST(waf.rechazada_por AS INTEGER) = r.id
+            AND waf.rechazada = true
+        """)
+        session.execute(query_rechazada)
 
         session.commit()
 

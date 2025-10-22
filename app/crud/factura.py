@@ -64,14 +64,16 @@ def list_facturas(
     asignados a ese responsable.
 
     Usa índice: idx_facturas_orden_cronologico para performance óptima
+
+    NOTA: workflow_history se carga automáticamente con lazy="joined" en modelo Factura
     """
-    from sqlalchemy.orm import joinedload
+    from sqlalchemy.orm import joinedload, selectinload
     from app.models.responsable import Responsable
 
     query = db.query(Factura).options(
         joinedload(Factura.proveedor),
         joinedload(Factura.responsable),
-        joinedload(Factura.workflow_history)
+        selectinload(Factura.workflow_history)  # Compatible con viewonly=True
     )
 
     # Filtrar por responsable (facturas asignadas directamente)
@@ -125,13 +127,13 @@ def list_facturas_cursor(
     Returns:
         Tupla (facturas, has_more)
     """
-    from sqlalchemy.orm import joinedload
+    from sqlalchemy.orm import joinedload, selectinload
 
-    # Cargar relaciones con joinedload para poblar campos calculados en el schema
+    # Cargar relaciones con joinedload/selectinload para poblar campos calculados en el schema
     query = db.query(Factura).options(
         joinedload(Factura.proveedor),
         joinedload(Factura.responsable),
-        joinedload(Factura.workflow_history)
+        selectinload(Factura.workflow_history)  # Compatible con viewonly=True
     )
 
     # Filtrar por responsable (facturas asignadas directamente)
@@ -232,11 +234,13 @@ def list_all_facturas_for_dashboard(
     """
     from sqlalchemy.orm import joinedload
 
-    # Cargar relaciones con joinedload para poblar campos calculados en el schema
+    # Cargar relaciones con joinedload/selectinload para poblar campos calculados en el schema
+    from sqlalchemy.orm import joinedload, selectinload
+
     query = db.query(Factura).options(
         joinedload(Factura.proveedor),
         joinedload(Factura.responsable),
-        joinedload(Factura.workflow_history)
+        selectinload(Factura.workflow_history)  # Compatible con viewonly=True
     )
 
     # Filtrar por responsable si se especifica
