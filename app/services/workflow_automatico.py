@@ -66,9 +66,10 @@ class WorkflowAutomaticoService:
             workflow: Workflow con el estado actualizado
         """
         # Mapeo autoritativo: EstadoFacturaWorkflow -> EstadoFactura
+        # REFACTORIZADO: Eliminado estado 'pendiente', todo va a 'en_revision'
         MAPEO_ESTADOS = {
-            EstadoFacturaWorkflow.RECIBIDA: EstadoFactura.pendiente,
-            EstadoFacturaWorkflow.EN_ANALISIS: EstadoFactura.pendiente,
+            EstadoFacturaWorkflow.RECIBIDA: EstadoFactura.en_revision,
+            EstadoFacturaWorkflow.EN_ANALISIS: EstadoFactura.en_revision,
             EstadoFacturaWorkflow.APROBADA_AUTO: EstadoFactura.aprobada_auto,
             EstadoFacturaWorkflow.APROBADA_MANUAL: EstadoFactura.aprobada,
             EstadoFacturaWorkflow.RECHAZADA: EstadoFactura.rechazada,
@@ -80,7 +81,7 @@ class WorkflowAutomaticoService:
         }
 
         if workflow.factura:
-            nuevo_estado = MAPEO_ESTADOS.get(workflow.estado, EstadoFactura.pendiente)
+            nuevo_estado = MAPEO_ESTADOS.get(workflow.estado, EstadoFactura.en_revision)
             workflow.factura.estado = nuevo_estado
 
             # Sincronizar campos de auditoría adicionales

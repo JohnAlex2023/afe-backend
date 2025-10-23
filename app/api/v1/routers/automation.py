@@ -593,7 +593,7 @@ async def obtener_metricas_dashboard(
         ).scalar() or 0
 
         facturas_pendientes_total = db.query(func.count(Factura.id)).filter(
-            Factura.estado == EstadoFactura.pendiente
+            Factura.estado == EstadoFactura.en_revision
         ).scalar() or 0
 
         # Tasa de automatización del día

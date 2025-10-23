@@ -25,6 +25,7 @@ from app.core.database import SessionLocal
 from app.models.proveedor import Proveedor
 from sqlalchemy import func
 from app.utils.logger import logger
+from app.utils.normalizacion import normalizar_nit, normalizar_email, normalizar_razon_social
 
 
 class CargadorProveedoresCSVMejorado:
@@ -86,24 +87,31 @@ class CargadorProveedoresCSVMejorado:
                 for row_num, row in enumerate(reader, start=2):  # start=2 para saltar encabezado
                     self.total_filas += 1
 
-                    nit = row.get('NIT', '').strip()
+                    nit_raw = row.get('NIT', '').strip()
                     tercero = row.get('Tercero', '').strip()
                     sede = row.get('SEDE', '').strip()
                     cuenta = row.get('CUENTA', '').strip()
 
+                    # NORMALIZACIÓN: Limpiar NIT (remueve puntos, guiones, DV)
+                    nit = normalizar_nit(nit_raw)
+
                     # FILTRADO: Excluir NITs inválidos
-                    if not nit or nit == '0' or nit == '':
+                    if not nit:
                         self.nits_invalidos += 1
                         self.detalles_operacion.append(
-                            f"Fila {row_num}: NIT inválido ('{nit}') para {tercero}"
+                            f"Fila {row_num}: NIT inválido ('{nit_raw}') para {tercero}"
                         )
                         continue
+
+                    # Normalizar datos
+                    razon_social_norm = normalizar_razon_social(tercero)
+                    email_norm = normalizar_email(cuenta)
 
                     # Primer NIT único
                     if nit not in proveedores:
                         self.nits_unicos_totales += 1
                         proveedores[nit] = {
-                            'razon_social': tercero,
+                            'razon_social': razon_social_norm,
                             'sedes': set(),
                             'emails': set()
                         }
@@ -112,9 +120,9 @@ class CargadorProveedoresCSVMejorado:
                     if sede:
                         proveedores[nit]['sedes'].add(sede)
 
-                    # Agregar EMAIL si existe
-                    if cuenta:
-                        proveedores[nit]['emails'].add(cuenta)
+                    # Agregar EMAIL si existe y es válido
+                    if email_norm:
+                        proveedores[nit]['emails'].add(email_norm)
 
         except Exception as e:
             print(f"   ERROR al leer CSV: {str(e)}")

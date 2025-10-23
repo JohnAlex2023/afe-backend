@@ -425,7 +425,7 @@ def get_facturas_pendientes_procesamiento(db: Session, limit: int = 50) -> List[
         db.query(Factura)
         .filter(
             and_(
-                Factura.estado == "pendiente",
+                Factura.estado == EstadoFactura.en_revision,
                 Factura.fecha_procesamiento_auto.is_(None)
             )
         )

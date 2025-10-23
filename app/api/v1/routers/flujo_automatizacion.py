@@ -350,7 +350,7 @@ def obtener_estadisticas_flujo(
 
         facturas_pendientes = db.query(func.count(Factura.id)).filter(
             Factura.periodo_factura == periodo,
-            Factura.estado == EstadoFactura.pendiente
+            Factura.estado == EstadoFactura.en_revision
         ).scalar()
 
         facturas_pagadas = db.query(func.count(Factura.id)).filter(

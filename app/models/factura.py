@@ -6,7 +6,15 @@ from app.db.base import Base
 import enum
 
 class EstadoFactura(enum.Enum):
-    pendiente = "pendiente"
+    """
+    Estados de factura (refactorizado - eliminado 'pendiente').
+
+    - en_revision: Factura requiere revisión manual (estado único de espera)
+    - aprobada: Factura aprobada manualmente por usuario
+    - aprobada_auto: Factura aprobada automáticamente por el sistema
+    - rechazada: Factura rechazada por usuario
+    - pagada: Factura procesada para pago
+    """
     en_revision = "en_revision"
     aprobada = "aprobada"
     rechazada = "rechazada"
@@ -36,7 +44,7 @@ class Factura(Base):
     proveedor_id = Column(BigInteger, ForeignKey("proveedores.id"), nullable=True)
     subtotal = Column(Numeric(15, 2, asdecimal=True))
     iva = Column(Numeric(15, 2, asdecimal=True))
-    estado = Column(Enum(EstadoFactura), default=EstadoFactura.pendiente, nullable=False)
+    estado = Column(Enum(EstadoFactura), default=EstadoFactura.en_revision, nullable=False)
     fecha_vencimiento = Column(Date, nullable=True)
     cufe = Column(String(100), unique=True, nullable=False)
     total_a_pagar = Column(Numeric(15, 2, asdecimal=True))

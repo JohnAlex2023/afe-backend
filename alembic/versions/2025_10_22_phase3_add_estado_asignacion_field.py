@@ -41,36 +41,89 @@ def upgrade():
     PHASE 3 Upgrade: Initialize and secure assignment status tracking.
 
     PASOS:
-    1. Inicializar valores del campo estado_asignacion basados en responsable_id y accion_por
-    2. Crear índice para optimizar queries de dashboard
-    3. Crear triggers BEFORE UPDATE/INSERT para mantener sincronizado automáticamente
+    0A. Crear columna accion_por si no existe (idempotente)
+    0B. Crear columna estado_asignacion si no existe (idempotente)
+    1. Inicializar valores basados SOLO en responsable_id
+    2. Crear índices para optimizar queries
+    3. Crear triggers para mantener sincronizado automáticamente
 
     IDEMPOTENCIA: Seguro ejecutar múltiples veces sin errores
     """
 
-    # PASO 1: Inicializar valores basados en estado actual de facturas
-    # Lógica:
-    # - Si responsable_id != NULL: 'asignado'
-    # - Si responsable_id IS NULL AND accion_por IS NOT NULL: 'huerfano'
-    # - Si responsable_id IS NULL AND accion_por IS NULL: 'sin_asignar'
+    connection = op.get_bind()
+
+    # PASO 0A: Crear columna accion_por si no existe
+    result_accion = connection.execute(sa.text("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'facturas'
+          AND COLUMN_NAME = 'accion_por'
+    """))
+
+    if result_accion.scalar() == 0:
+        op.add_column('facturas',
+            sa.Column(
+                'accion_por',
+                sa.String(255),
+                nullable=True,
+                comment='Who approved/rejected - synced from workflow'
+            )
+        )
+        # Índice para accion_por
+        op.create_index(
+            'ix_facturas_accion_por',
+            'facturas',
+            ['accion_por']
+        )
+
+    # PASO 0B: Crear columna estado_asignacion si no existe
+    result = connection.execute(sa.text("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'facturas'
+          AND COLUMN_NAME = 'estado_asignacion'
+    """))
+
+    if result.scalar() == 0:
+        op.add_column('facturas',
+            sa.Column(
+                'estado_asignacion',
+                sa.String(20),
+                nullable=False,
+                server_default='sin_asignar',
+                comment='Estado del ciclo de vida de asignación'
+            )
+        )
+
+    # PASO 1: Inicializar valores basados SOLO en responsable_id
+    # accion_por será sincronizado después por el workflow
     op.execute("""
         UPDATE facturas
         SET estado_asignacion = CASE
             WHEN responsable_id IS NOT NULL THEN 'asignado'
-            WHEN responsable_id IS NULL AND accion_por IS NOT NULL THEN 'huerfano'
             ELSE 'sin_asignar'
         END
-        WHERE estado_asignacion = 'sin_asignar'
     """)
 
     # PASO 2: Crear índice para optimizar queries del dashboard
     # Este índice es crítico para performance de filtros en el dashboard
-    # MySQL: Crear INDEX directamente (sin IF NOT EXISTS para compatibilidad)
-    op.create_index(
-        'ix_facturas_estado_asignacion',
-        'facturas',
-        ['estado_asignacion']
-    )
+    # Verificación idempotente
+    result_index = connection.execute(sa.text("""
+        SELECT COUNT(*) as idx_exists
+        FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'facturas'
+          AND INDEX_NAME = 'ix_facturas_estado_asignacion'
+    """))
+
+    index_exists = result_index.scalar() > 0
+
+    if not index_exists:
+        op.create_index(
+            'ix_facturas_estado_asignacion',
+            'facturas',
+            ['estado_asignacion']
+        )
 
     # PASO 3: Crear triggers para sincronización automática
 
@@ -128,21 +181,54 @@ def downgrade():
 
     PASOS:
     1. Eliminar triggers automáticos
-    2. Eliminar índice
-    3. Resetear columna a valor por defecto (no eliminar, para preservar datos)
+    2. Eliminar índices (idempotente)
+    3. Eliminar columnas accion_por y estado_asignacion
 
-    NOTA: No eliminamos la columna física para permitir rollback limpio
+    NOTA: Este downgrade es completo y elimina ambas columnas
     """
+
+    connection = op.get_bind()
 
     # PASO 1: Eliminar triggers
     op.execute("DROP TRIGGER IF EXISTS before_facturas_update_estado_asignacion")
     op.execute("DROP TRIGGER IF EXISTS before_facturas_insert_estado_asignacion")
 
-    # PASO 2: Eliminar índice
-    op.drop_index('ix_facturas_estado_asignacion', table_name='facturas')
+    # PASO 2: Eliminar índice estado_asignacion
+    result_idx = connection.execute(sa.text("""
+        SELECT COUNT(*) FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'facturas'
+          AND INDEX_NAME = 'ix_facturas_estado_asignacion'
+    """))
+    if result_idx.scalar() > 0:
+        op.drop_index('ix_facturas_estado_asignacion', table_name='facturas')
 
-    # PASO 3: Resetear valores a defecto (preservar datos para auditoria)
-    op.execute("""
-        UPDATE facturas SET estado_asignacion = 'sin_asignar'
-        WHERE estado_asignacion IN ('asignado', 'huerfano', 'inconsistente')
-    """)
+    # PASO 3: Eliminar índice accion_por
+    result_idx2 = connection.execute(sa.text("""
+        SELECT COUNT(*) FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'facturas'
+          AND INDEX_NAME = 'ix_facturas_accion_por'
+    """))
+    if result_idx2.scalar() > 0:
+        op.drop_index('ix_facturas_accion_por', table_name='facturas')
+
+    # PASO 4: Eliminar columna estado_asignacion
+    result_col = connection.execute(sa.text("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'facturas'
+          AND COLUMN_NAME = 'estado_asignacion'
+    """))
+    if result_col.scalar() > 0:
+        op.drop_column('facturas', 'estado_asignacion')
+
+    # PASO 5: Eliminar columna accion_por
+    result_col2 = connection.execute(sa.text("""
+        SELECT COUNT(*) FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'facturas'
+          AND COLUMN_NAME = 'accion_por'
+    """))
+    if result_col2.scalar() > 0:
+        op.drop_column('facturas', 'accion_por')

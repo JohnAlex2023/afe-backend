@@ -138,7 +138,7 @@ class NotificacionesProgramadasService:
                 facturas_pendientes = self.db.query(Factura).filter(
                     and_(
                         Factura.responsable_id == responsable.id,
-                        Factura.estado.in_([EstadoFactura.en_revision, EstadoFactura.pendiente])
+                        Factura.estado == EstadoFactura.en_revision
                     )
                 ).all()
 
@@ -214,7 +214,7 @@ class NotificacionesProgramadasService:
         # Obtener facturas urgentes (> 10 días pendientes)
         facturas_urgentes = self.db.query(Factura).filter(
             and_(
-                Factura.estado.in_([EstadoFactura.en_revision, EstadoFactura.pendiente]),
+                Factura.estado == EstadoFactura.en_revision,
                 Factura.responsable_id.isnot(None)
             )
         ).all()

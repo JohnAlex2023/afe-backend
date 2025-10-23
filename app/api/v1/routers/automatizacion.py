@@ -272,10 +272,7 @@ async def listar_facturas_pendientes_procesamiento(
 
         # Obtener facturas pendientes
         facturas_pendientes = db.query(Factura).filter(
-            or_(
-                Factura.estado == EstadoFactura.en_revision,
-                Factura.estado == EstadoFactura.pendiente
-            ),
+            Factura.estado == EstadoFactura.en_revision,
             Factura.fecha_procesamiento_auto.is_(None)  # No procesadas aún
         ).limit(limite).all()
 

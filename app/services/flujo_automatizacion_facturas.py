@@ -164,7 +164,7 @@ class FlujoAutomatizacionFacturas:
         try:
             query = self.db.query(Factura).filter(
                 Factura.periodo_factura == periodo,
-                Factura.estado == EstadoFactura.pendiente
+                Factura.estado == EstadoFactura.en_revision
             )
 
             if solo_proveedores:
@@ -341,7 +341,7 @@ class FlujoAutomatizacionFacturas:
         Obtiene facturas pendientes del período especificado.
         """
         query = self.db.query(Factura).filter(
-            Factura.estado == EstadoFactura.pendiente,
+            Factura.estado == EstadoFactura.en_revision,
             Factura.periodo_factura == periodo,
             Factura.proveedor_id.isnot(None)
         )
