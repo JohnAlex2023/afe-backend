@@ -636,55 +636,48 @@ def aprobar_factura(
         extra={"factura_id": factura_id, "usuario": current_user.usuario, "con_workflow": workflow is not None}
     )
 
-    # Enviar notificación por email al responsable
+    # ENTERPRISE: Enviar notificación a TODOS los responsables del NIT
     try:
         from app.services.email_notifications import enviar_notificacion_factura_aprobada
+        from app.crud.factura import obtener_responsables_de_nit
 
-        # Buscar email del responsable (múltiples fuentes)
-        email_responsable = None
-        nombre_responsable = None
+        # Obtener TODOS los responsables del NIT (soporte para múltiples responsables)
+        responsables = []
 
-        # 1. Buscar en responsable directo de la factura
-        if factura.responsable and factura.responsable.email:
-            email_responsable = factura.responsable.email
-            nombre_responsable = factura.responsable.nombre or factura.responsable.usuario
-            logger.info(f"Email encontrado en responsable directo: {email_responsable}")
+        if factura.proveedor and factura.proveedor.nit:
+            responsables = obtener_responsables_de_nit(db, factura.proveedor.nit)
+            logger.info(f"Encontrados {len(responsables)} responsables para NIT {factura.proveedor.nit}")
 
-        # 2. Si no, buscar en asignaciones NIT del proveedor
-        elif factura.proveedor and hasattr(factura.proveedor, 'asignaciones_nit'):
-            for asignacion in factura.proveedor.asignaciones_nit:
-                if asignacion.responsable and asignacion.responsable.email:
-                    email_responsable = asignacion.responsable.email
-                    nombre_responsable = asignacion.responsable.nombre or asignacion.responsable.usuario
-                    logger.info(f"Email encontrado en asignación NIT: {email_responsable}")
-                    break
-
-        # 3. Si encontramos email, enviar notificación
-        if email_responsable:
-            # Formatear monto
+        # Enviar notificación a cada responsable
+        if responsables:
             monto_formateado = f"${factura.total_calculado:,.2f} COP" if factura.total_calculado else "N/A"
+            aprobado_por_nombre = current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario
 
-            # Enviar notificación
-            resultado = enviar_notificacion_factura_aprobada(
-                email_responsable=email_responsable,
-                nombre_responsable=nombre_responsable,
-                numero_factura=factura.numero_factura or f"ID-{factura.id}",
-                nombre_proveedor=factura.proveedor.razon_social if factura.proveedor else "N/A",
-                nit_proveedor=factura.proveedor.nit if factura.proveedor else "N/A",
-                monto_factura=monto_formateado,
-                aprobado_por=current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario,
-                fecha_aprobacion=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            )
+            for responsable in responsables:
+                if responsable.email:
+                    try:
+                        resultado = enviar_notificacion_factura_aprobada(
+                            email_responsable=responsable.email,
+                            nombre_responsable=responsable.nombre or responsable.usuario,
+                            numero_factura=factura.numero_factura or f"ID-{factura.id}",
+                            nombre_proveedor=factura.proveedor.razon_social if factura.proveedor else "N/A",
+                            nit_proveedor=factura.proveedor.nit if factura.proveedor else "N/A",
+                            monto_factura=monto_formateado,
+                            aprobado_por=aprobado_por_nombre,
+                            fecha_aprobacion=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        )
 
-            if resultado.get('success'):
-                logger.info(f"Notificacion de aprobacion enviada a {email_responsable} via {resultado.get('provider')}")
-            else:
-                logger.warning(f"No se pudo enviar notificacion: {resultado.get('error')}")
+                        if resultado.get('success'):
+                            logger.info(f"Notificacion enviada a {responsable.nombre} ({responsable.email})")
+                        else:
+                            logger.warning(f"Fallo notificacion a {responsable.email}: {resultado.get('error')}")
+                    except Exception as e_responsable:
+                        logger.error(f"Error enviando a {responsable.email}: {str(e_responsable)}")
         else:
-            logger.warning(f"No se encontro email del responsable para factura {factura.numero_factura}")
+            logger.warning(f"No se encontraron responsables para factura {factura.numero_factura}")
 
     except Exception as e:
-        logger.error(f"Error al enviar notificacion de factura aprobada: {str(e)}", exc_info=True)
+        logger.error(f"Error en sistema de notificaciones: {str(e)}", exc_info=True)
         # No fallar la aprobación si falla el envío del email
 
     return factura
@@ -776,56 +769,49 @@ def rechazar_factura(
         extra={"factura_id": factura_id, "usuario": current_user.usuario, "con_workflow": workflow is not None}
     )
 
-    # Enviar notificación por email al responsable
+    # ENTERPRISE: Enviar notificación a TODOS los responsables del NIT
     try:
         from app.services.email_notifications import enviar_notificacion_factura_rechazada
+        from app.crud.factura import obtener_responsables_de_nit
 
-        # Buscar email del responsable (múltiples fuentes)
-        email_responsable = None
-        nombre_responsable = None
+        # Obtener TODOS los responsables del NIT (soporte para múltiples responsables)
+        responsables = []
 
-        # 1. Buscar en responsable directo de la factura
-        if factura.responsable and factura.responsable.email:
-            email_responsable = factura.responsable.email
-            nombre_responsable = factura.responsable.nombre or factura.responsable.usuario
-            logger.info(f"Email encontrado en responsable directo: {email_responsable}")
+        if factura.proveedor and factura.proveedor.nit:
+            responsables = obtener_responsables_de_nit(db, factura.proveedor.nit)
+            logger.info(f"Encontrados {len(responsables)} responsables para NIT {factura.proveedor.nit}")
 
-        # 2. Si no, buscar en asignaciones NIT del proveedor
-        elif factura.proveedor and hasattr(factura.proveedor, 'asignaciones_nit'):
-            for asignacion in factura.proveedor.asignaciones_nit:
-                if asignacion.responsable and asignacion.responsable.email:
-                    email_responsable = asignacion.responsable.email
-                    nombre_responsable = asignacion.responsable.nombre or asignacion.responsable.usuario
-                    logger.info(f"Email encontrado en asignación NIT: {email_responsable}")
-                    break
-
-        # 3. Si encontramos email, enviar notificación
-        if email_responsable:
-            # Formatear monto
+        # Enviar notificación a cada responsable
+        if responsables:
             monto_formateado = f"${factura.total_calculado:,.2f} COP" if factura.total_calculado else "N/A"
+            rechazado_por_nombre = current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario
 
-            # Enviar notificación
-            resultado = enviar_notificacion_factura_rechazada(
-                email_responsable=email_responsable,
-                nombre_responsable=nombre_responsable,
-                numero_factura=factura.numero_factura or f"ID-{factura.id}",
-                nombre_proveedor=factura.proveedor.razon_social if factura.proveedor else "N/A",
-                nit_proveedor=factura.proveedor.nit if factura.proveedor else "N/A",
-                monto_factura=monto_formateado,
-                rechazado_por=current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario,
-                motivo_rechazo=payload.get("motivo"),
-                fecha_rechazo=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            )
+            for responsable in responsables:
+                if responsable.email:
+                    try:
+                        resultado = enviar_notificacion_factura_rechazada(
+                            email_responsable=responsable.email,
+                            nombre_responsable=responsable.nombre or responsable.usuario,
+                            numero_factura=factura.numero_factura or f"ID-{factura.id}",
+                            nombre_proveedor=factura.proveedor.razon_social if factura.proveedor else "N/A",
+                            nit_proveedor=factura.proveedor.nit if factura.proveedor else "N/A",
+                            monto_factura=monto_formateado,
+                            rechazado_por=rechazado_por_nombre,
+                            motivo_rechazo=payload.get("motivo"),
+                            fecha_rechazo=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        )
 
-            if resultado.get('success'):
-                logger.info(f"Notificacion de rechazo enviada a {email_responsable} via {resultado.get('provider')}")
-            else:
-                logger.warning(f"No se pudo enviar notificacion: {resultado.get('error')}")
+                        if resultado.get('success'):
+                            logger.info(f"Notificacion enviada a {responsable.nombre} ({responsable.email})")
+                        else:
+                            logger.warning(f"Fallo notificacion a {responsable.email}: {resultado.get('error')}")
+                    except Exception as e_responsable:
+                        logger.error(f"Error enviando a {responsable.email}: {str(e_responsable)}")
         else:
-            logger.warning(f"No se encontro email del responsable para factura {factura.numero_factura}")
+            logger.warning(f"No se encontraron responsables para factura {factura.numero_factura}")
 
     except Exception as e:
-        logger.error(f"Error al enviar notificacion de factura rechazada: {str(e)}", exc_info=True)
+        logger.error(f"Error en sistema de notificaciones: {str(e)}", exc_info=True)
         # No fallar el rechazo si falla el envío del email
 
     return factura

@@ -9,6 +9,112 @@ from app.models.proveedor import Proveedor
 from app.models.workflow_aprobacion import AsignacionNitResponsable
 
 
+# ==================== ENTERPRISE HELPERS ====================
+
+def _normalizar_nit(nit: str) -> str:
+    """
+    Normaliza un NIT eliminando el dígito de verificación y caracteres especiales.
+
+    Reutilizado desde WorkflowAutomaticoService para consistencia.
+    """
+    if not nit:
+        return ""
+
+    # Si tiene guión, separar el número principal del dígito de verificación
+    if "-" in nit:
+        nit_principal = nit.split("-")[0]
+    else:
+        nit_principal = nit
+
+    # Eliminar puntos y espacios
+    nit_limpio = nit_principal.replace(".", "").replace(" ", "")
+
+    # Tomar solo dígitos
+    nit_solo_digitos = "".join(c for c in nit_limpio if c.isdigit())
+
+    return nit_solo_digitos
+
+
+def _obtener_proveedor_ids_de_responsable(db: Session, responsable_id: int) -> List[int]:
+    """
+    Obtiene los IDs de proveedores cuyos NITs están asignados al responsable.
+
+    Enterprise Pattern: Pre-procesar matching de NITs en Python para compatibilidad MySQL/PostgreSQL.
+
+    Returns:
+        Lista de proveedor_ids que coinciden con los NITs asignados
+    """
+    # Obtener NITs asignados al responsable
+    asignaciones = db.query(AsignacionNitResponsable.nit).filter(
+        AsignacionNitResponsable.responsable_id == responsable_id,
+        AsignacionNitResponsable.activo == True
+    ).all()
+
+    nits_asignados = [nit for (nit,) in asignaciones if nit]
+
+    if not nits_asignados:
+        return []
+
+    # Normalizar NITs asignados
+    nits_normalizados_asignados = {_normalizar_nit(nit) for nit in nits_asignados}
+
+    # Obtener todos los proveedores con NITs
+    proveedores = db.query(Proveedor.id, Proveedor.nit).filter(
+        Proveedor.nit.isnot(None)
+    ).all()
+
+    # Matching en Python (compatible con cualquier DB)
+    proveedor_ids_coincidentes = []
+    for prov_id, prov_nit in proveedores:
+        if _normalizar_nit(prov_nit) in nits_normalizados_asignados:
+            proveedor_ids_coincidentes.append(prov_id)
+
+    return proveedor_ids_coincidentes
+
+
+def obtener_responsables_de_nit(db: Session, nit: str) -> List:
+    """
+    Obtiene TODOS los responsables asignados a un NIT (con normalización).
+
+    ENTERPRISE: Permite notificar a todos los responsables cuando cambia el estado de una factura.
+
+    Args:
+        db: Sesión de base de datos
+        nit: NIT del proveedor (puede tener formato con/sin DV)
+
+    Returns:
+        Lista de objetos Responsable asignados a ese NIT
+    """
+    from app.models.responsable import Responsable
+
+    if not nit:
+        return []
+
+    # Normalizar el NIT buscado
+    nit_normalizado = _normalizar_nit(nit)
+
+    # Obtener todas las asignaciones activas
+    asignaciones = db.query(AsignacionNitResponsable).filter(
+        AsignacionNitResponsable.activo == True
+    ).all()
+
+    # Matching en Python con normalización
+    responsable_ids = []
+    for asig in asignaciones:
+        if _normalizar_nit(asig.nit) == nit_normalizado:
+            responsable_ids.append(asig.responsable_id)
+
+    if not responsable_ids:
+        return []
+
+    # Obtener los objetos Responsable completos
+    responsables = db.query(Responsable).filter(
+        Responsable.id.in_(responsable_ids)
+    ).all()
+
+    return responsables
+
+
 # -----------------------------------------------------
 # Obtener factura por ID
 # -----------------------------------------------------
@@ -27,14 +133,21 @@ def count_facturas(
 ) -> int:
     """
     Cuenta el total de facturas que coinciden con los filtros.
-    Usado para metadata de paginación.
+
+    ENTERPRISE: Si se filtra por responsable_id, cuenta TODAS las facturas
+    de NITs asignados a ese responsable (soporte para múltiples responsables por NIT).
     """
     query = db.query(func.count(Factura.id))
 
-    # Filtrar por responsable (facturas asignadas directamente)
+    # ENTERPRISE: Filtrar por proveedores asignados al responsable
     if responsable_id:
-        # ARQUITECTURA SIMPLIFICADA
-        query = query.filter(Factura.responsable_id == responsable_id)
+        proveedor_ids = _obtener_proveedor_ids_de_responsable(db, responsable_id)
+
+        if not proveedor_ids:
+            return 0  # Sin proveedores asignados
+
+        # Filtrar por IDs de proveedores (eficiente, compatible con MySQL/PostgreSQL)
+        query = query.filter(Factura.proveedor_id.in_(proveedor_ids))
 
     if nit:
         query = query.join(Proveedor).filter(Proveedor.nit == nit)
@@ -51,39 +164,36 @@ def count_facturas(
 def list_facturas(
     db: Session,
     skip: int = 0,
-    limit: int = 500,  # Aumentado a 500 para contexto empresarial
+    limit: int = 500,
     nit: Optional[str] = None,
     numero_factura: Optional[str] = None,
     responsable_id: Optional[int] = None,
 ) -> List[Factura]:
     """
-    Lista facturas con orden cronológico empresarial por defecto:
-    Año DESC → Mes DESC → Fecha DESC (más recientes primero)
+    Lista facturas con orden cronológico empresarial.
 
-    Si se proporciona responsable_id, solo muestra facturas de proveedores
-    asignados a ese responsable.
-
-    Usa índice: idx_facturas_orden_cronologico para performance óptima
-
-    NOTA: workflow_history se carga automáticamente con lazy="joined" en modelo Factura
+    ENTERPRISE: Si se filtra por responsable_id, muestra TODAS las facturas
+    de NITs asignados a ese responsable (soporte para múltiples responsables por NIT).
     """
     from sqlalchemy.orm import joinedload, selectinload
-    from app.models.responsable import Responsable
 
     query = db.query(Factura).options(
         joinedload(Factura.proveedor),
         joinedload(Factura.responsable),
-        selectinload(Factura.workflow_history)  # Compatible con viewonly=True
+        selectinload(Factura.workflow_history)
     )
 
-    # Filtrar por responsable (facturas asignadas directamente)
+    # ENTERPRISE: Filtrar por proveedores asignados al responsable
     if responsable_id:
-        # ARQUITECTURA SIMPLIFICADA: Filtrar directamente por responsable_id
-        # Más eficiente y evita problemas de sincronización con NITs
-        query = query.filter(Factura.responsable_id == responsable_id)
+        proveedor_ids = _obtener_proveedor_ids_de_responsable(db, responsable_id)
+
+        if not proveedor_ids:
+            return []  # Sin proveedores asignados
+
+        # Filtrar por IDs de proveedores
+        query = query.filter(Factura.proveedor_id.in_(proveedor_ids))
 
     if nit:
-        # Hacemos JOIN con Proveedor y filtramos por NIT
         query = query.join(Proveedor).filter(Proveedor.nit == nit)
 
     if numero_factura:
@@ -213,42 +323,27 @@ def list_all_facturas_for_dashboard(
     **ENDPOINT EMPRESARIAL PARA DASHBOARDS**
 
     Retorna TODAS las facturas sin límites de paginación.
-    Optimizado para dashboards administrativos que requieren vista completa.
 
-     USAR CON PRECAUCIÓN:
-    - Solo para usuarios admin
-    - Optimizado con eager loading de relaciones (proveedor, responsable)
-    - Para datasets >50k, considerar agregar filtros de fecha
-
-    Args:
-        db: Sesión de base de datos
-        responsable_id: Si se proporciona, filtra por proveedores asignados
-
-    Returns:
-        Lista completa de facturas ordenadas cronológicamente
-
-    Performance:
-    - Usa índice idx_facturas_orden_cronologico
-    - Sin OFFSET (evita deep pagination problem)
-    - Eager loading de relaciones para poblar campos calculados
+    ENTERPRISE: Si se filtra por responsable_id, retorna TODAS las facturas
+    de NITs asignados a ese responsable (soporte para múltiples responsables por NIT).
     """
-    from sqlalchemy.orm import joinedload
-
-    # Cargar relaciones con joinedload/selectinload para poblar campos calculados en el schema
     from sqlalchemy.orm import joinedload, selectinload
 
     query = db.query(Factura).options(
         joinedload(Factura.proveedor),
         joinedload(Factura.responsable),
-        selectinload(Factura.workflow_history)  # Compatible con viewonly=True
+        selectinload(Factura.workflow_history)
     )
 
-    # Filtrar por responsable si se especifica
+    # ENTERPRISE: Filtrar por proveedores asignados al responsable
     if responsable_id:
-        # ARQUITECTURA SIMPLIFICADA Y CORRECTA:
-        # Filtrar directamente por responsable_id en la tabla facturas
-        # Esto es más eficiente y evita problemas de sincronización con asignaciones
-        query = query.filter(Factura.responsable_id == responsable_id)
+        proveedor_ids = _obtener_proveedor_ids_de_responsable(db, responsable_id)
+
+        if not proveedor_ids:
+            return []  # Sin proveedores asignados
+
+        # Filtrar por IDs de proveedores
+        query = query.filter(Factura.proveedor_id.in_(proveedor_ids))
 
     # Orden cronológico empresarial: más recientes primero
     return query.order_by(

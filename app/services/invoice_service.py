@@ -64,28 +64,81 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
         {"msg": "Nueva factura creada desde Microsoft Graph"}
     )
 
-    #  ACTIVAR WORKFLOW AUTOMÁTICO PARA LA NUEVA FACTURA
+    # ✨ ENTERPRISE PATTERN: ACTIVAR WORKFLOW AUTOMÁTICO
+    # El workflow es CRÍTICO para la operación correcta del sistema.
+    # Si falla, debemos saberlo inmediatamente.
     try:
         from app.services.workflow_automatico import WorkflowAutomaticoService
         workflow_service = WorkflowAutomaticoService(db)
         workflow_resultado = workflow_service.procesar_factura_nueva(inv.id)
 
         if workflow_resultado.get("exito"):
-            logger.info(f"  Workflow creado para factura {inv.id}: {workflow_resultado.get('tipo_aprobacion', 'N/A')}")
+            logger.info(
+                f"✅ Workflow creado exitosamente para factura {inv.id}",
+                extra={
+                    "factura_id": inv.id,
+                    "responsable_id": workflow_resultado.get('responsable_id'),
+                    "nit": workflow_resultado.get('nit'),
+                    "tipo_aprobacion": workflow_resultado.get('tipo_aprobacion', 'N/A')
+                }
+            )
         else:
-            logger.warning(f" Workflow creado con advertencia para factura {inv.id}: {workflow_resultado.get('mensaje', 'Sin mensaje')}")
+            # Workflow creado pero con advertencias (ej: NIT sin asignación)
+            logger.warning(
+                f"⚠️  Workflow creado con advertencia para factura {inv.id}",
+                extra={
+                    "factura_id": inv.id,
+                    "error": workflow_resultado.get('error'),
+                    "nit": workflow_resultado.get('nit'),
+                    "requiere_configuracion": workflow_resultado.get('requiere_configuracion', False)
+                }
+            )
+
+            # Registrar en auditoría para visibilidad
+            create_audit(
+                db,
+                "workflow",
+                inv.id,
+                "warning",
+                "SISTEMA",
+                {
+                    "msg": "Workflow creado sin responsable asignado",
+                    "error": workflow_resultado.get('error'),
+                    "nit": workflow_resultado.get('nit'),
+                    "requiere_configuracion": workflow_resultado.get('requiere_configuracion', False)
+                }
+            )
 
     except Exception as e:
-        logger.error(f" Error al crear workflow para factura {inv.id}: {str(e)}")
-        # No falla la creación de la factura si el workflow falla
+        # ❌ CRITICAL: El workflow falló completamente
+        logger.error(
+            f"❌ ERROR CRÍTICO al crear workflow para factura {inv.id}: {str(e)}",
+            extra={
+                "factura_id": inv.id,
+                "error_type": type(e).__name__,
+                "error_message": str(e)
+            },
+            exc_info=True  # Incluir stack trace completo
+        )
+
+        # Registrar en auditoría con severidad alta
         create_audit(
             db,
             "workflow",
             inv.id,
             "error",
             "SISTEMA",
-            {"error": str(e), "msg": "Error al crear workflow automático"}
+            {
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "msg": "Error crítico al crear workflow automático - Factura sin responsable asignado",
+                "severity": "CRITICAL"
+            }
         )
+
+        # ⚠️ ENTERPRISE DECISION:
+        # NO fallar la creación de la factura (datos financieros no se pierden)
+        # PERO el error queda registrado y visible para corrección manual
 
     return {"id": inv.id, "action": "created"}, "created"
 

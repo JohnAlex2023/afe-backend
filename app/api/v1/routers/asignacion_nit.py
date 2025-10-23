@@ -122,6 +122,39 @@ class AsignacionesPorResponsableResponse(BaseModel):
 
 # ==================== FUNCIONES AUXILIARES ====================
 
+def _normalizar_nit(nit: str) -> str:
+    """
+    Normaliza un NIT eliminando el dígito de verificación y caracteres especiales.
+
+    ENTERPRISE PATTERN: Permite matching robusto entre NITs en diferentes formatos.
+
+    Ejemplos:
+        "830.122.566-1" -> "830122566"
+        "830122566-1" -> "830122566"
+        "830122566" -> "830122566"
+        "800136505-4" -> "800136505"
+
+    Returns:
+        str: NIT normalizado (solo dígitos, sin verificador)
+    """
+    if not nit:
+        return ""
+
+    # Si tiene guión, separar el número principal del dígito de verificación
+    if "-" in nit:
+        nit_principal = nit.split("-")[0]
+    else:
+        nit_principal = nit
+
+    # Eliminar puntos y espacios
+    nit_limpio = nit_principal.replace(".", "").replace(" ", "")
+
+    # Tomar solo dígitos
+    nit_solo_digitos = "".join(c for c in nit_limpio if c.isdigit())
+
+    return nit_solo_digitos
+
+
 def sincronizar_facturas_por_nit(db: Session, nit: str, responsable_id: int, responsable_anterior_id: Optional[int] = None, validar_existencia: bool = False):
     """
     Actualiza todas las facturas de un NIT para asignarles el responsable correcto.
@@ -279,10 +312,26 @@ def listar_asignaciones_nit(
     if responsable_id is not None:
         query = query.filter(AsignacionNitResponsable.responsable_id == responsable_id)
 
+    # ENTERPRISE: Filtro por NIT con normalización para manejar diferentes formatos
+    # Ejemplo: NIT "800136505-4" (proveedor) coincide con "800136505" (asignación)
     if nit is not None:
-        query = query.filter(AsignacionNitResponsable.nit == nit)
+        # Normalizar el NIT de búsqueda
+        nit_normalizado_busqueda = _normalizar_nit(nit)
 
-    asignaciones = query.offset(skip).limit(limit).all()
+        # Obtener todas las asignaciones (ya filtradas por responsable_id y activo)
+        asignaciones_todas = query.all()
+
+        # Filtrar en Python usando normalización
+        asignaciones_filtradas = []
+        for asig in asignaciones_todas:
+            if _normalizar_nit(asig.nit) == nit_normalizado_busqueda:
+                asignaciones_filtradas.append(asig)
+
+        # Aplicar paginación manualmente
+        asignaciones = asignaciones_filtradas[skip:skip+limit] if asignaciones_filtradas else []
+    else:
+        # Sin filtro de NIT, usar query normal con paginación en DB
+        asignaciones = query.offset(skip).limit(limit).all()
 
     # Enriquecer con datos completos del responsable
     resultado = []

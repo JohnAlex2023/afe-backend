@@ -189,17 +189,77 @@ class WorkflowAutomaticoService:
 
         return None
 
+    def _normalizar_nit(self, nit: str) -> str:
+        """
+        Normaliza un NIT eliminando el dígito de verificación y caracteres especiales.
+
+        Enterprise Pattern: Normalización de identificadores para matching robusto.
+
+        Ejemplos:
+            "830122566-1" -> "830122566"
+            "830.122.566-1" -> "830122566"
+            "830122566" -> "830122566"
+            "900.359.573-5" -> "900359573"
+
+        Args:
+            nit: NIT original (con o sin DV)
+
+        Returns:
+            NIT normalizado (solo dígitos del número principal, sin DV)
+        """
+        if not nit:
+            return ""
+
+        # Si tiene guión, separar el número principal del dígito de verificación
+        if "-" in nit:
+            # Tomar solo la parte antes del guión (el número principal)
+            nit_principal = nit.split("-")[0]
+        else:
+            nit_principal = nit
+
+        # Eliminar puntos y espacios
+        nit_limpio = nit_principal.replace(".", "").replace(" ", "")
+
+        # Tomar solo dígitos
+        nit_solo_digitos = "".join(c for c in nit_limpio if c.isdigit())
+
+        return nit_solo_digitos
+
     def _buscar_asignacion_responsable(self, nit: Optional[str]) -> Optional[AsignacionNitResponsable]:
-        """Busca la asignación de responsable para un NIT."""
+        """
+        Busca la asignación de responsable para un NIT.
+
+        Enterprise Pattern: Búsqueda con normalización automática de NITs.
+        Busca tanto con NIT original como normalizado para máxima compatibilidad.
+        """
         if not nit:
             return None
 
-        return self.db.query(AsignacionNitResponsable).filter(
+        # 1. Intentar búsqueda exacta primero (más rápido)
+        asignacion = self.db.query(AsignacionNitResponsable).filter(
             and_(
                 AsignacionNitResponsable.nit == nit,
                 AsignacionNitResponsable.activo == True
             )
         ).first()
+
+        if asignacion:
+            return asignacion
+
+        # 2. Si no se encuentra, intentar con NIT normalizado
+        nit_normalizado = self._normalizar_nit(nit)
+
+        # Buscar asignaciones que coincidan con el NIT normalizado
+        # Normalizamos los NITs de la BD en la query para comparar
+        asignaciones = self.db.query(AsignacionNitResponsable).filter(
+            AsignacionNitResponsable.activo == True
+        ).all()
+
+        for asig in asignaciones:
+            if self._normalizar_nit(asig.nit) == nit_normalizado:
+                return asig
+
+        return None
 
     def _crear_workflow_sin_asignacion(self, factura: Factura, nit: Optional[str]) -> Dict[str, Any]:
         """Crea un workflow para factura sin asignación de responsable."""
