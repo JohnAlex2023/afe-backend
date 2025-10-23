@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.db.session import get_db
+from app.core.security import get_current_responsable
 from app.services.workflow_automatico import WorkflowAutomaticoService
 from app.services.notificaciones import NotificacionService
 from app.models.workflow_aprobacion import (
@@ -428,7 +429,8 @@ def listar_workflows(
 @router.get("/dashboard")
 def obtener_dashboard_workflow(
     responsable_id: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_responsable)
 ):
     """
     Dashboard de seguimiento del workflow de facturas.
@@ -441,11 +443,17 @@ def obtener_dashboard_workflow(
     - Facturas rechazadas
 
     ENTERPRISE: Soporte para múltiples responsables por NIT.
-    Si se especifica responsable_id, retorna estadísticas de TODOS
-    los proveedores asignados a ese responsable (matching por NIT).
+    - Si es RESPONSABLE: Automáticamente filtra por sus NITs asignados
+    - Si es ADMIN sin responsable_id: Muestra TODAS las facturas
+    - Si es ADMIN con responsable_id: Filtra por ese responsable
     """
     from sqlalchemy import func
     from app.crud.factura import _obtener_proveedor_ids_de_responsable
+
+    # ENTERPRISE: Detectar automáticamente si es responsable
+    # Si el usuario tiene rol 'responsable', filtrar automáticamente por sus NITs
+    if hasattr(current_user, 'role') and current_user.role.nombre == 'responsable':
+        responsable_id = current_user.id
 
     # ENTERPRISE: Usar tabla Factura en lugar de WorkflowAprobacionFactura
     # para soporte de múltiples responsables por NIT
