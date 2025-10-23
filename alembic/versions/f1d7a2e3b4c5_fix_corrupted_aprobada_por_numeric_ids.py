@@ -32,24 +32,22 @@ def upgrade() -> None:
     session = Session(bind=bind)
 
     try:
-        # Fix aprobada_por
+        # Fix aprobada_por (MySQL syntax)
         query_aprobada = text("""
             UPDATE workflow_aprobacion_facturas waf
-            SET aprobada_por = r.nombre
-            FROM responsables r
-            WHERE waf.aprobada_por ~ '^[0-9]+$'
-            AND CAST(waf.aprobada_por AS INTEGER) = r.id
+            INNER JOIN responsables r ON CAST(waf.aprobada_por AS UNSIGNED) = r.id
+            SET waf.aprobada_por = r.nombre
+            WHERE waf.aprobada_por REGEXP '^[0-9]+$'
             AND waf.aprobada = true
         """)
         session.execute(query_aprobada)
 
-        # Fix rechazada_por
+        # Fix rechazada_por (MySQL syntax)
         query_rechazada = text("""
             UPDATE workflow_aprobacion_facturas waf
-            SET rechazada_por = r.nombre
-            FROM responsables r
-            WHERE waf.rechazada_por ~ '^[0-9]+$'
-            AND CAST(waf.rechazada_por AS INTEGER) = r.id
+            INNER JOIN responsables r ON CAST(waf.rechazada_por AS UNSIGNED) = r.id
+            SET waf.rechazada_por = r.nombre
+            WHERE waf.rechazada_por REGEXP '^[0-9]+$'
             AND waf.rechazada = true
         """)
         session.execute(query_rechazada)
