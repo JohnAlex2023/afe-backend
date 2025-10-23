@@ -23,6 +23,7 @@ from app.models.workflow_aprobacion import (
     NotificacionWorkflow,
     EstadoFacturaWorkflow
 )
+from app.models.factura import Factura, EstadoFactura
 
 
 router = APIRouter(prefix="/workflow", tags=["Workflow Aprobación"])
@@ -438,63 +439,91 @@ def obtener_dashboard_workflow(
     - Facturas pendientes de revisión
     - Tiempo promedio de aprobación
     - Facturas rechazadas
+
+    ENTERPRISE: Soporte para múltiples responsables por NIT.
+    Si se especifica responsable_id, retorna estadísticas de TODOS
+    los proveedores asignados a ese responsable (matching por NIT).
     """
     from sqlalchemy import func
+    from app.crud.factura import _obtener_proveedor_ids_de_responsable
 
-    query = db.query(WorkflowAprobacionFactura)
+    # ENTERPRISE: Usar tabla Factura en lugar de WorkflowAprobacionFactura
+    # para soporte de múltiples responsables por NIT
+    query = db.query(Factura)
 
     if responsable_id:
-        query = query.filter(WorkflowAprobacionFactura.responsable_id == responsable_id)
+        # Obtener proveedores asignados al responsable (con normalización de NITs)
+        proveedor_ids = _obtener_proveedor_ids_de_responsable(db, responsable_id)
 
-    # Contar por estado
+        if not proveedor_ids:
+            # Sin proveedores asignados, retornar estadísticas vacías
+            return {
+                "total_pendientes": 0,
+                "total_en_revision": 0,
+                "total_aprobadas": 0,
+                "total_aprobadas_auto": 0,
+                "total_rechazadas": 0,
+                "pendientes_antiguas": 0,
+                "tiempo_promedio_aprobacion_horas": 0,
+                "tasa_aprobacion_automatica": 0,
+                "facturas_por_estado": {},
+                "total_aprobadas_automaticamente": 0,
+                "total_aprobadas_manualmente": 0,
+                "total_pendientes_revision": 0,
+                "pendientes_hace_mas_3_dias": 0,
+                "tiempo_promedio_aprobacion_segundos": 0,
+            }
+
+        # Filtrar por proveedores asignados
+        query = query.filter(Factura.proveedor_id.in_(proveedor_ids))
+
+    # Contar por estado (usando tabla Factura)
     facturas_por_estado = {}
-    for estado in EstadoFacturaWorkflow:
-        count = query.filter(WorkflowAprobacionFactura.estado == estado).count()
+    for estado in EstadoFactura:
+        count = query.filter(Factura.estado == estado).count()
         facturas_por_estado[estado.value] = count
 
     # Estadísticas de aprobación
     total_aprobadas_auto = query.filter(
-        WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.APROBADA_AUTO
+        Factura.estado == EstadoFactura.aprobada_auto
     ).count()
 
     total_aprobadas_manual = query.filter(
-        WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.APROBADA_MANUAL
+        Factura.estado == EstadoFactura.aprobada
     ).count()
 
     total_rechazadas = query.filter(
-        WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.RECHAZADA
+        Factura.estado == EstadoFactura.rechazada
     ).count()
 
-    total_pendientes = query.filter(
-        WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.PENDIENTE_REVISION
-    ).count()
+    # NOTA: "pendiente" fue eliminado en refactorización reciente
+    total_pendientes = 0
 
     total_en_revision = query.filter(
-        WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.EN_REVISION
+        Factura.estado == EstadoFactura.en_revision
     ).count()
 
     # Total de aprobadas (manual + auto)
     total_aprobadas = total_aprobadas_auto + total_aprobadas_manual
 
-    # Tiempo promedio de aprobación
-    tiempo_promedio = db.query(
-        func.avg(WorkflowAprobacionFactura.tiempo_total_aprobacion)
-    ).filter(
-        WorkflowAprobacionFactura.aprobada == True
-    ).scalar() or 0
+    # Tiempo promedio de aprobación (no disponible en tabla Factura)
+    # Mantener en 0 por ahora
+    tiempo_promedio = 0
 
-    # Facturas pendientes hace más de 3 días
+    # Facturas en revisión hace más de 3 días
     from datetime import datetime, timedelta
     fecha_limite = datetime.now() - timedelta(days=3)
 
     pendientes_antiguas = query.filter(
-        WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.PENDIENTE_REVISION,
-        WorkflowAprobacionFactura.fecha_cambio_estado <= fecha_limite
+        Factura.estado == EstadoFactura.en_revision,
+        Factura.fecha_emision <= fecha_limite
     ).count()
 
     # Calcular tasa de aprobación automática
-    total_facturas = total_aprobadas + total_rechazadas + total_pendientes + total_en_revision
-    tasa_aprobacion_automatica = (total_aprobadas_auto / total_facturas * 100) if total_facturas > 0 else 0
+    total_facturas = total_aprobadas + total_rechazadas + total_en_revision
+    tasa_aprobacion_automatica = (
+        (total_aprobadas_auto / total_facturas * 100) if total_facturas > 0 else 0
+    )
 
     return {
         # Campos compatibles con el frontend
