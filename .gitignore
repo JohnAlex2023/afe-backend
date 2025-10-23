@@ -33,3 +33,25 @@ alembic/versions/__pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Scripts temporales y de debug
+*_temp.py
+*_test.py
+*_debug.py
+check_*.py
+fix_*.py
+test_*.py
+diagnosticar_*.py
+
+# Documentación temporal
+FASE*.md
+IMPLEMENTACION*.md
+PLAN_*.md
+RESUMEN_*.md
+DIAGNOSTICO_*.md
+REPORTE_*.md
+ESTADO_*.md
+
+# Archivos de análisis temporal
+ANALISIS_*.md
+CARGA_*.md
