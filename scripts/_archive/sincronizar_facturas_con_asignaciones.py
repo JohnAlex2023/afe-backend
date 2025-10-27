@@ -7,6 +7,10 @@ basado en los NITs asignados en AsignacionNitResponsable.
 Uso:
     python scripts/sincronizar_facturas_con_asignaciones.py
 """
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app.db.session import SessionLocal
 from app.models.responsable import Responsable
 from app.models.workflow_aprobacion import AsignacionNitResponsable
@@ -76,11 +80,11 @@ try:
                     Responsable.id == factura.responsable_id
                 ).first() if factura.responsable_id else None
 
-                print(f"   ✓ Factura {factura.numero_factura}:")
+                print(f"   [UPDATE] Factura {factura.numero_factura}:")
                 if responsable_anterior:
-                    print(f"     De: {responsable_anterior.nombre} → A: {resp.nombre}")
+                    print(f"     De: {responsable_anterior.nombre} -> A: {resp.nombre}")
                 else:
-                    print(f"     De: (sin asignar) → A: {resp.nombre}")
+                    print(f"     De: (sin asignar) -> A: {resp.nombre}")
 
                 factura.responsable_id = resp.id
                 actualizadas_ahora += 1
@@ -96,14 +100,14 @@ try:
     db.commit()
 
     print(f"\n" + "="*80)
-    print(f"SINCRONIZACIÓN COMPLETADA")
+    print(f"SINCRONIZACION COMPLETADA")
     print(f"="*80)
     print(f"Total facturas actualizadas: {total_actualizadas}")
     print(f"Total facturas ya correctas: {total_ignoradas}")
-    print(f"✓ Cambios guardados en la base de datos")
+    print(f"[OK] Cambios guardados en la base de datos")
 
 except Exception as e:
-    print(f"\n❌ ERROR: {e}")
+    print(f"\n[ERROR] {e}")
     import traceback
     traceback.print_exc()
     db.rollback()

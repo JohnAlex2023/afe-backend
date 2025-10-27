@@ -12,8 +12,8 @@ from sqlalchemy import distinct
 
 db = SessionLocal()
 try:
-    # 1. Obtener el responsable admin (alex.taimal)
-    admin = db.query(Responsable).filter(Responsable.usuario == 'alex.taimal').first()
+    # 1. Obtener el responsable admin ()
+    admin = db.query(Responsable).filter(Responsable.usuario == '').first()
     if not admin:
         print("ERROR: No se encontró el responsable admin")
         exit(1)
