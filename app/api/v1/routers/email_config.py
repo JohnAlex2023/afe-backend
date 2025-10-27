@@ -230,11 +230,18 @@ def crear_nits_bulk(
     current_user = Depends(require_role("admin")),
 ):
     """
-    Agrega múltiples NITs a una cuenta de correo en una sola operación.
+    Agrega múltiples NITs a una cuenta con NORMALIZACIÓN AUTOMÁTICA.
+
+    **NORMALIZACIÓN AUTOMÁTICA:**
+    - Acepta NITs en cualquier formato: "800185449", "800.185.449", "800185449-9", etc.
+    - Calcula automáticamente el dígito verificador DIAN usando algoritmo módulo 11
+    - Almacena todos los NITs en formato normalizado: "XXXXXXXXX-D"
+    - Reporta errores de validación para NITs inválidos
 
     **Manejo de duplicados:**
     - Los NITs duplicados se ignoran y se reportan
     - La operación es atómica: se agregan todos los NITs válidos no duplicados
+    - Valida que cada NIT sea correcto antes de almacenar
     """
     # Verificar que la cuenta existe
     cuenta = crud.get_cuenta_correo(db, bulk_data.cuenta_correo_id)
@@ -255,7 +262,8 @@ def crear_nits_bulk(
         bulk_data.creado_por
     )
 
-    fallidos = len(bulk_data.nits) - agregados - duplicados
+    # Calcular fallidos desde los detalles
+    fallidos = sum(1 for d in detalles if d["status"] == "error")
 
     return BulkNitsResponse(
         cuenta_correo_id=bulk_data.cuenta_correo_id,

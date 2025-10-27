@@ -13,7 +13,7 @@ from datetime import datetime
 
 class NitConfiguracionBase(BaseModel):
     """Base para configuración de NIT"""
-    nit: str = Field(..., min_length=5, max_length=20, description="NIT del proveedor (solo números)")
+    nit: str = Field(..., min_length=5, max_length=20, description="NIT del proveedor (formato: XXXXXXXXX-D con dígito verificador)")
     nombre_proveedor: Optional[str] = Field(None, max_length=255, description="Nombre del proveedor (opcional)")
     activo: bool = Field(True, description="Si este NIT está activo para filtrado")
     notas: Optional[str] = Field(None, max_length=500)
@@ -21,13 +21,22 @@ class NitConfiguracionBase(BaseModel):
     @field_validator('nit')
     @classmethod
     def validate_nit(cls, v: str) -> str:
-        """Valida que el NIT solo contenga dígitos"""
+        """Valida que el NIT tenga formato normalizado XXXXXXXXX-D o sea numérico sin guión"""
+        import re
         cleaned = v.strip()
-        if not cleaned.isdigit():
-            raise ValueError("El NIT debe contener solo números")
-        if len(cleaned) < 5 or len(cleaned) > 20:
-            raise ValueError("El NIT debe tener entre 5 y 20 dígitos")
-        return cleaned
+
+        # Permite dos formatos:
+        # 1. Formato normalizado: "XXXXXXXXX-D" (9 dígitos + guión + 1 dígito)
+        # 2. Formato numérico: solo dígitos (para compatibilidad con entrada antigua)
+
+        if re.match(r'^\d{9}-\d$', cleaned):
+            # Formato normalizado: XXXXXXXXX-D
+            return cleaned
+        elif cleaned.isdigit() and 5 <= len(cleaned) <= 9:
+            # Formato numérico sin DV (para compatibilidad)
+            return cleaned
+        else:
+            raise ValueError(f"NIT inválido: debe ser 'XXXXXXXXX-D' o solo dígitos (5-9)")
 
 
 class NitConfiguracionCreate(NitConfiguracionBase):
@@ -212,7 +221,7 @@ class BulkNitsCreate(BaseModel):
     """Schema para agregar múltiples NITs a una cuenta"""
     cuenta_correo_id: int = Field(..., gt=0)
     nits: List[str] = Field(..., min_length=1, description="Lista de NITs a agregar")
-    creado_por: str = Field(..., min_length=1, max_length=100)
+    creado_por: Optional[str] = Field(None, min_length=1, max_length=100)
 
     @field_validator('nits')
     @classmethod

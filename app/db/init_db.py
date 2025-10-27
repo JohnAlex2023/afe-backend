@@ -22,7 +22,7 @@ def create_default_roles_and_admin(db: Session):
         admin_role = db.query(Role).filter(Role.nombre == "admin").first()
 
         admin = Responsable(
-            usuario="alex.taimal",
+            usuario="",
             nombre="John Alex",
             email="jhontaimal@gmail.com",
             hashed_password=hash_password("87654321"),

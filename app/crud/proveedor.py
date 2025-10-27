@@ -2,7 +2,8 @@
 from sqlalchemy.orm import Session
 from app.models.proveedor import Proveedor
 from app.schemas.proveedor import ProveedorBase
-from app.utils.normalizacion import normalizar_nit, normalizar_email, normalizar_razon_social
+from app.utils.nit_validator import NitValidator
+from app.utils.normalizacion import normalizar_email, normalizar_razon_social
 from typing import Optional, List
 
 def get_proveedor(db: Session, proveedor_id: int) -> Optional[Proveedor]:
@@ -15,7 +16,11 @@ def create_proveedor(db: Session, data: ProveedorBase) -> Proveedor:
     # Normalizar datos antes de crear
     data_dict = data.dict()
     if 'nit' in data_dict and data_dict['nit']:
-        data_dict['nit'] = normalizar_nit(data_dict['nit'])
+        # Usar NitValidator para normalizar NITs con cálculo automático de DV
+        es_valido, nit_normalizado = NitValidator.validar_nit(data_dict['nit'])
+        if es_valido:
+            data_dict['nit'] = nit_normalizado
+        # Si no es válido, dejar el valor original (dejará que BD valide o rechace)
     if 'contacto_email' in data_dict and data_dict['contacto_email']:
         data_dict['contacto_email'] = normalizar_email(data_dict['contacto_email'])
     if 'razon_social' in data_dict and data_dict['razon_social']:
@@ -27,7 +32,9 @@ def create_proveedor(db: Session, data: ProveedorBase) -> Proveedor:
     db.refresh(obj)
     return obj
 
-def update_proveedor(db: Session, proveedor_id: int, data: ProveedorBase) -> Optional[Proveedor]:
+def update_proveedor(
+    db: Session, proveedor_id: int, data: ProveedorBase
+) -> Optional[Proveedor]:
     proveedor = db.query(Proveedor).filter(Proveedor.id == proveedor_id).first()
     if not proveedor:
         return None
@@ -35,7 +42,11 @@ def update_proveedor(db: Session, proveedor_id: int, data: ProveedorBase) -> Opt
     # Normalizar datos antes de actualizar
     data_dict = data.dict(exclude_unset=True)
     if 'nit' in data_dict and data_dict['nit']:
-        data_dict['nit'] = normalizar_nit(data_dict['nit'])
+        # Usar NitValidator para normalizar NITs con cálculo automático de DV
+        es_valido, nit_normalizado = NitValidator.validar_nit(data_dict['nit'])
+        if es_valido:
+            data_dict['nit'] = nit_normalizado
+        # Si no es válido, dejar el valor original (dejará que BD valide o rechace)
     if 'contacto_email' in data_dict and data_dict['contacto_email']:
         data_dict['contacto_email'] = normalizar_email(data_dict['contacto_email'])
     if 'razon_social' in data_dict and data_dict['razon_social']:

@@ -1,40 +1,47 @@
 """
-Script para resetear la contraseña de un usuario.
+Script para resetear la contraseña de un responsable.
+Uso: python scripts/reset_password.py <usuario_o_email> <nueva_password>
 """
+import sys
 from passlib.context import CryptContext
-from app.core.database import SessionLocal
-from app.models.usuario import Usuario
+from app.db.session import SessionLocal
+from app.models.responsable import Responsable
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 db = SessionLocal()
 
 try:
-    # Buscar usuario
-    usuario = db.query(Usuario).filter(Usuario.usuario == "alex.taimal").first()
+    # Obtener argumentos
+    usuario_input = sys.argv[1] if len(sys.argv) > 1 else "alexander.taimal"
+    nueva_password = sys.argv[2] if len(sys.argv) > 2 else "12345678"
 
-    if not usuario:
-        print(" Usuario alex.taimal no encontrado")
+    # Buscar responsable por usuario o email
+    responsable = db.query(Responsable).filter(
+        (Responsable.usuario == usuario_input) | (Responsable.email == usuario_input)
+    ).first()
+
+    if not responsable:
+        print(f" Responsable '{usuario_input}' no encontrado")
     else:
-        # Generar nuevo hash con la contraseña 'zentria2025'
-        nueva_password = "zentria2025"
+        # Generar nuevo hash
         nuevo_hash = pwd_context.hash(nueva_password)
 
-        print(f"Usuario encontrado: {usuario.nombre}")
-        print(f"Hash anterior: {usuario.password_hash[:50]}...")
+        print(f"Responsable encontrado: {responsable.nombre}")
+        print(f"Hash anterior: {responsable.hashed_password[:50]}...")
         print(f"Hash nuevo:    {nuevo_hash[:50]}...")
 
         # Actualizar
-        usuario.password_hash = nuevo_hash
+        responsable.hashed_password = nuevo_hash
         db.commit()
 
         # Verificar
-        es_valida = pwd_context.verify(nueva_password, usuario.password_hash)
+        es_valida = pwd_context.verify(nueva_password, responsable.hashed_password)
         print(f"\n  Contraseña actualizada exitosamente!")
         print(f"   Verificación: {'  VÁLIDA' if es_valida else ' INVÁLIDA'}")
         print(f"\n🔑 Credenciales:")
-        print(f"   Usuario: alex.taimal")
-        print(f"   Contraseña: zentria2025")
+        print(f"   Usuario: {responsable.usuario}")
+        print(f"   Contraseña: {nueva_password}")
 
 except Exception as e:
     print(f" Error: {e}")

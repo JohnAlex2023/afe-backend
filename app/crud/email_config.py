@@ -17,6 +17,7 @@ from app.schemas.email_config import (
     NitConfiguracionUpdate,
     HistorialExtraccionCreate,
 )
+from app.utils.nit_validator import nit_validator
 
 
 # ==================== CRUD Cuenta Correo ====================
@@ -218,35 +219,70 @@ def bulk_create_nits(
     creado_por: str
 ) -> Tuple[int, int, List[dict]]:
     """
-    Crea múltiples NITs en una cuenta.
+    Crea múltiples NITs en una cuenta con NORMALIZACIÓN AUTOMÁTICA.
+
+    NORMALIZACIÓN:
+    - Acepta NITs en cualquier formato: "800185449", "800.185.449", "800185449-9", etc.
+    - Calcula automáticamente el dígito verificador DIAN (módulo 11)
+    - Almacena todos los NITs en formato normalizado: "XXXXXXXXX-D"
+    - Valida que cada NIT sea correcto
 
     Returns:
-        Tuple[agregados, duplicados, detalles]
+        Tuple[agregados, duplicados, fallidos, detalles]
     """
     agregados = 0
     duplicados = 0
+    fallidos = 0
     detalles = []
 
-    for nit in nits:
-        # Verificar si ya existe
-        existing = get_nit_by_cuenta_and_nit(db, cuenta_id, nit)
-        if existing:
-            duplicados += 1
-            detalles.append({"nit": nit, "status": "duplicado", "id": existing.id})
-        else:
-            try:
+    for nit_raw in nits:
+        try:
+            # PASO 1: Normalizar el NIT con cálculo automático del DV
+            nit_normalizado = nit_validator.normalizar_nit(nit_raw)
+
+            # PASO 2: Verificar si ya existe en esta cuenta
+            existing = get_nit_by_cuenta_and_nit(db, cuenta_id, nit_normalizado)
+            if existing:
+                duplicados += 1
+                detalles.append({
+                    "nit_original": nit_raw.strip(),
+                    "nit_normalizado": nit_normalizado,
+                    "status": "duplicado",
+                    "id": existing.id
+                })
+            else:
+                # PASO 3: Crear el NIT en BD con formato normalizado
                 db_nit = NitConfiguracion(
                     cuenta_correo_id=cuenta_id,
-                    nit=nit,
+                    nit=nit_normalizado,  # Almacena formato "XXXXXXXXX-D"
                     activo=True,
                     creado_por=creado_por,
                 )
                 db.add(db_nit)
                 db.flush()
                 agregados += 1
-                detalles.append({"nit": nit, "status": "agregado", "id": db_nit.id})
-            except Exception as e:
-                detalles.append({"nit": nit, "status": "error", "mensaje": str(e)})
+                detalles.append({
+                    "nit_original": nit_raw.strip(),
+                    "nit_normalizado": nit_normalizado,
+                    "status": "agregado",
+                    "id": db_nit.id
+                })
+        except ValueError as ve:
+            # NIT inválido
+            fallidos += 1
+            detalles.append({
+                "nit_original": nit_raw.strip(),
+                "status": "error",
+                "mensaje": str(ve)
+            })
+        except Exception as e:
+            # Otros errores
+            fallidos += 1
+            detalles.append({
+                "nit_original": nit_raw.strip(),
+                "status": "error",
+                "mensaje": f"Error inesperado: {str(e)}"
+            })
 
     db.commit()
     return agregados, duplicados, detalles

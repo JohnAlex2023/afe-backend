@@ -13,10 +13,6 @@ from typing import List, Optional, Dict, Any
 from pathlib import Path
 
 from app.core.config import settings
-from app.services.microsoft_graph_email_service import (
-    get_graph_email_service,
-    MicrosoftGraphEmailService
-)
 from app.services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
@@ -38,20 +34,8 @@ class UnifiedEmailService:
 
         # Inicializar Graph si está configurado
         if self._is_graph_configured():
-            try:
-                self.graph_service = get_graph_email_service(
-                    tenant_id=settings.graph_tenant_id,
-                    client_id=settings.graph_client_id,
-                    client_secret=settings.graph_client_secret,
-                    from_email=settings.graph_from_email,
-                    from_name=settings.graph_from_name
-                )
-                logger.info("  Microsoft Graph Email Service inicializado")
-            except Exception as e:
-                logger.error(
-                    f"  ERROR CRITICO inicializando Graph service: {str(e)}",
-                    exc_info=True
-                )
+            logger.warning("  Microsoft Graph Email Service deshabilitado (servicio eliminado durante limpieza)")
+            self.graph_service = None
 
         # Inicializar SMTP si está configurado
         if self._is_smtp_configured():
@@ -243,20 +227,8 @@ class UnifiedEmailService:
 
         # Inicializar Graph si está configurado
         if self._is_graph_configured():
-            try:
-                self.graph_service = get_graph_email_service(
-                    tenant_id=settings.graph_tenant_id,
-                    client_id=settings.graph_client_id,
-                    client_secret=settings.graph_client_secret,
-                    from_email=settings.graph_from_email,
-                    from_name=settings.graph_from_name
-                )
-                logger.info("Graph service reinicializado exitosamente")
-            except Exception as e:
-                logger.error(
-                    f"Error reinicializando Graph service: {str(e)}",
-                    exc_info=True
-                )
+            logger.warning("Graph service deshabilitado (servicio eliminado durante limpieza)")
+            self.graph_service = None
 
         # Inicializar SMTP si está configurado
         if self._is_smtp_configured():
