@@ -17,6 +17,7 @@ Refactorizado: 2025-10-10
 Arquitecto: Senior Backend Development Team
 """
 
+import logging
 from typing import Optional, Dict, Any, List, Tuple
 from decimal import Decimal
 from datetime import datetime, timedelta
@@ -36,6 +37,8 @@ from app.utils.nit_validator import NitValidator
 from app.services.comparador_items import ComparadorItemsService
 from app.services.clasificacion_proveedores import ClasificacionProveedoresService
 
+logger = logging.getLogger(__name__)
+
 
 class WorkflowAutomaticoService:
     """
@@ -47,8 +50,23 @@ class WorkflowAutomaticoService:
 
     def __init__(self, db: Session):
         self.db = db
-        self.comparador = ComparadorItemsService(db)
-        self.clasificador = ClasificacionProveedoresService(db)
+        try:
+            self.comparador = ComparadorItemsService(db)
+        except Exception as e:
+            logger.error(
+                f"❌ Error inicializando ComparadorItemsService: {str(e)}",
+                exc_info=True
+            )
+            self.comparador = None
+
+        try:
+            self.clasificador = ClasificacionProveedoresService(db)
+        except Exception as e:
+            logger.error(
+                f"❌ Error inicializando ClasificacionProveedoresService: {str(e)}",
+                exc_info=True
+            )
+            self.clasificador = None
 
     # ============================================================================
     # SINCRONIZACIÓN DE ESTADOS (Enterprise Pattern)
