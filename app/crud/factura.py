@@ -1,7 +1,7 @@
 #app/crud/factura.py
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any, Tuple
-from sqlalchemy import and_, func, desc, or_
+from sqlalchemy import and_, func, desc, or_, distinct
 from datetime import datetime, date
 
 from app.models.factura import Factura, EstadoFactura
@@ -18,8 +18,8 @@ def _obtener_proveedor_ids_de_responsable(db: Session, responsable_id: int) -> L
     Obtiene los IDs de proveedores cuyos NITs están asignados al responsable.
 
     ENTERPRISE PATTERN (OPTIMIZED):
-    - Ahora todos los NITs están normalizados en BD (formato "XXXXXXXXX-D")
-    - Búsqueda directa en SQL usando IN clause
+    - Busca NITs asignados explícitamente en AsignacionNitResponsable
+    - Si no hay asignaciones, retorna todos los proveedores (fallback para compatibilidad)
     - Compatible con MySQL/PostgreSQL
 
     Returns:
@@ -33,15 +33,24 @@ def _obtener_proveedor_ids_de_responsable(db: Session, responsable_id: int) -> L
 
     nits_asignados = [nit for (nit,) in asignaciones if nit]
 
-    if not nits_asignados:
-        return []
+    # Si hay asignaciones explícitas, filtrar por ellas
+    if nits_asignados:
+        # Búsqueda directa: todos los NITs están normalizados en BD
+        proveedor_ids = db.query(Proveedor.id).filter(
+            Proveedor.nit.in_(nits_asignados)
+        ).all()
+        return [prov_id for (prov_id,) in proveedor_ids]
 
-    # Búsqueda directa: todos los NITs están normalizados en BD
-    proveedor_ids = db.query(Proveedor.id).filter(
-        Proveedor.nit.in_(nits_asignados)
+    # Si NO hay asignaciones explícitas, usar las facturas asignadas al responsable
+    # Esta es una fallback para soportar ambos modelos:
+    # - Modelo 1: NITs asignados explícitamente en AsignacionNitResponsable
+    # - Modelo 2: Facturas asignadas directamente al responsable en Factura.responsable_id
+    facturas_del_responsable = db.query(distinct(Factura.proveedor_id)).filter(
+        Factura.responsable_id == responsable_id,
+        Factura.proveedor_id.isnot(None)
     ).all()
 
-    return [prov_id for (prov_id,) in proveedor_ids]
+    return [prov_id for (prov_id,) in facturas_del_responsable]
 
 
 def obtener_responsables_de_nit(db: Session, nit: str) -> List:
