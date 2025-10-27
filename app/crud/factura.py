@@ -204,26 +204,16 @@ def count_facturas(
     """
     Cuenta el total de facturas que coinciden con los filtros.
 
-    ENTERPRISE (MULTI-RESPONSABLE): Si se filtra por responsable_id:
-    - NUEVO: Filtra por WorkflowAprobacionFactura (arquitectura multi-responsable)
-      * Un responsable cuenta una factura si tiene un workflow para ella
-      * Soporta correctamente múltiples responsables por NIT
-    - FALLBACK: Si no hay workflows, usa búsqueda por NITs (migración gradual)
-
-    Esto garantiza que "Facturas Asignadas" muestra solo las facturas del usuario.
+    ENTERPRISE: Si se filtra por responsable_id:
+    - Filtra directamente por responsable_id en la factura (responsable asignado)
+    - Una factura es "asignada" si tiene responsable_id = current_user.id
     """
-    # ENTERPRISE: Filtrar por facturas asignadas al responsable (via workflows)
+    # Filtrar por facturas asignadas al responsable
+    # Filtrar directamente por responsable_id en la factura
+    query = db.query(func.count(Factura.id))
+
     if responsable_id:
-        factura_ids = _obtener_factura_ids_de_responsable(db, responsable_id, usar_workflow=True)
-
-        if not factura_ids:
-            return 0  # Sin facturas asignadas
-
-        # Contar facturas por IDs (eficiente, compatible con MySQL/PostgreSQL)
-        query = db.query(func.count(Factura.id)).filter(Factura.id.in_(factura_ids))
-    else:
-        # Sin filtro de responsable, contar todas
-        query = db.query(func.count(Factura.id))
+        query = query.filter(Factura.responsable_id == responsable_id)
 
     if nit:
         query = query.join(Proveedor).filter(Proveedor.nit == nit)
@@ -265,15 +255,10 @@ def list_facturas(
         selectinload(Factura.workflow_history)
     )
 
-    # ENTERPRISE: Filtrar por facturas asignadas al responsable (via workflows)
+    # ENTERPRISE: Filtrar por facturas asignadas al responsable
+    # Filtrar directamente por responsable_id en la factura
     if responsable_id:
-        factura_ids = _obtener_factura_ids_de_responsable(db, responsable_id, usar_workflow=True)
-
-        if not factura_ids:
-            return []  # Sin facturas asignadas
-
-        # Filtrar por IDs de facturas
-        query = query.filter(Factura.id.in_(factura_ids))
+        query = query.filter(Factura.responsable_id == responsable_id)
 
     if nit:
         query = query.join(Proveedor).filter(Proveedor.nit == nit)
