@@ -1268,3 +1268,145 @@ def get_export_info(
     )
 
     return metadata
+
+
+# =====================================================
+# MANUAL TRIGGER FOR AUTOMATION (TESTING/ADMIN ONLY)
+# =====================================================
+@router.post(
+    "/admin/trigger-automation",
+    summary="Trigger automation scheduler manually",
+    description="Admin-only endpoint to manually trigger the automation scheduler for testing purposes. Processes pending facturas and creates workflows."
+)
+def trigger_automation_manually(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin"))
+):
+    """
+    Manually triggers the automation scheduler.
+
+    This endpoint is useful for testing workflow automation without waiting for the scheduled hourly execution.
+    It executes the same logic as the background scheduler:
+    1. Creates workflows for facturas that don't have them yet
+    2. Processes automation decisions (approve/reject/send to review)
+
+    Admin only.
+    """
+    try:
+        from app.services.workflow_automatico import WorkflowAutomaticoService
+        from app.services.automation.automation_service import AutomationService
+        from app.models.factura import Factura
+        from app.models.workflow_aprobacion import WorkflowAprobacionFactura
+
+        logger.info(f"🚀 MANUAL AUTOMATION TRIGGER initiated by admin {current_user.usuario}")
+
+        # PHASE 1: Get statistics BEFORE automation
+        total_facturas = db.query(Factura).count()
+        total_workflows_before = db.query(WorkflowAprobacionFactura).count()
+
+        facturas_sin_workflow = db.query(Factura).filter(
+            ~Factura.id.in_(
+                db.query(WorkflowAprobacionFactura.factura_id)
+            )
+        ).all()
+
+        facturas_sin_workflow_count = len(facturas_sin_workflow)
+
+        logger.info(
+            f"📊 BEFORE automation: "
+            f"Total facturas: {total_facturas}, "
+            f"Workflows: {total_workflows_before}, "
+            f"Sin workflow: {facturas_sin_workflow_count}"
+        )
+
+        # PHASE 2: Create workflows for facturas without them
+        logger.info(f"📋 [FASE 1] Creando workflows para {facturas_sin_workflow_count} facturas...")
+        workflow_service = WorkflowAutomaticoService(db)
+
+        workflows_creados = 0
+        workflows_fallidos = 0
+
+        for idx, factura in enumerate(facturas_sin_workflow[:100], 1):  # Limit to 100 per execution
+            try:
+                resultado = workflow_service.procesar_factura_nueva(factura.id)
+                if resultado.get('exito'):
+                    workflows_creados += 1
+                    if idx <= 5:  # Log first 5 only
+                        logger.info(f"  ✅ Workflow creado para factura {factura.id}")
+                else:
+                    workflows_fallidos += 1
+                    if idx <= 5:
+                        logger.warning(f"  ⚠️  Workflow falló para factura {factura.id}: {resultado.get('error')}")
+            except Exception as e:
+                workflows_fallidos += 1
+                if idx <= 5:
+                    logger.error(f"  ❌ Error creando workflow para factura {factura.id}: {str(e)}")
+
+        if workflows_creados > 0:
+            db.commit()
+
+        logger.info(f"✅ [FASE 1] Completada: {workflows_creados} creados, {workflows_fallidos} fallidos")
+
+        # PHASE 3: Run automation decisions
+        logger.info(f"⚙️  [FASE 2] Procesando automatización de facturas...")
+        automation = AutomationService()
+        automation_resultado = automation.procesar_facturas_pendientes(
+            db=db,
+            limite_facturas=100,
+            modo_debug=False
+        )
+
+        logger.info(
+            f"✅ [FASE 2] Completada: "
+            f"{automation_resultado['aprobadas_automaticamente']} aprobadas, "
+            f"{automation_resultado['enviadas_revision']} a revisión, "
+            f"{automation_resultado['errores']} errores"
+        )
+
+        # PHASE 4: Get statistics AFTER automation
+        total_workflows_after = db.query(WorkflowAprobacionFactura).count()
+
+        logger.info(f"✅ MANUAL AUTOMATION TRIGGER completed by admin {current_user.usuario}")
+
+        return {
+            "status": "success",
+            "message": "Automation scheduler executed successfully",
+            "timestamp": datetime.utcnow().isoformat(),
+            "triggered_by": current_user.usuario,
+            "statistics": {
+                "before": {
+                    "total_facturas": total_facturas,
+                    "workflows": total_workflows_before,
+                    "sin_workflow": facturas_sin_workflow_count
+                },
+                "after": {
+                    "total_facturas": db.query(Factura).count(),
+                    "workflows": total_workflows_after,
+                    "sin_workflow": db.query(Factura).filter(
+                        ~Factura.id.in_(
+                            db.query(WorkflowAprobacionFactura.factura_id)
+                        )
+                    ).count()
+                },
+                "fase_1": {
+                    "workflows_creados": workflows_creados,
+                    "workflows_fallidos": workflows_fallidos
+                },
+                "fase_2": {
+                    "aprobadas_automaticamente": automation_resultado['aprobadas_automaticamente'],
+                    "enviadas_revision": automation_resultado['enviadas_revision'],
+                    "errores": automation_resultado['errores']
+                }
+            }
+        }
+
+    except Exception as e:
+        logger.error(
+            f"❌ Error in manual automation trigger: {str(e)}",
+            exc_info=True,
+            extra={"admin_user": current_user.usuario}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error executing automation: {str(e)}"
+        )
