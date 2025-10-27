@@ -32,6 +32,7 @@ from app.models.workflow_aprobacion import (
     TipoAprobacion,
     TipoNotificacion
 )
+from app.utils.nit_validator import NitValidator
 from app.services.comparador_items import ComparadorItemsService
 from app.services.clasificacion_proveedores import ClasificacionProveedoresService
 
@@ -128,48 +129,67 @@ class WorkflowAutomaticoService:
         # 3. Extraer NIT del proveedor
         nit = self._extraer_nit(factura)
 
-        # 4. Buscar asignación de responsable
-        asignacion = self._buscar_asignacion_responsable(nit)
+        # 4. Buscar TODAS las asignaciones de responsables para este NIT
+        # ENTERPRISE: Un NIT puede estar asignado a múltiples responsables
+        asignaciones = self._buscar_todas_asignaciones_responsable(nit)
 
-        if not asignacion:
+        if not asignaciones:
             return self._crear_workflow_sin_asignacion(factura, nit)
 
-        # 4.5 NUEVO: Clasificación automática del proveedor (si no está clasificado)
-        self._asegurar_clasificacion_proveedor(asignacion)
+        # 5. CREAR WORKFLOWS PARA CADA RESPONSABLE ASIGNADO AL NIT
+        # Patrón: Cuando múltiples responsables tienen el NIT asignado,
+        # todos reciben la misma factura. Cambios de estado se sincronizan entre todos.
 
-        # 5. Crear workflow inicial
-        workflow = WorkflowAprobacionFactura(
-            factura_id=factura.id,
-            estado=EstadoFacturaWorkflow.RECIBIDA,
-            nit_proveedor=nit,
-            responsable_id=asignacion.responsable_id,
-            area_responsable=asignacion.area,
-            fecha_asignacion=datetime.now(),
-            creado_en=datetime.now(),
-            creado_por="SISTEMA_AUTO"
-        )
+        workflows_creados = []
+        responsable_ids = []
 
-        # 🔥 IMPORTANTE: Asignar responsable directamente a la factura (sincronización bidireccional)
-        factura.responsable_id = asignacion.responsable_id
+        for asignacion in asignaciones:
+            # 4.5 NUEVO: Clasificación automática del proveedor (si no está clasificado)
+            self._asegurar_clasificacion_proveedor(asignacion)
 
-        self.db.add(workflow)
+            # 5. Crear workflow para este responsable
+            workflow = WorkflowAprobacionFactura(
+                factura_id=factura.id,
+                estado=EstadoFacturaWorkflow.RECIBIDA,
+                nit_proveedor=nit,
+                responsable_id=asignacion.responsable_id,
+                area_responsable=asignacion.area,
+                fecha_asignacion=datetime.now(),
+                creado_en=datetime.now(),
+                creado_por="SISTEMA_AUTO"
+            )
+
+            self.db.add(workflow)
+            workflows_creados.append({
+                "workflow_id": workflow.id,
+                "responsable_id": asignacion.responsable_id,
+                "area": asignacion.area
+            })
+            responsable_ids.append(asignacion.responsable_id)
+
+        # 🔥 IMPORTANTE: Asignar PRIMER responsable a la factura (para compatibilidad)
+        # NOTA: La factura está asignada a TODOS vía WorkflowAprobacionFactura
+        # El campo responsable_id solo tiene el primero (por compatibilidad con views existentes)
+        factura.responsable_id = asignaciones[0].responsable_id
+
+        self.db.flush()
         self.db.commit()
-        self.db.refresh(workflow)
-        self.db.refresh(factura)  # Refrescar factura para que cargue la relación responsable
+        self.db.refresh(factura)
 
-        # 6. Iniciar análisis de similitud
-        resultado_analisis = self._analizar_similitud_mes_anterior(factura, workflow, asignacion)
+        # 6. Iniciar análisis de similitud (con la primera asignación)
+        resultado_analisis = self._analizar_similitud_mes_anterior(factura, workflows_creados[0] if workflows_creados else None, asignaciones[0])
 
-        # 7. Enviar notificaciones
-        self._enviar_notificacion_inicial(workflow, factura, asignacion)
+        # 7. Enviar notificaciones a TODOS los responsables
+        for i, asignacion in enumerate(asignaciones):
+            self._enviar_notificacion_inicial(workflows_creados[i], factura, asignacion)
 
         return {
             "exito": True,
-            "workflow_id": workflow.id,
+            "workflow_ids": [w["workflow_id"] for w in workflows_creados],
             "factura_id": factura.id,
             "nit": nit,
-            "responsable_id": asignacion.responsable_id,
-            "area": asignacion.area,
+            "responsables_asignados": responsable_ids,
+            "total_responsables": len(asignaciones),
             **resultado_analisis
         }
 
@@ -190,77 +210,74 @@ class WorkflowAutomaticoService:
 
         return None
 
-    def _normalizar_nit(self, nit: str) -> str:
-        """
-        Normaliza un NIT eliminando el dígito de verificación y caracteres especiales.
-
-        Enterprise Pattern: Normalización de identificadores para matching robusto.
-
-        Ejemplos:
-            "830122566-1" -> "830122566"
-            "830.122.566-1" -> "830122566"
-            "830122566" -> "830122566"
-            "900.359.573-5" -> "900359573"
-
-        Args:
-            nit: NIT original (con o sin DV)
-
-        Returns:
-            NIT normalizado (solo dígitos del número principal, sin DV)
-        """
-        if not nit:
-            return ""
-
-        # Si tiene guión, separar el número principal del dígito de verificación
-        if "-" in nit:
-            # Tomar solo la parte antes del guión (el número principal)
-            nit_principal = nit.split("-")[0]
-        else:
-            nit_principal = nit
-
-        # Eliminar puntos y espacios
-        nit_limpio = nit_principal.replace(".", "").replace(" ", "")
-
-        # Tomar solo dígitos
-        nit_solo_digitos = "".join(c for c in nit_limpio if c.isdigit())
-
-        return nit_solo_digitos
-
-    def _buscar_asignacion_responsable(self, nit: Optional[str]) -> Optional[AsignacionNitResponsable]:
+    def _buscar_asignacion_responsable(
+        self, nit: Optional[str]
+    ) -> Optional[AsignacionNitResponsable]:
         """
         Busca la asignación de responsable para un NIT.
 
-        Enterprise Pattern: Búsqueda con normalización automática de NITs.
-        Busca tanto con NIT original como normalizado para máxima compatibilidad.
+        ENTERPRISE PATTERN (OPTIMIZED):
+        - Acepta NITs en cualquier formato (con/sin DV, con/sin puntos)
+        - Normaliza automáticamente usando NitValidator
+        - Búsqueda directa en BD (todos los NITs están normalizados)
+        - SOPORTE MÚLTIPLES RESPONSABLES: Retorna la primera asignación
+          Use _buscar_todas_asignaciones_responsable() para obtener todas
         """
         if not nit:
             return None
 
-        # 1. Intentar búsqueda exacta primero (más rápido)
+        # Normalizar el NIT usando NitValidator
+        es_valido, nit_normalizado = NitValidator.validar_nit(nit)
+
+        if not es_valido:
+            # NIT inválido, no hay asignación posible
+            return None
+
+        # Búsqueda directa: todos los NITs están normalizados en BD
+        # Retorna PRIMERA asignación (para compatibilidad con código existente)
         asignacion = self.db.query(AsignacionNitResponsable).filter(
             and_(
-                AsignacionNitResponsable.nit == nit,
+                AsignacionNitResponsable.nit == nit_normalizado,
                 AsignacionNitResponsable.activo == True
             )
-        ).first()
+        ).order_by(AsignacionNitResponsable.creado_en.asc()).first()
 
-        if asignacion:
-            return asignacion
+        return asignacion
 
-        # 2. Si no se encuentra, intentar con NIT normalizado
-        nit_normalizado = self._normalizar_nit(nit)
+    def _buscar_todas_asignaciones_responsable(
+        self, nit: Optional[str]
+    ) -> list:
+        """
+        Busca TODAS las asignaciones de responsables para un NIT.
 
-        # Buscar asignaciones que coincidan con el NIT normalizado
-        # Normalizamos los NITs de la BD en la query para comparar
+        ENTERPRISE PATTERN - MÚLTIPLES RESPONSABLES POR NIT:
+        Un NIT puede estar asignado a múltiples responsables simultáneamente.
+        Retorna TODAS las asignaciones activas para ese NIT.
+
+        Args:
+            nit: NIT del proveedor (cualquier formato)
+
+        Returns:
+            Lista de AsignacionNitResponsable (puede estar vacía)
+        """
+        if not nit:
+            return []
+
+        # Normalizar el NIT
+        es_valido, nit_normalizado = NitValidator.validar_nit(nit)
+
+        if not es_valido:
+            return []
+
+        # Retornar TODAS las asignaciones activas ordenadas por antigüedad
         asignaciones = self.db.query(AsignacionNitResponsable).filter(
-            AsignacionNitResponsable.activo == True
-        ).all()
+            and_(
+                AsignacionNitResponsable.nit == nit_normalizado,
+                AsignacionNitResponsable.activo == True
+            )
+        ).order_by(AsignacionNitResponsable.creado_en.asc()).all()
 
-        for asig in asignaciones:
-            if self._normalizar_nit(asig.nit) == nit_normalizado:
-                return asig
-
-        return None
+        return asignaciones
 
     def _crear_workflow_sin_asignacion(self, factura: Factura, nit: Optional[str]) -> Dict[str, Any]:
         """Crea un workflow para factura sin asignación de responsable."""
