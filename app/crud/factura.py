@@ -7,44 +7,25 @@ from datetime import datetime, date
 from app.models.factura import Factura, EstadoFactura
 from app.models.proveedor import Proveedor
 from app.models.workflow_aprobacion import AsignacionNitResponsable
+from app.utils.nit_validator import NitValidator
 
 
 # ==================== ENTERPRISE HELPERS ====================
-
-def _normalizar_nit(nit: str) -> str:
-    """
-    Normaliza un NIT eliminando el dígito de verificación y caracteres especiales.
-
-    Reutilizado desde WorkflowAutomaticoService para consistencia.
-    """
-    if not nit:
-        return ""
-
-    # Si tiene guión, separar el número principal del dígito de verificación
-    if "-" in nit:
-        nit_principal = nit.split("-")[0]
-    else:
-        nit_principal = nit
-
-    # Eliminar puntos y espacios
-    nit_limpio = nit_principal.replace(".", "").replace(" ", "")
-
-    # Tomar solo dígitos
-    nit_solo_digitos = "".join(c for c in nit_limpio if c.isdigit())
-
-    return nit_solo_digitos
 
 
 def _obtener_proveedor_ids_de_responsable(db: Session, responsable_id: int) -> List[int]:
     """
     Obtiene los IDs de proveedores cuyos NITs están asignados al responsable.
 
-    Enterprise Pattern: Pre-procesar matching de NITs en Python para compatibilidad MySQL/PostgreSQL.
+    ENTERPRISE PATTERN (OPTIMIZED):
+    - Ahora todos los NITs están normalizados en BD (formato "XXXXXXXXX-D")
+    - Búsqueda directa en SQL usando IN clause
+    - Compatible con MySQL/PostgreSQL
 
     Returns:
         Lista de proveedor_ids que coinciden con los NITs asignados
     """
-    # Obtener NITs asignados al responsable
+    # Obtener NITs asignados al responsable (YA están normalizados en BD)
     asignaciones = db.query(AsignacionNitResponsable.nit).filter(
         AsignacionNitResponsable.responsable_id == responsable_id,
         AsignacionNitResponsable.activo == True
@@ -55,32 +36,26 @@ def _obtener_proveedor_ids_de_responsable(db: Session, responsable_id: int) -> L
     if not nits_asignados:
         return []
 
-    # Normalizar NITs asignados
-    nits_normalizados_asignados = {_normalizar_nit(nit) for nit in nits_asignados}
-
-    # Obtener todos los proveedores con NITs
-    proveedores = db.query(Proveedor.id, Proveedor.nit).filter(
-        Proveedor.nit.isnot(None)
+    # Búsqueda directa: todos los NITs están normalizados en BD
+    proveedor_ids = db.query(Proveedor.id).filter(
+        Proveedor.nit.in_(nits_asignados)
     ).all()
 
-    # Matching en Python (compatible con cualquier DB)
-    proveedor_ids_coincidentes = []
-    for prov_id, prov_nit in proveedores:
-        if _normalizar_nit(prov_nit) in nits_normalizados_asignados:
-            proveedor_ids_coincidentes.append(prov_id)
-
-    return proveedor_ids_coincidentes
+    return [prov_id for (prov_id,) in proveedor_ids]
 
 
 def obtener_responsables_de_nit(db: Session, nit: str) -> List:
     """
-    Obtiene TODOS los responsables asignados a un NIT (con normalización).
+    Obtiene TODOS los responsables asignados a un NIT (con normalización automática).
 
-    ENTERPRISE: Permite notificar a todos los responsables cuando cambia el estado de una factura.
+    ENTERPRISE PATTERN:
+    - Acepta NITs en cualquier formato (con/sin DV, con/sin puntos)
+    - Normaliza automáticamente usando NitValidator
+    - Búsqueda directa en BD (todos los NITs están normalizados)
 
     Args:
         db: Sesión de base de datos
-        nit: NIT del proveedor (puede tener formato con/sin DV)
+        nit: NIT del proveedor (cualquier formato, se normaliza automáticamente)
 
     Returns:
         Lista de objetos Responsable asignados a ese NIT
@@ -90,22 +65,24 @@ def obtener_responsables_de_nit(db: Session, nit: str) -> List:
     if not nit:
         return []
 
-    # Normalizar el NIT buscado
-    nit_normalizado = _normalizar_nit(nit)
+    # Normalizar el NIT buscado usando NitValidator
+    es_valido, nit_normalizado = NitValidator.validar_nit(nit)
 
-    # Obtener todas las asignaciones activas
+    if not es_valido:
+        # NIT inválido, retornar lista vacía
+        return []
+
+    # Obtener todas las asignaciones activas con ese NIT normalizado
     asignaciones = db.query(AsignacionNitResponsable).filter(
+        AsignacionNitResponsable.nit == nit_normalizado,
         AsignacionNitResponsable.activo == True
     ).all()
 
-    # Matching en Python con normalización
-    responsable_ids = []
-    for asig in asignaciones:
-        if _normalizar_nit(asig.nit) == nit_normalizado:
-            responsable_ids.append(asig.responsable_id)
-
-    if not responsable_ids:
+    if not asignaciones:
         return []
+
+    # Obtener los IDs únicos de responsables
+    responsable_ids = [asig.responsable_id for asig in asignaciones]
 
     # Obtener los objetos Responsable completos
     responsables = db.query(Responsable).filter(
@@ -246,10 +223,15 @@ def list_facturas_cursor(
         selectinload(Factura.workflow_history)  # Compatible con viewonly=True
     )
 
-    # Filtrar por responsable (facturas asignadas directamente)
+    # ENTERPRISE: Filtrar por proveedores asignados al responsable
     if responsable_id:
-        # ARQUITECTURA SIMPLIFICADA
-        query = query.filter(Factura.responsable_id == responsable_id)
+        proveedor_ids = _obtener_proveedor_ids_de_responsable(db, responsable_id)
+
+        if not proveedor_ids:
+            return [], False  # Sin proveedores asignados
+
+        # Filtrar por IDs de proveedores
+        query = query.filter(Factura.proveedor_id.in_(proveedor_ids))
 
     if nit:
         query = query.join(Proveedor).filter(Proveedor.nit == nit)
