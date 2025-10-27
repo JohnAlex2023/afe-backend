@@ -20,14 +20,51 @@ def run_automation_task():
     """
     Ejecuta la automatización de facturas en background.
     Se ejecuta periódicamente según configuración.
+
+    Flujo:
+    1. Procesa facturas SIN workflows (crea workflows automáticamente)
+    2. Luego procesa facturas con workflows (toma decisiones de aprobación)
     """
     try:
         from app.services.automation.automation_service import AutomationService
+        from app.services.workflow_automatico import WorkflowAutomaticoService
+        from sqlalchemy import and_
+        from app.models.factura import Factura
+        from app.models.workflow_aprobacion import WorkflowAprobacionFactura
 
         db = SessionLocal()
         try:
             logger.info(" Iniciando automatización programada de facturas...")
 
+            # PASO 1: Crear workflows para facturas que no los tienen
+            logger.info(" [PASO 1] Creando workflows para facturas nuevas sin procesar...")
+            workflow_service = WorkflowAutomaticoService(db)
+
+            # Obtener facturas SIN workflows
+            facturas_sin_workflow = db.query(Factura).filter(
+                ~Factura.id.in_(
+                    db.query(WorkflowAprobacionFactura.factura_id)
+                )
+            ).limit(100).all()
+
+            workflows_creados = 0
+            for factura in facturas_sin_workflow:
+                try:
+                    resultado = workflow_service.procesar_factura_nueva(factura.id)
+                    if resultado.get('exito'):
+                        workflows_creados += 1
+                        logger.info(f"  ✅ Workflow creado para factura {factura.id}")
+                    else:
+                        logger.warning(f"  ⚠️  Workflow no se creó para factura {factura.id}: {resultado.get('error')}")
+                except Exception as e:
+                    logger.error(f"  ❌ Error creando workflow para factura {factura.id}: {str(e)}")
+
+            if workflows_creados > 0:
+                logger.info(f" [PASO 1] ✅ {workflows_creados} workflows creados")
+                db.commit()
+
+            # PASO 2: Procesar facturas pendientes con automatización
+            logger.info(" [PASO 2] Procesando automatización de facturas pendientes...")
             automation = AutomationService()
             resultado = automation.procesar_facturas_pendientes(
                 db=db,
@@ -43,12 +80,12 @@ def run_automation_task():
             )
 
         except Exception as e:
-            logger.error(f" Error en automatización programada: {str(e)}")
+            logger.error(f" Error en automatización programada: {str(e)}", exc_info=True)
         finally:
             db.close()
 
     except Exception as e:
-        logger.error(f" Error crítico en task de automatización: {str(e)}")
+        logger.error(f" Error crítico en task de automatización: {str(e)}", exc_info=True)
 
 
 def schedule_automation_tasks():
