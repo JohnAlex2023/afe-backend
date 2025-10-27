@@ -70,7 +70,10 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
     try:
         from app.services.workflow_automatico import WorkflowAutomaticoService
         workflow_service = WorkflowAutomaticoService(db)
+
+        logger.info(f"🔄 Iniciando workflow automático para factura {inv.id}")
         workflow_resultado = workflow_service.procesar_factura_nueva(inv.id)
+        logger.info(f"📋 Resultado del workflow: {workflow_resultado}")
 
         if workflow_resultado.get("exito"):
             logger.info(
@@ -85,11 +88,12 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
         else:
             # Workflow creado pero con advertencias (ej: NIT sin asignación)
             logger.warning(
-                f"⚠️  Workflow creado con advertencia para factura {inv.id}",
+                f"⚠️  Workflow NO se creó para factura {inv.id}. Resultado: {workflow_resultado}",
                 extra={
                     "factura_id": inv.id,
                     "error": workflow_resultado.get('error'),
                     "nit": workflow_resultado.get('nit'),
+                    "mensaje": workflow_resultado.get('mensaje'),
                     "requiere_configuracion": workflow_resultado.get('requiere_configuracion', False)
                 }
             )
@@ -102,8 +106,8 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
                 "warning",
                 "SISTEMA",
                 {
-                    "msg": "Workflow creado sin responsable asignado",
-                    "error": workflow_resultado.get('error'),
+                    "msg": "Workflow no se creó - requiere configuración",
+                    "resultado_completo": workflow_resultado,
                     "nit": workflow_resultado.get('nit'),
                     "requiere_configuracion": workflow_resultado.get('requiere_configuracion', False)
                 }
@@ -131,7 +135,7 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
             {
                 "error": str(e),
                 "error_type": type(e).__name__,
-                "msg": "Error crítico al crear workflow automático - Factura sin responsable asignado",
+                "msg": "Error crítico al crear workflow automático",
                 "severity": "CRITICAL"
             }
         )
