@@ -13,6 +13,90 @@ from app.utils.nit_validator import NitValidator
 # ==================== ENTERPRISE HELPERS ====================
 
 
+def _obtener_factura_ids_de_responsable(
+    db: Session, responsable_id: int, usar_workflow: bool = True
+) -> List[int]:
+    """
+    Obtiene los IDs de facturas que están asignadas al responsable.
+
+    ENTERPRISE PATTERN (MULTI-RESPONSABLE SUPPORT):
+    - Con usar_workflow=True (default): Usa WorkflowAprobacionFactura (recomendado)
+      * Refleja la nueva arquitectura multi-responsable
+      * Un responsable ve una factura si tiene un workflow para ella
+      * Soporta múltiples responsables por NIT correctamente
+
+    - Con usar_workflow=False: Fallback a búsqueda por NITs asignados (legacy)
+      * Mantiene compatibilidad con sistema anterior
+      * Busca por AsignacionNitResponsable
+
+    Args:
+        db: Sesión de base de datos
+        responsable_id: ID del responsable
+        usar_workflow: Si True, usa WorkflowAprobacionFactura (default). Si False, usa NITs.
+
+    Returns:
+        Lista de factura_ids asignadas al responsable
+    """
+    from app.models.workflow_aprobacion import WorkflowAprobacionFactura
+
+    if usar_workflow:
+        # NUEVO (Arquitectura multi-responsable): Filtrar por WorkflowAprobacionFactura
+        # Una factura es "visible" para un responsable si tiene un workflow para ella
+        workflow_factura_ids = db.query(
+            distinct(WorkflowAprobacionFactura.factura_id)
+        ).filter(
+            WorkflowAprobacionFactura.responsable_id == responsable_id
+        ).all()
+
+        factura_ids = [fid for (fid,) in workflow_factura_ids]
+
+        if factura_ids:
+            return factura_ids
+
+        # Fallback a búsqueda por NITs si no hay workflows (migración gradual)
+        return _obtener_factura_ids_por_nits(db, responsable_id)
+    else:
+        # FALLBACK (Legacy): Filtrar por NITs asignados
+        return _obtener_factura_ids_por_nits(db, responsable_id)
+
+
+def _obtener_factura_ids_por_nits(db: Session, responsable_id: int) -> List[int]:
+    """
+    Obtiene factura IDs basadas en los NITs asignados al responsable.
+
+    Versión legacy para compatibilidad durante migración.
+
+    Returns:
+        Lista de factura_ids cuyos proveedores tienen NITs asignados al responsable
+    """
+    # Obtener NITs asignados al responsable (YA están normalizados en BD)
+    asignaciones = db.query(AsignacionNitResponsable.nit).filter(
+        AsignacionNitResponsable.responsable_id == responsable_id,
+        AsignacionNitResponsable.activo == True
+    ).all()
+
+    nits_asignados = [nit for (nit,) in asignaciones if nit]
+
+    if not nits_asignados:
+        return []
+
+    # Obtener IDs de proveedores con esos NITs
+    proveedor_ids = db.query(Proveedor.id).filter(
+        Proveedor.nit.in_(nits_asignados)
+    ).all()
+    proveedor_ids_list = [prov_id for (prov_id,) in proveedor_ids]
+
+    if not proveedor_ids_list:
+        return []
+
+    # Obtener facturas de esos proveedores
+    factura_ids = db.query(distinct(Factura.id)).filter(
+        Factura.proveedor_id.in_(proveedor_ids_list)
+    ).all()
+
+    return [fid for (fid,) in factura_ids]
+
+
 def _obtener_proveedor_ids_de_responsable(db: Session, responsable_id: int) -> List[int]:
     """
     Obtiene los IDs de proveedores cuyos NITs están asignados al responsable.
@@ -120,20 +204,26 @@ def count_facturas(
     """
     Cuenta el total de facturas que coinciden con los filtros.
 
-    ENTERPRISE: Si se filtra por responsable_id, cuenta TODAS las facturas
-    de NITs asignados a ese responsable (soporte para múltiples responsables por NIT).
+    ENTERPRISE (MULTI-RESPONSABLE): Si se filtra por responsable_id:
+    - NUEVO: Filtra por WorkflowAprobacionFactura (arquitectura multi-responsable)
+      * Un responsable cuenta una factura si tiene un workflow para ella
+      * Soporta correctamente múltiples responsables por NIT
+    - FALLBACK: Si no hay workflows, usa búsqueda por NITs (migración gradual)
+
+    Esto garantiza que "Facturas Asignadas" muestra solo las facturas del usuario.
     """
-    query = db.query(func.count(Factura.id))
-
-    # ENTERPRISE: Filtrar por proveedores asignados al responsable
+    # ENTERPRISE: Filtrar por facturas asignadas al responsable (via workflows)
     if responsable_id:
-        proveedor_ids = _obtener_proveedor_ids_de_responsable(db, responsable_id)
+        factura_ids = _obtener_factura_ids_de_responsable(db, responsable_id, usar_workflow=True)
 
-        if not proveedor_ids:
-            return 0  # Sin proveedores asignados
+        if not factura_ids:
+            return 0  # Sin facturas asignadas
 
-        # Filtrar por IDs de proveedores (eficiente, compatible con MySQL/PostgreSQL)
-        query = query.filter(Factura.proveedor_id.in_(proveedor_ids))
+        # Contar facturas por IDs (eficiente, compatible con MySQL/PostgreSQL)
+        query = db.query(func.count(Factura.id)).filter(Factura.id.in_(factura_ids))
+    else:
+        # Sin filtro de responsable, contar todas
+        query = db.query(func.count(Factura.id))
 
     if nit:
         query = query.join(Proveedor).filter(Proveedor.nit == nit)
@@ -158,8 +248,14 @@ def list_facturas(
     """
     Lista facturas con orden cronológico empresarial.
 
-    ENTERPRISE: Si se filtra por responsable_id, muestra TODAS las facturas
-    de NITs asignados a ese responsable (soporte para múltiples responsables por NIT).
+    ENTERPRISE (MULTI-RESPONSABLE): Si se filtra por responsable_id:
+    - NUEVO: Filtra por WorkflowAprobacionFactura (arquitectura multi-responsable)
+      * Un responsable ve una factura si tiene un workflow para ella
+      * Soporta correctamente múltiples responsables por NIT
+    - FALLBACK: Si no hay workflows, usa búsqueda por NITs (migración gradual)
+
+    Esto garantiza que "Facturas Asignadas" muestra solo las facturas del usuario,
+    incluso cuando un NIT está compartido entre múltiples responsables.
     """
     from sqlalchemy.orm import joinedload, selectinload
 
@@ -169,15 +265,15 @@ def list_facturas(
         selectinload(Factura.workflow_history)
     )
 
-    # ENTERPRISE: Filtrar por proveedores asignados al responsable
+    # ENTERPRISE: Filtrar por facturas asignadas al responsable (via workflows)
     if responsable_id:
-        proveedor_ids = _obtener_proveedor_ids_de_responsable(db, responsable_id)
+        factura_ids = _obtener_factura_ids_de_responsable(db, responsable_id, usar_workflow=True)
 
-        if not proveedor_ids:
-            return []  # Sin proveedores asignados
+        if not factura_ids:
+            return []  # Sin facturas asignadas
 
-        # Filtrar por IDs de proveedores
-        query = query.filter(Factura.proveedor_id.in_(proveedor_ids))
+        # Filtrar por IDs de facturas
+        query = query.filter(Factura.id.in_(factura_ids))
 
     if nit:
         query = query.join(Proveedor).filter(Proveedor.nit == nit)
@@ -210,6 +306,11 @@ def list_facturas_cursor(
     Este método es O(1) constante independiente del tamaño del dataset.
     Perfecto para scroll infinito y datasets de 10k+ registros.
 
+    ENTERPRISE (MULTI-RESPONSABLE): Si se filtra por responsable_id:
+    - NUEVO: Filtra por WorkflowAprobacionFactura (arquitectura multi-responsable)
+      * Un responsable ve una factura si tiene un workflow para ella
+      * Soporta correctamente múltiples responsables por NIT
+
     Args:
         db: Sesión de base de datos
         limit: Máximo de registros a retornar (default: 500)
@@ -232,15 +333,15 @@ def list_facturas_cursor(
         selectinload(Factura.workflow_history)  # Compatible con viewonly=True
     )
 
-    # ENTERPRISE: Filtrar por proveedores asignados al responsable
+    # ENTERPRISE: Filtrar por facturas asignadas al responsable (via workflows)
     if responsable_id:
-        proveedor_ids = _obtener_proveedor_ids_de_responsable(db, responsable_id)
+        factura_ids = _obtener_factura_ids_de_responsable(db, responsable_id, usar_workflow=True)
 
-        if not proveedor_ids:
-            return [], False  # Sin proveedores asignados
+        if not factura_ids:
+            return [], False  # Sin facturas asignadas
 
-        # Filtrar por IDs de proveedores
-        query = query.filter(Factura.proveedor_id.in_(proveedor_ids))
+        # Filtrar por IDs de facturas
+        query = query.filter(Factura.id.in_(factura_ids))
 
     if nit:
         query = query.join(Proveedor).filter(Proveedor.nit == nit)
@@ -315,8 +416,11 @@ def list_all_facturas_for_dashboard(
 
     Retorna TODAS las facturas sin límites de paginación.
 
-    ENTERPRISE: Si se filtra por responsable_id, retorna TODAS las facturas
-    de NITs asignados a ese responsable (soporte para múltiples responsables por NIT).
+    ENTERPRISE (MULTI-RESPONSABLE): Si se filtra por responsable_id:
+    - NUEVO: Filtra por WorkflowAprobacionFactura (arquitectura multi-responsable)
+      * Un responsable ve una factura si tiene un workflow para ella
+      * Soporta correctamente múltiples responsables por NIT
+    - FALLBACK: Si no hay workflows, usa búsqueda por NITs (migración gradual)
     """
     from sqlalchemy.orm import joinedload, selectinload
 
@@ -326,15 +430,15 @@ def list_all_facturas_for_dashboard(
         selectinload(Factura.workflow_history)
     )
 
-    # ENTERPRISE: Filtrar por proveedores asignados al responsable
+    # ENTERPRISE: Filtrar por facturas asignadas al responsable (via workflows)
     if responsable_id:
-        proveedor_ids = _obtener_proveedor_ids_de_responsable(db, responsable_id)
+        factura_ids = _obtener_factura_ids_de_responsable(db, responsable_id, usar_workflow=True)
 
-        if not proveedor_ids:
-            return []  # Sin proveedores asignados
+        if not factura_ids:
+            return []  # Sin facturas asignadas
 
-        # Filtrar por IDs de proveedores
-        query = query.filter(Factura.proveedor_id.in_(proveedor_ids))
+        # Filtrar por IDs de facturas
+        query = query.filter(Factura.id.in_(factura_ids))
 
     # Orden cronológico empresarial: más recientes primero
     return query.order_by(
