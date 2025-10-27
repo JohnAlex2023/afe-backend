@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
+from app.schemas.role import RoleRead
 
 
 class ResponsableBase(BaseModel):
@@ -14,14 +15,6 @@ class ResponsableCreate(ResponsableBase):
     password: str = Field(..., min_length=8)
     area: Optional[str] = None
     telefono: Optional[str] = None
-
-
-class RoleRead(BaseModel):
-    id: int
-    nombre: str
-
-    class Config:
-        from_attributes = True
 
 
 class ResponsableRead(ResponsableBase):
