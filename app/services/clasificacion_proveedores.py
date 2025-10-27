@@ -162,8 +162,8 @@ class ClasificacionProveedoresService:
         )
 
         # Actualizar asignación
-        asignacion.tipo_servicio_proveedor = tipo_servicio
-        asignacion.nivel_confianza_proveedor = nivel_confianza
+        asignacion.tipo_servicio_proveedor = tipo_servicio.value
+        asignacion.nivel_confianza_proveedor = nivel_confianza.value
         asignacion.coeficiente_variacion_historico = Decimal(str(round(estadisticas['cv'], 2)))
         asignacion.fecha_inicio_relacion = estadisticas['fecha_primera_factura']
         asignacion.requiere_orden_compra_obligatoria = requiere_oc
@@ -211,8 +211,8 @@ class ClasificacionProveedoresService:
         Args:
             asignacion: Asignación recién creada
         """
-        asignacion.tipo_servicio_proveedor = TipoServicioProveedor.SERVICIO_EVENTUAL
-        asignacion.nivel_confianza_proveedor = NivelConfianzaProveedor.NIVEL_5_NUEVO
+        asignacion.tipo_servicio_proveedor = TipoServicioProveedor.SERVICIO_EVENTUAL.value
+        asignacion.nivel_confianza_proveedor = NivelConfianzaProveedor.NIVEL_5_NUEVO.value
         asignacion.coeficiente_variacion_historico = None
         asignacion.fecha_inicio_relacion = datetime.now().date()
         asignacion.requiere_orden_compra_obligatoria = True
