@@ -272,6 +272,7 @@ async def procesar_workflows_pendientes(
     limite: int = Query(default=100, ge=1, le=500, description="Límite de workflows a procesar"),
     solo_estado_recibida: bool = Query(default=True, description="Solo procesar workflows en estado 'recibida'"),
     ejecutar_analisis: bool = Query(default=True, description="Ejecutar análisis de comparación automática"),
+    incluir_no_aprobadas: bool = Query(default=True, description="Incluir facturas no aprobadas en búsqueda (para primera ejecución)"),
     db: Session = Depends(get_db)
 ):
     """
@@ -352,13 +353,34 @@ async def procesar_workflows_pendientes(
                 logger.info(f"📋 Procesando workflow {workflow.id} - Factura {factura.numero_factura}")
 
                 # PASO 1: Buscar factura del mes anterior
-                factura_anterior = find_factura_mes_anterior(
-                    db=db,
-                    proveedor_id=factura.proveedor_id,
-                    fecha_actual=factura.fecha_emision,
-                    concepto_hash=factura.concepto_hash,
-                    numero_factura=factura.numero_factura
-                )
+                # Si incluir_no_aprobadas=True, buscar manualmente sin filtro de estado
+                factura_anterior = None
+
+                if incluir_no_aprobadas:
+                    # Búsqueda manual sin filtro de estado (para primera ejecución)
+                    from dateutil.relativedelta import relativedelta
+                    from sqlalchemy import extract, and_
+
+                    fecha_mes_anterior = factura.fecha_emision - relativedelta(months=1)
+
+                    factura_anterior = db.query(Factura).filter(
+                        and_(
+                            Factura.proveedor_id == factura.proveedor_id,
+                            Factura.concepto_hash == factura.concepto_hash,
+                            extract('year', Factura.fecha_emision) == fecha_mes_anterior.year,
+                            extract('month', Factura.fecha_emision) == fecha_mes_anterior.month,
+                            Factura.id != factura.id
+                        )
+                    ).order_by(Factura.fecha_emision.desc()).first()
+                else:
+                    # Búsqueda normal (solo facturas aprobadas)
+                    factura_anterior = find_factura_mes_anterior(
+                        db=db,
+                        proveedor_id=factura.proveedor_id,
+                        fecha_actual=factura.fecha_emision,
+                        concepto_hash=factura.concepto_hash,
+                        numero_factura=factura.numero_factura
+                    )
 
                 # PASO 2: Comparar con mes anterior (si existe)
                 comparacion_mes_anterior = None
