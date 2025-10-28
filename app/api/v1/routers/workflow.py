@@ -1103,15 +1103,25 @@ def obtener_estadisticas_comparacion(
     # Calcular tasa de aprobación automática
     tasa_aprobacion_auto = (total_aprobadas_auto / total_analizadas * 100) if total_analizadas > 0 else 0
 
-    # Recopilar alertas
-    todas_alertas = []
-    for w in workflows:
-        if w.diferencias_detectadas:
-            todas_alertas.extend(w.diferencias_detectadas)
-
-    # Contar alertas por tipo
+    # Recopilar diferencias detectadas (diferencias_detectadas es un dict, no una lista)
     from collections import Counter
-    alertas_por_tipo = Counter(a.get('tipo', 'desconocido') for a in todas_alertas)
+
+    workflows_con_diferencias = []
+    variaciones_altas = 0  # > 50%
+    variaciones_medias = 0  # 5-50%
+    variaciones_bajas = 0   # <= 5%
+
+    for w in workflows:
+        if w.diferencias_detectadas and isinstance(w.diferencias_detectadas, dict):
+            workflows_con_diferencias.append(w)
+            diferencia_pct = w.diferencias_detectadas.get('diferencia_porcentual', 0)
+
+            if diferencia_pct > 50:
+                variaciones_altas += 1
+            elif diferencia_pct > 5:
+                variaciones_medias += 1
+            else:
+                variaciones_bajas += 1
 
     return {
         "periodo": {
@@ -1124,8 +1134,10 @@ def obtener_estadisticas_comparacion(
             "total_revision_manual": total_revision_manual,
             "tasa_aprobacion_automatica_pct": round(tasa_aprobacion_auto, 2)
         },
-        "alertas": {
-            "total_alertas": len(todas_alertas),
-            "alertas_por_tipo": dict(alertas_por_tipo.most_common(10))
+        "variaciones_detectadas": {
+            "total_con_mes_anterior": len(workflows_con_diferencias),
+            "variaciones_altas_pct": variaciones_altas,
+            "variaciones_medias_pct": variaciones_medias,
+            "variaciones_bajas_pct": variaciones_bajas
         }
     }

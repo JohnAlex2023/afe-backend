@@ -125,10 +125,11 @@ class Factura(Base):
     )
 
     # ✨ FASE 2: Relación a Workflow (para normalización de datos)
+    # NOTA: uselist=True porque con multi-responsable, una factura puede tener múltiples workflows
     workflow_history = relationship(
         "WorkflowAprobacionFactura",
         foreign_keys="[WorkflowAprobacionFactura.factura_id]",
-        uselist=False,  # Solo un workflow por factura
+        uselist=True,   # Múltiples workflows por factura (multi-responsable)
         lazy="select",  # Lazy loading con explicit selectinload en CRUD
         viewonly=True   # No modifica desde Factura
     )
