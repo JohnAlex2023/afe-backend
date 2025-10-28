@@ -150,6 +150,123 @@ automation_service = AutomationService()
 notification_service = NotificationService()
 
 
+@router.post("/regenerar-hashes-facturas", summary="🔧 Regenerar Hashes de Facturas")
+async def regenerar_hashes_facturas(
+    limite: int = Query(default=1000, ge=1, le=5000, description="Límite de facturas a procesar"),
+    db: Session = Depends(get_db)
+):
+    """
+    **ENDPOINT DE MANTENIMIENTO: Regenerar Hashes de Facturas**
+
+    Regenera los campos concepto_hash y concepto_normalizado para facturas
+    que no los tienen. Estos campos son CRÍTICOS para la comparación automática.
+
+    **¿Por qué es necesario?**
+    - El concepto_hash es usado para encontrar facturas del mes anterior
+    - Sin él, TODAS las facturas van a revisión manual
+    - Las facturas antiguas no tienen estos campos
+
+    **Proceso:**
+    1. Busca facturas con concepto_hash NULL
+    2. Normaliza el concepto (lowercase, sin espacios extras)
+    3. Genera MD5 hash del concepto normalizado
+    4. Actualiza en BD
+
+    **Parámetros:**
+    - limite: Máximo de facturas a procesar (1-5000)
+
+    **Retorna:**
+    - total_procesadas
+    - actualizadas
+    - errores
+    """
+    try:
+        import hashlib
+        import re
+
+        logger.info(f"🔧 Iniciando regeneración de hashes de facturas (límite: {limite})")
+
+        # Obtener facturas sin concepto_hash
+        facturas_sin_hash = db.query(Factura).filter(
+            Factura.concepto_hash.is_(None)
+        ).limit(limite).all()
+
+        if not facturas_sin_hash:
+            return {
+                "success": True,
+                "message": "No hay facturas sin concepto_hash",
+                "data": {
+                    "total_procesadas": 0,
+                    "actualizadas": 0,
+                    "errores": 0
+                }
+            }
+
+        logger.info(f"📊 Encontradas {len(facturas_sin_hash)} facturas sin concepto_hash")
+
+        actualizadas = 0
+        errores = 0
+
+        for factura in facturas_sin_hash:
+            try:
+                # Usar concepto_principal (campo correcto en la tabla)
+                concepto = factura.concepto_principal or ""
+
+                # Si no hay concepto_principal, usar descripción de items
+                if not concepto and factura.items:
+                    # Concatenar descripciones de items
+                    concepto = " | ".join([item.descripcion for item in factura.items if item.descripcion])
+
+                # Si aún no hay concepto, usar número de factura como fallback
+                if not concepto:
+                    concepto = factura.numero_factura or "sin_concepto"
+
+                # Normalizar concepto
+                concepto_normalizado = concepto.lower().strip()
+                concepto_normalizado = re.sub(r'\s+', ' ', concepto_normalizado)  # Espacios múltiples
+
+                # Generar hash MD5
+                concepto_hash = hashlib.md5(concepto_normalizado.encode('utf-8')).hexdigest()
+
+                # Actualizar factura
+                factura.concepto_normalizado = concepto_normalizado
+                factura.concepto_hash = concepto_hash
+
+                actualizadas += 1
+
+                # Commit cada 100 facturas
+                if actualizadas % 100 == 0:
+                    db.commit()
+                    logger.info(f"💾 Actualizadas {actualizadas} facturas")
+
+            except Exception as e:
+                logger.error(f"❌ Error procesando factura {factura.id}: {str(e)}", exc_info=True)
+                errores += 1
+
+        # Commit final
+        db.commit()
+
+        logger.info(f"✅ Regeneración completada: {actualizadas} facturas actualizadas, {errores} errores")
+
+        return {
+            "success": True,
+            "message": f"Regenerados hashes para {actualizadas} facturas",
+            "data": {
+                "total_procesadas": len(facturas_sin_hash),
+                "actualizadas": actualizadas,
+                "errores": errores
+            }
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Error crítico regenerando hashes: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error regenerando hashes: {str(e)}"
+        )
+
+
 @router.post("/procesar-workflows-pendientes", summary="🚀 Procesar Workflows Pendientes (Enterprise)")
 async def procesar_workflows_pendientes(
     limite: int = Query(default=100, ge=1, le=500, description="Límite de workflows a procesar"),
