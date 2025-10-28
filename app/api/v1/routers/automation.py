@@ -433,6 +433,29 @@ async def procesar_workflows_pendientes(
                     # Sincronizar con factura
                     workflow_service._sincronizar_estado_factura(workflow)
 
+                    # ✨ ENVIAR NOTIFICACIÓN DE APROBACIÓN AUTOMÁTICA ✨
+                    try:
+                        from app.services.automation.notification_service import NotificationService
+
+                        notification_service = NotificationService()
+
+                        # Obtener criterios cumplidos para la notificación
+                        criterios_cumplidos = [
+                            f"Variación de monto: {workflow.diferencias_detectadas.get('diferencia_porcentual', 0):.2f}%",
+                            "Factura idéntica al mes anterior",
+                            f"Similitud: {workflow.porcentaje_similitud}%"
+                        ]
+
+                        notification_service.notificar_aprobacion_automatica(
+                            db=db,
+                            factura=factura,
+                            criterios_cumplidos=criterios_cumplidos,
+                            confianza=comparacion_mes_anterior['confianza']
+                        )
+                        logger.info(f"  📧 Notificación de aprobación automática enviada para factura {factura.numero_factura}")
+                    except Exception as e:
+                        logger.error(f"  ❌ Error enviando notificación de aprobación automática: {str(e)}")
+
                     aprobados_auto += 1
                     logger.info(f"  ✅ Workflow {workflow.id} APROBADO AUTOMÁTICAMENTE")
 
@@ -1204,4 +1227,78 @@ def resincronizar_estados_facturas(db: Session = Depends(get_db)):
             "cambios_por_estado": cambios_por_estado,
             "estados_finales": {estado.value: count for estado, count in facturas_finales}
         }
+    }
+
+
+@router.get("/debug/analizar-workflows-por-factura", summary="🔍 Analizar Distribución de Workflows por Factura")
+def analizar_workflows_por_factura(db: Session = Depends(get_db)):
+    """
+    Analiza por qué 87 workflows aprobados resultan en solo 44 facturas aprobadas.
+
+    Respuesta: Sistema multi-responsable
+    - Una factura puede tener múltiples workflows (uno por responsable)
+    - La factura solo se marca aprobada_auto si TODOS sus workflows están aprobados
+    - Si tiene workflows mixtos (algunos aprobados, otros pendientes) → en_revision
+    """
+    from app.models.workflow_aprobacion import WorkflowAprobacionFactura, EstadoFacturaWorkflow
+    from sqlalchemy import func
+
+    # Obtener facturas con workflows agrupados
+    facturas_con_workflows = db.query(
+        WorkflowAprobacionFactura.factura_id,
+        func.count(WorkflowAprobacionFactura.id).label('total_workflows'),
+        func.sum(
+            func.case((WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.APROBADA_AUTO, 1), else_=0)
+        ).label('workflows_aprobados_auto'),
+        func.sum(
+            func.case((WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.PENDIENTE_REVISION, 1), else_=0)
+        ).label('workflows_pendientes')
+    ).group_by(WorkflowAprobacionFactura.factura_id).all()
+
+    # Analizar distribuciones
+    facturas_todos_aprobados = 0
+    facturas_mixtas = 0
+    facturas_todas_pendientes = 0
+
+    ejemplos_mixtas = []
+
+    for factura_id, total, aprobados, pendientes in facturas_con_workflows:
+        if aprobados == total and aprobados > 0:
+            # TODOS los workflows aprobados
+            facturas_todos_aprobados += 1
+        elif aprobados > 0 and pendientes > 0:
+            # Workflows MIXTOS (algunos aprobados, otros pendientes)
+            facturas_mixtas += 1
+            if len(ejemplos_mixtas) < 5:
+                ejemplos_mixtas.append({
+                    "factura_id": factura_id,
+                    "total_workflows": total,
+                    "aprobados_auto": aprobados,
+                    "pendientes": pendientes
+                })
+        elif pendientes == total:
+            # TODOS pendientes
+            facturas_todas_pendientes += 1
+
+    # Calcular promedio de workflows por factura
+    total_facturas = len(facturas_con_workflows)
+    total_workflows = sum(row[1] for row in facturas_con_workflows)
+    promedio_workflows_por_factura = total_workflows / total_facturas if total_facturas > 0 else 0
+
+    return {
+        "resumen": {
+            "total_facturas": total_facturas,
+            "total_workflows": total_workflows,
+            "promedio_workflows_por_factura": round(promedio_workflows_por_factura, 2)
+        },
+        "distribucion": {
+            "facturas_todos_workflows_aprobados": facturas_todos_aprobados,
+            "facturas_workflows_mixtos": facturas_mixtas,
+            "facturas_todos_workflows_pendientes": facturas_todas_pendientes
+        },
+        "explicacion": {
+            "porque_solo_44_aprobadas": f"De {total_facturas} facturas con workflows, solo {facturas_todos_aprobados} tienen TODOS sus workflows aprobados. Las {facturas_mixtas} facturas con workflows mixtos permanecen en 'en_revision' hasta que TODOS los responsables aprueben.",
+            "ejemplo_factura_mixta": ejemplos_mixtas[0] if ejemplos_mixtas else None
+        },
+        "ejemplos_facturas_mixtas": ejemplos_mixtas
     }
