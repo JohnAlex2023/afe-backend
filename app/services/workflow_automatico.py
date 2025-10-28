@@ -74,48 +74,85 @@ class WorkflowAutomaticoService:
 
     def _sincronizar_estado_factura(self, workflow: WorkflowAprobacionFactura) -> None:
         """
-        Sincroniza el estado de la factura con el estado del workflow.
+        Sincroniza el estado de la factura con TODOS sus workflows (multi-responsable).
 
-        Enterprise Pattern: Single Source of Truth
-        - El workflow es la fuente autoritativa de estado
-        - La factura refleja el estado del workflow automáticamente
-        - Garantiza consistencia entre tablas
+        Enterprise Pattern: Multi-Workflow Consensus
+        - Una factura puede tener múltiples workflows (uno por responsable)
+        - El estado de la factura se determina consultando TODOS los workflows
+        - Lógica de precedencia:
+          1. Si ALGUNO está rechazado → rechazada
+          2. Si ALGUNO está pendiente/en_revision → en_revision
+          3. Si TODOS están aprobados (auto o manual) → aprobada_auto/aprobada
+          4. Default → en_revision
 
         Args:
-            workflow: Workflow con el estado actualizado
+            workflow: Workflow actualizado (se consultan TODOS los workflows de su factura)
         """
-        # Mapeo autoritativo: EstadoFacturaWorkflow -> EstadoFactura
-        # REFACTORIZADO: Eliminado estado 'pendiente', todo va a 'en_revision'
-        MAPEO_ESTADOS = {
-            EstadoFacturaWorkflow.RECIBIDA: EstadoFactura.en_revision,
-            EstadoFacturaWorkflow.EN_ANALISIS: EstadoFactura.en_revision,
-            EstadoFacturaWorkflow.APROBADA_AUTO: EstadoFactura.aprobada_auto,
-            EstadoFacturaWorkflow.APROBADA_MANUAL: EstadoFactura.aprobada,
-            EstadoFacturaWorkflow.RECHAZADA: EstadoFactura.rechazada,
-            EstadoFacturaWorkflow.PENDIENTE_REVISION: EstadoFactura.en_revision,
-            EstadoFacturaWorkflow.EN_REVISION: EstadoFactura.en_revision,
-            EstadoFacturaWorkflow.OBSERVADA: EstadoFactura.en_revision,
-            EstadoFacturaWorkflow.ENVIADA_CONTABILIDAD: EstadoFactura.aprobada,
-            EstadoFacturaWorkflow.PROCESADA: EstadoFactura.pagada,
-        }
+        if not workflow.factura:
+            return
 
-        if workflow.factura:
-            nuevo_estado = MAPEO_ESTADOS.get(workflow.estado, EstadoFactura.en_revision)
-            workflow.factura.estado = nuevo_estado
+        # Consultar TODOS los workflows de esta factura
+        todos_workflows = self.db.query(WorkflowAprobacionFactura).filter(
+            WorkflowAprobacionFactura.factura_id == workflow.factura_id
+        ).all()
 
-            # Sincronizar campos de auditoría adicionales
-            if workflow.aprobada:
-                workflow.factura.aprobado_por = workflow.aprobada_por
+        if not todos_workflows:
+            return
+
+        # Analizar estados de todos los workflows
+        tiene_rechazado = any(w.estado == EstadoFacturaWorkflow.RECHAZADA for w in todos_workflows)
+        tiene_pendiente = any(w.estado in [
+            EstadoFacturaWorkflow.RECIBIDA,
+            EstadoFacturaWorkflow.EN_ANALISIS,
+            EstadoFacturaWorkflow.PENDIENTE_REVISION,
+            EstadoFacturaWorkflow.EN_REVISION,
+            EstadoFacturaWorkflow.OBSERVADA
+        ] for w in todos_workflows)
+
+        todos_aprobados_auto = all(w.estado == EstadoFacturaWorkflow.APROBADA_AUTO for w in todos_workflows)
+        todos_aprobados = all(w.estado in [
+            EstadoFacturaWorkflow.APROBADA_AUTO,
+            EstadoFacturaWorkflow.APROBADA_MANUAL
+        ] for w in todos_workflows)
+
+        # Lógica de precedencia
+        if tiene_rechazado:
+            workflow.factura.estado = EstadoFactura.rechazada
+            # Buscar el workflow rechazado para auditoría
+            workflow_rechazado = next((w for w in todos_workflows if w.rechazada), None)
+            if workflow_rechazado:
+                workflow.factura.rechazado_por = workflow_rechazado.rechazada_por
+                workflow.factura.fecha_rechazo = workflow_rechazado.fecha_rechazo
+                workflow.factura.motivo_rechazo = workflow_rechazado.detalle_rechazo
+                workflow.factura.accion_por = workflow_rechazado.rechazada_por
+
+        elif tiene_pendiente:
+            workflow.factura.estado = EstadoFactura.en_revision
+
+        elif todos_aprobados_auto:
+            # TODOS los workflows fueron aprobados automáticamente
+            workflow.factura.estado = EstadoFactura.aprobada_auto
+            workflow.factura.aprobado_por = 'Sistema Automático'
+            workflow.factura.fecha_aprobacion = workflow.fecha_aprobacion
+            workflow.factura.accion_por = 'Sistema Automático'
+
+        elif todos_aprobados:
+            # Mezcla de aprobaciones automáticas y manuales
+            workflow.factura.estado = EstadoFactura.aprobada
+            # Buscar el primer workflow aprobado manualmente para auditoría
+            workflow_manual = next((w for w in todos_workflows if w.estado == EstadoFacturaWorkflow.APROBADA_MANUAL), None)
+            if workflow_manual:
+                workflow.factura.aprobado_por = workflow_manual.aprobada_por
+                workflow.factura.fecha_aprobacion = workflow_manual.fecha_aprobacion
+                workflow.factura.accion_por = workflow_manual.aprobada_por
+            else:
+                workflow.factura.aprobado_por = 'Sistema Automático'
                 workflow.factura.fecha_aprobacion = workflow.fecha_aprobacion
-                # ✨ ACCION_POR: Single source of truth para dashboard
-                workflow.factura.accion_por = workflow.aprobada_por
+                workflow.factura.accion_por = 'Sistema Automático'
 
-            if workflow.rechazada:
-                workflow.factura.rechazado_por = workflow.rechazada_por
-                workflow.factura.fecha_rechazo = workflow.fecha_rechazo
-                workflow.factura.motivo_rechazo = workflow.detalle_rechazo
-                # ✨ ACCION_POR: Single source of truth para dashboard
-                workflow.factura.accion_por = workflow.rechazada_por
+        else:
+            # Fallback
+            workflow.factura.estado = EstadoFactura.en_revision
 
     def procesar_factura_nueva(self, factura_id: int) -> Dict[str, Any]:
         """

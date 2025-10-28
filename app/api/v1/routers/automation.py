@@ -1070,3 +1070,138 @@ async def enviar_notificaciones_procesamiento(db: Session, resultado_procesamien
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error enviando notificaciones en segundo plano: {str(e)}")
+
+
+# ==================== DEBUG ENDPOINT ====================
+
+@router.get("/debug/conteos-workflows", summary="🔧 Debug: Conteos de Workflows y Facturas")
+def debug_conteos_workflows(db: Session = Depends(get_db)):
+    """
+    Endpoint de debug para verificar inconsistencias entre workflows y facturas.
+    """
+    from app.models.workflow_aprobacion import WorkflowAprobacionFactura, EstadoFacturaWorkflow, TipoAprobacion
+    from sqlalchemy import func
+
+    # Contar workflows por estado
+    workflows_por_estado = db.query(
+        WorkflowAprobacionFactura.estado,
+        func.count(WorkflowAprobacionFactura.id)
+    ).group_by(WorkflowAprobacionFactura.estado).all()
+
+    # Contar workflows aprobados automáticamente
+    workflows_aprobados_auto = db.query(WorkflowAprobacionFactura).filter(
+        WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.APROBADA_AUTO
+    ).count()
+
+    # Contar por tipo de aprobación
+    workflows_por_tipo = db.query(
+        WorkflowAprobacionFactura.tipo_aprobacion,
+        func.count(WorkflowAprobacionFactura.id)
+    ).group_by(WorkflowAprobacionFactura.tipo_aprobacion).all()
+
+    # Contar facturas por estado
+    facturas_por_estado = db.query(
+        Factura.estado,
+        func.count(Factura.id)
+    ).group_by(Factura.estado).all()
+
+    # Facturas únicas con workflow aprobado auto
+    facturas_unicas_aprobadas_auto = db.query(
+        func.count(func.distinct(WorkflowAprobacionFactura.factura_id))
+    ).filter(
+        WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.APROBADA_AUTO
+    ).scalar()
+
+    # Facturas en BD con estado aprobada_auto
+    facturas_bd_aprobadas_auto = db.query(Factura).filter(
+        Factura.estado == EstadoFactura.aprobada_auto
+    ).count()
+
+    return {
+        "workflows_por_estado": {estado.value: count for estado, count in workflows_por_estado},
+        "workflows_aprobados_auto_total": workflows_aprobados_auto,
+        "workflows_por_tipo_aprobacion": {
+            (tipo.value if tipo else "NULL"): count
+            for tipo, count in workflows_por_tipo
+        },
+        "facturas_por_estado": {estado.value: count for estado, count in facturas_por_estado},
+        "facturas_unicas_con_workflow_aprobado_auto": facturas_unicas_aprobadas_auto,
+        "facturas_bd_con_estado_aprobada_auto": facturas_bd_aprobadas_auto,
+        "inconsistencia_detectada": facturas_unicas_aprobadas_auto != facturas_bd_aprobadas_auto
+    }
+
+
+@router.post("/resincronizar-estados-facturas", summary="🔄 Re-sincronizar Estados de Facturas")
+def resincronizar_estados_facturas(db: Session = Depends(get_db)):
+    """
+    Re-sincroniza el estado de TODAS las facturas basándose en TODOS sus workflows.
+
+    Aplica la nueva lógica multi-responsable donde:
+    - Si TODOS los workflows están aprobados → factura aprobada_auto
+    - Si ALGUNO está pendiente → factura en_revision
+    - Si ALGUNO está rechazado → factura rechazada
+
+    Ejecutar después de corregir la lógica de sincronización.
+    """
+    from app.models.workflow_aprobacion import WorkflowAprobacionFactura, EstadoFacturaWorkflow
+    from app.services.workflow_automatico import WorkflowAutomaticoService
+    from sqlalchemy import func
+
+    # Obtener todas las facturas que tienen workflows
+    facturas_con_workflows = db.query(Factura.id).filter(
+        Factura.id.in_(
+            db.query(WorkflowAprobacionFactura.factura_id).distinct()
+        )
+    ).all()
+
+    workflow_service = WorkflowAutomaticoService(db)
+
+    facturas_actualizadas = 0
+    cambios_por_estado = {
+        "aprobada_auto": 0,
+        "en_revision": 0,
+        "rechazada": 0,
+        "aprobada": 0
+    }
+
+    for (factura_id,) in facturas_con_workflows:
+        # Obtener la factura y uno de sus workflows
+        factura = db.query(Factura).filter(Factura.id == factura_id).first()
+        if not factura:
+            continue
+
+        estado_anterior = factura.estado.value
+
+        # Obtener cualquier workflow de esta factura para llamar a sincronizar
+        workflow = db.query(WorkflowAprobacionFactura).filter(
+            WorkflowAprobacionFactura.factura_id == factura_id
+        ).first()
+
+        if workflow:
+            # Aplicar la nueva lógica de sincronización
+            workflow_service._sincronizar_estado_factura(workflow)
+
+            estado_nuevo = factura.estado.value
+
+            if estado_anterior != estado_nuevo:
+                facturas_actualizadas += 1
+                cambios_por_estado[estado_nuevo] = cambios_por_estado.get(estado_nuevo, 0) + 1
+
+    db.commit()
+
+    # Obtener estadísticas finales
+    facturas_finales = db.query(
+        Factura.estado,
+        func.count(Factura.id)
+    ).group_by(Factura.estado).all()
+
+    return {
+        "success": True,
+        "message": f"Re-sincronizadas {facturas_actualizadas} facturas",
+        "estadisticas": {
+            "total_facturas_con_workflows": len(facturas_con_workflows),
+            "facturas_actualizadas": facturas_actualizadas,
+            "cambios_por_estado": cambios_por_estado,
+            "estados_finales": {estado.value: count for estado, count in facturas_finales}
+        }
+    }
