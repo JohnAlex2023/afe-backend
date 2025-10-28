@@ -60,7 +60,8 @@ class TipoNotificacion(enum.Enum):
     """Tipos de notificación del sistema."""
     FACTURA_RECIBIDA = "factura_recibida"
     PENDIENTE_REVISION = "pendiente_revision"
-    FACTURA_APROBADA = "factura_aprobada"
+    FACTURA_APROBADA = "factura_aprobada"  # Aprobada manualmente por usuario
+    APROBACION_AUTOMATICA = "aprobacion_automatica"  # Aprobada automáticamente por sistema
     FACTURA_RECHAZADA = "factura_rechazada"
     RECORDATORIO = "recordatorio"
     ALERTA = "alerta"
