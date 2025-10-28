@@ -13,6 +13,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
+import logging
 
 from app.db.session import get_db
 from app.services.automation.automation_service import AutomationService
@@ -20,8 +21,11 @@ from app.services.automation.notification_service import NotificationService, Co
 from app.services.audit_service import AuditService
 from app.crud import factura as crud_factura
 from app.models.factura import Factura, EstadoFactura
+from app.models.workflow_aprobacion import TipoAprobacion
 from app.schemas.common import ResponseBase
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(tags=["Automatización"])
@@ -146,6 +150,215 @@ automation_service = AutomationService()
 notification_service = NotificationService()
 
 
+@router.post("/procesar-workflows-pendientes", summary="🚀 Procesar Workflows Pendientes (Enterprise)")
+async def procesar_workflows_pendientes(
+    limite: int = Query(default=100, ge=1, le=500, description="Límite de workflows a procesar"),
+    solo_estado_recibida: bool = Query(default=True, description="Solo procesar workflows en estado 'recibida'"),
+    ejecutar_analisis: bool = Query(default=True, description="Ejecutar análisis de comparación automática"),
+    db: Session = Depends(get_db)
+):
+    """
+    **ENDPOINT ENTERPRISE: Procesar Workflows Pendientes**
+
+    Procesa workflows que están en estado "recibida" y ejecuta el análisis
+    de aprobación automática para cada uno.
+
+    **Flujo:**
+    1. Obtiene workflows en estado "recibida"
+    2. Para cada workflow, ejecuta comparación con mes anterior
+    3. Evalúa criterios de aprobación automática
+    4. Sincroniza estados con tabla facturas
+    5. Genera notificaciones
+
+    **Parámetros:**
+    - `limite`: Máximo de workflows a procesar (1-500)
+    - `solo_estado_recibida`: Si true, solo procesa workflows en estado "recibida"
+    - `ejecutar_analisis`: Si true, ejecuta análisis de comparación automática
+
+    **Retorna:**
+    - Total workflows procesados
+    - Aprobados automáticamente
+    - Enviados a revisión
+    - Errores encontrados
+    """
+    try:
+        from app.models.workflow_aprobacion import WorkflowAprobacionFactura, EstadoFacturaWorkflow
+        from app.services.workflow_automatico import WorkflowAutomaticoService
+        from app.services.comparador_items import ComparadorItemsService
+        from app.crud.factura import find_factura_mes_anterior
+        from sqlalchemy import and_
+
+        logger.info(f"🚀 Iniciando procesamiento de workflows pendientes (límite: {limite})")
+
+        # Obtener workflows pendientes
+        query = db.query(WorkflowAprobacionFactura)
+
+        if solo_estado_recibida:
+            query = query.filter(WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.RECIBIDA)
+
+        workflows_pendientes = query.limit(limite).all()
+
+        if not workflows_pendientes:
+            return {
+                "success": True,
+                "message": "No hay workflows pendientes de procesamiento",
+                "data": {
+                    "total_workflows": 0,
+                    "procesados": 0,
+                    "aprobados_auto": 0,
+                    "en_revision": 0,
+                    "errores": 0
+                }
+            }
+
+        logger.info(f"📊 Encontrados {len(workflows_pendientes)} workflows pendientes")
+
+        # Inicializar servicios
+        workflow_service = WorkflowAutomaticoService(db)
+        comparador_service = ComparadorItemsService(db) if ejecutar_analisis else None
+
+        # Contadores
+        procesados = 0
+        aprobados_auto = 0
+        en_revision = 0
+        errores = 0
+        detalles = []
+
+        for workflow in workflows_pendientes:
+            try:
+                factura = workflow.factura
+                if not factura:
+                    logger.warning(f"⚠️  Workflow {workflow.id} sin factura asociada")
+                    errores += 1
+                    continue
+
+                logger.info(f"📋 Procesando workflow {workflow.id} - Factura {factura.numero_factura}")
+
+                # PASO 1: Buscar factura del mes anterior
+                factura_anterior = find_factura_mes_anterior(
+                    db=db,
+                    proveedor_id=factura.proveedor_id,
+                    fecha_actual=factura.fecha_emision,
+                    concepto_hash=factura.concepto_hash,
+                    numero_factura=factura.numero_factura
+                )
+
+                # PASO 2: Comparar con mes anterior (si existe)
+                comparacion_mes_anterior = None
+                if factura_anterior:
+                    diferencia_monto = abs(float(factura.total_a_pagar or 0) - float(factura_anterior.total_a_pagar or 0))
+                    diferencia_porcentaje = (diferencia_monto / float(factura_anterior.total_a_pagar)) * 100 if factura_anterior.total_a_pagar else 0
+
+                    comparacion_mes_anterior = {
+                        'tiene_mes_anterior': True,
+                        'factura_anterior_id': factura_anterior.id,
+                        'diferencia_porcentaje': diferencia_porcentaje,
+                        'decision_sugerida': 'aprobar_auto' if diferencia_porcentaje <= 5.0 else 'en_revision',
+                        'razon': f'Monto varía {diferencia_porcentaje:.2f}% respecto al mes anterior',
+                        'confianza': 0.95 if diferencia_porcentaje <= 5.0 else 0.60
+                    }
+
+                    # Actualizar workflow con información de comparación
+                    workflow.factura_mes_anterior_id = factura_anterior.id
+                    workflow.porcentaje_similitud = 100 - diferencia_porcentaje
+                    workflow.es_identica_mes_anterior = (diferencia_porcentaje <= 5.0)
+                    workflow.diferencias_detectadas = {
+                        'monto_actual': float(factura.total_a_pagar or 0),
+                        'monto_anterior': float(factura_anterior.total_a_pagar or 0),
+                        'diferencia_absoluta': diferencia_monto,
+                        'diferencia_porcentual': diferencia_porcentaje
+                    }
+                else:
+                    comparacion_mes_anterior = {
+                        'tiene_mes_anterior': False,
+                        'razon': 'Sin factura del mes anterior para comparar',
+                        'decision_sugerida': 'en_revision',
+                        'confianza': 0.50
+                    }
+
+                # PASO 3: Decidir aprobación
+                if comparacion_mes_anterior['decision_sugerida'] == 'aprobar_auto':
+                    # APROBAR AUTOMÁTICAMENTE
+                    workflow.estado = EstadoFacturaWorkflow.APROBADA_AUTO
+                    workflow.tipo_aprobacion = TipoAprobacion.AUTOMATICA
+                    workflow.aprobada = True
+                    workflow.aprobada_por = 'Sistema Automático'
+                    workflow.fecha_aprobacion = datetime.utcnow()
+                    workflow.observaciones_aprobacion = f'Aprobada automáticamente: {comparacion_mes_anterior["razon"]}'
+
+                    # Sincronizar con factura
+                    workflow_service._sincronizar_estado_factura(workflow)
+
+                    aprobados_auto += 1
+                    logger.info(f"  ✅ Workflow {workflow.id} APROBADO AUTOMÁTICAMENTE")
+
+                    detalles.append({
+                        'workflow_id': workflow.id,
+                        'factura_id': factura.id,
+                        'numero_factura': factura.numero_factura,
+                        'decision': 'aprobada_auto',
+                        'confianza': comparacion_mes_anterior['confianza'],
+                        'motivo': comparacion_mes_anterior['razon']
+                    })
+
+                else:
+                    # ENVIAR A REVISIÓN
+                    workflow.estado = EstadoFacturaWorkflow.PENDIENTE_REVISION
+
+                    # Sincronizar con factura
+                    workflow_service._sincronizar_estado_factura(workflow)
+
+                    en_revision += 1
+                    logger.info(f"  ⚠️  Workflow {workflow.id} enviado a REVISIÓN")
+
+                    detalles.append({
+                        'workflow_id': workflow.id,
+                        'factura_id': factura.id,
+                        'numero_factura': factura.numero_factura,
+                        'decision': 'en_revision',
+                        'confianza': comparacion_mes_anterior['confianza'],
+                        'motivo': comparacion_mes_anterior['razon']
+                    })
+
+                procesados += 1
+
+                # Commit cada 50 workflows
+                if procesados % 50 == 0:
+                    db.commit()
+                    logger.info(f"💾 Guardados {procesados} workflows procesados")
+
+            except Exception as e:
+                logger.error(f"❌ Error procesando workflow {workflow.id}: {str(e)}", exc_info=True)
+                errores += 1
+
+        # Commit final
+        db.commit()
+
+        logger.info(f"✅ Procesamiento completado: {procesados} workflows procesados, {aprobados_auto} aprobados automáticamente, {en_revision} en revisión")
+
+        return {
+            "success": True,
+            "message": f"Procesados {procesados} workflows exitosamente",
+            "data": {
+                "total_workflows": len(workflows_pendientes),
+                "procesados": procesados,
+                "aprobados_automaticamente": aprobados_auto,
+                "enviados_revision": en_revision,
+                "errores": errores,
+                "tasa_automatizacion_pct": round((aprobados_auto / procesados * 100) if procesados > 0 else 0, 2),
+                "detalles": detalles[:20]  # Primeros 20 para no saturar respuesta
+            }
+        }
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Error crítico en procesamiento de workflows: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error en el procesamiento de workflows: {str(e)}"
+        )
+
+
 @router.post("/procesar", response_model=Dict[str, Any])
 async def procesar_facturas_pendientes(
     solicitud: SolicitudProcesamiento,
@@ -154,7 +367,7 @@ async def procesar_facturas_pendientes(
 ):
     """
     Ejecuta el procesamiento automático de facturas pendientes.
-    
+
     Esta operación puede tomar varios minutos dependiendo de la cantidad
     de facturas pendientes.
     """
@@ -163,28 +376,28 @@ async def procesar_facturas_pendientes(
         facturas_pendientes = crud_factura.get_facturas_pendientes_procesamiento(
             db, limit=solicitud.limite_facturas
         )
-        
+
         if not facturas_pendientes:
             return ResponseBase(
                 success=True,
                 message="No hay facturas pendientes de procesamiento automático",
                 data={"facturas_procesadas": 0}
             )
-        
+
         # Filtrar por proveedor si se especifica
         if solicitud.solo_proveedor_id:
             facturas_pendientes = [
-                f for f in facturas_pendientes 
+                f for f in facturas_pendientes
                 if f.proveedor_id == solicitud.solo_proveedor_id
             ]
-        
+
         # Ejecutar procesamiento
         resultado = automation_service.procesar_facturas_pendientes(
             db=db,
             limite_facturas=len(facturas_pendientes),
             modo_debug=solicitud.modo_debug
         )
-        
+
         # Programar envío de notificaciones en segundo plano
         if resultado['resumen_general']['facturas_procesadas'] > 0:
             background_tasks.add_task(
@@ -192,13 +405,13 @@ async def procesar_facturas_pendientes(
                 db,
                 resultado
             )
-        
+
         return ResponseBase(
             success=True,
             message=f"Procesadas {resultado['resumen_general']['facturas_procesadas']} facturas",
             data=resultado
         )
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
