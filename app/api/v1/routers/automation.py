@@ -246,7 +246,7 @@ async def regenerar_hashes_facturas(
         # Commit final
         db.commit()
 
-        logger.info(f"✅ Regeneración completada: {actualizadas} facturas actualizadas, {errores} errores")
+        logger.info(f" Regeneración completada: {actualizadas} facturas actualizadas, {errores} errores")
 
         return {
             "success": True,
@@ -433,7 +433,7 @@ async def procesar_workflows_pendientes(
                     # Sincronizar con factura
                     workflow_service._sincronizar_estado_factura(workflow)
 
-                    # ✨ ENVIAR NOTIFICACIÓN DE APROBACIÓN AUTOMÁTICA ✨
+                    # ENVIAR NOTIFICACIÓN DE APROBACIÓN AUTOMÁTICA ✨
                     try:
                         from app.services.automation.notification_service import NotificationService
 
@@ -457,7 +457,7 @@ async def procesar_workflows_pendientes(
                         logger.error(f"  ❌ Error enviando notificación de aprobación automática: {str(e)}")
 
                     aprobados_auto += 1
-                    logger.info(f"  ✅ Workflow {workflow.id} APROBADO AUTOMÁTICAMENTE")
+                    logger.info(f"   Workflow {workflow.id} APROBADO AUTOMÁTICAMENTE")
 
                     detalles.append({
                         'workflow_id': workflow.id,
@@ -501,7 +501,7 @@ async def procesar_workflows_pendientes(
         # Commit final
         db.commit()
 
-        logger.info(f"✅ Procesamiento completado: {procesados} workflows procesados, {aprobados_auto} aprobados automáticamente, {en_revision} en revisión")
+        logger.info(f" Procesamiento completado: {procesados} workflows procesados, {aprobados_auto} aprobados automáticamente, {en_revision} en revisión")
 
         return {
             "success": True,
@@ -1301,4 +1301,115 @@ def analizar_workflows_por_factura(db: Session = Depends(get_db)):
             "ejemplo_factura_mixta": ejemplos_mixtas[0] if ejemplos_mixtas else None
         },
         "ejemplos_facturas_mixtas": ejemplos_mixtas
+    }
+
+
+@router.post("/notificar-aprobaciones-retroactivas", summary="📧 Notificar Aprobaciones Automáticas Retroactivas")
+def notificar_aprobaciones_retroactivas(
+    limite: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db)
+):
+    """
+    Envía notificaciones retroactivas para facturas que fueron aprobadas automáticamente
+    pero nunca se notificó al responsable (antes de implementar las notificaciones).
+
+    Busca workflows en estado APROBADA_AUTO que no tengan notificación de tipo
+    APROBACION_AUTOMATICA y les envía la notificación correspondiente.
+    """
+    from app.models.workflow_aprobacion import WorkflowAprobacionFactura, EstadoFacturaWorkflow, TipoNotificacion, NotificacionWorkflow
+    from app.services.automation.notification_service import NotificationService
+
+    # Buscar workflows aprobados automáticamente
+    workflows_aprobados_auto = db.query(WorkflowAprobacionFactura).filter(
+        WorkflowAprobacionFactura.estado == EstadoFacturaWorkflow.APROBADA_AUTO,
+        WorkflowAprobacionFactura.tipo_aprobacion == TipoAprobacion.AUTOMATICA
+    ).limit(limite).all()
+
+    if not workflows_aprobados_auto:
+        return {
+            "success": True,
+            "message": "No hay workflows aprobados automáticamente sin notificar",
+            "data": {
+                "total_workflows": 0,
+                "notificaciones_enviadas": 0,
+                "errores": 0
+            }
+        }
+
+    notification_service = NotificationService()
+    notificaciones_enviadas = 0
+    errores = 0
+    detalles = []
+
+    for workflow in workflows_aprobados_auto:
+        try:
+            # Verificar si ya tiene notificación de aprobación automática
+            notificacion_existente = db.query(NotificacionWorkflow).filter(
+                NotificacionWorkflow.workflow_id == workflow.id,
+                NotificacionWorkflow.tipo == TipoNotificacion.APROBACION_AUTOMATICA
+            ).first()
+
+            if notificacion_existente:
+                logger.info(f"  ⏭️  Workflow {workflow.id} ya tiene notificación, saltando...")
+                continue
+
+            factura = workflow.factura
+            if not factura:
+                logger.warning(f"  ⚠️  Workflow {workflow.id} sin factura asociada")
+                errores += 1
+                continue
+
+            # Construir criterios cumplidos desde los datos guardados
+            criterios_cumplidos = []
+            if workflow.diferencias_detectadas:
+                diferencia_pct = workflow.diferencias_detectadas.get('diferencia_porcentual', 0)
+                criterios_cumplidos.append(f"Variación de monto: {diferencia_pct:.2f}%")
+
+            if workflow.porcentaje_similitud:
+                criterios_cumplidos.append(f"Similitud: {workflow.porcentaje_similitud}%")
+
+            if workflow.es_identica_mes_anterior:
+                criterios_cumplidos.append("Factura idéntica al mes anterior")
+
+            if not criterios_cumplidos:
+                criterios_cumplidos = ["Aprobada automáticamente por el sistema"]
+
+            # Enviar notificación retroactiva
+            resultado = notification_service.notificar_aprobacion_automatica(
+                db=db,
+                factura=factura,
+                criterios_cumplidos=criterios_cumplidos,
+                confianza=0.95  # Default para aprobaciones retroactivas
+            )
+
+            if resultado.get('exito'):
+                notificaciones_enviadas += resultado.get('notificaciones_enviadas', 0)
+                logger.info(f"  ✅ Notificación retroactiva enviada para workflow {workflow.id} - factura {factura.numero_factura}")
+
+                detalles.append({
+                    'workflow_id': workflow.id,
+                    'factura_id': factura.id,
+                    'numero_factura': factura.numero_factura,
+                    'responsable': workflow.responsable.nombre if workflow.responsable else 'N/A',
+                    'notificaciones_enviadas': resultado.get('notificaciones_enviadas', 0)
+                })
+            else:
+                errores += 1
+                logger.error(f"  ❌ Error enviando notificación para workflow {workflow.id}")
+
+        except Exception as e:
+            errores += 1
+            logger.error(f"  ❌ Error procesando workflow {workflow.id}: {str(e)}")
+
+    db.commit()
+
+    return {
+        "success": True,
+        "message": f"Procesadas {len(workflows_aprobados_auto)} facturas aprobadas automáticamente",
+        "data": {
+            "total_workflows_revisados": len(workflows_aprobados_auto),
+            "notificaciones_enviadas": notificaciones_enviadas,
+            "errores": errores,
+            "detalles": detalles[:20]  # Primeros 20 para no sobrecargar
+        }
     }
