@@ -399,13 +399,18 @@ async def procesar_workflows_pendientes(
 
                     # Actualizar workflow con información de comparación
                     workflow.factura_mes_anterior_id = factura_anterior.id
-                    workflow.porcentaje_similitud = 100 - diferencia_porcentaje
+
+                    # Calcular porcentaje de similitud (0-100, nunca negativo)
+                    # Si diferencia > 100%, similitud = 0%
+                    porcentaje_similitud = max(0, min(100, 100 - diferencia_porcentaje))
+                    workflow.porcentaje_similitud = round(porcentaje_similitud, 2)
+
                     workflow.es_identica_mes_anterior = (diferencia_porcentaje <= 5.0)
                     workflow.diferencias_detectadas = {
                         'monto_actual': float(factura.total_a_pagar or 0),
                         'monto_anterior': float(factura_anterior.total_a_pagar or 0),
                         'diferencia_absoluta': diferencia_monto,
-                        'diferencia_porcentual': diferencia_porcentaje
+                        'diferencia_porcentual': round(diferencia_porcentaje, 2)
                     }
                 else:
                     comparacion_mes_anterior = {
