@@ -264,3 +264,17 @@ class EstadisticasExtraccion(BaseModel):
     total_facturas_creadas: int
     tasa_exito: float = Field(..., ge=0.0, le=100.0, description="Porcentaje de éxito")
     promedio_tiempo_ms: Optional[float]
+
+
+# ==================== Validación de NIT ====================
+
+class NitValidationRequest(BaseModel):
+    """Request para validar un NIT"""
+    nit: str = Field(..., min_length=5, max_length=20, description="NIT a validar (con o sin DV)")
+
+
+class NitValidationResponse(BaseModel):
+    """Response de validación de NIT"""
+    is_valid: bool = Field(..., description="True si el NIT es válido")
+    nit_normalizado: Optional[str] = Field(None, description="NIT normalizado (XXXXXXXXX-D) si es válido")
+    error: Optional[str] = Field(None, description="Mensaje de error si no es válido")
