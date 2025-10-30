@@ -24,8 +24,11 @@ from app.schemas.email_config import (
     BulkNitsCreate,
     BulkNitsResponse,
     EstadisticasExtraccion,
+    NitValidationRequest,
+    NitValidationResponse,
 )
 from app.crud import email_config as crud
+from app.utils.nit_validator import NitValidator
 from datetime import datetime
 
 router = APIRouter(prefix="/email-config", tags=["Email Configuration"])
@@ -272,6 +275,66 @@ def crear_nits_bulk(
         nits_fallidos=fallidos,
         detalles=detalles,
     )
+
+
+@router.post("/validate-nit", response_model=NitValidationResponse)
+def validar_nit(
+    request: NitValidationRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Valida un NIT y retorna su formato normalizado.
+
+    **Descripción:**
+    - Acepta NITs en cualquier formato: "800185449", "800.185.449", "800185449-9"
+    - Calcula automáticamente el dígito verificador DIAN
+    - Retorna el NIT normalizado: "XXXXXXXXX-D"
+    - Si el NIT es inválido, retorna error descriptivo
+
+    **Casos de uso:**
+    - Validación en tiempo real desde el frontend
+    - Normalización antes de almacenamiento
+    - Verificación de dígito verificador
+
+    **Ejemplo de request:**
+    ```json
+    {
+      "nit": "800185449"
+    }
+    ```
+
+    **Ejemplo de response (válido):**
+    ```json
+    {
+      "is_valid": true,
+      "nit_normalizado": "800185449-9",
+      "error": null
+    }
+    ```
+
+    **Ejemplo de response (inválido):**
+    ```json
+    {
+      "is_valid": false,
+      "nit_normalizado": null,
+      "error": "NIT debe contener solo dígitos..."
+    }
+    ```
+    """
+    try:
+        # Normalizar usando el validador oficial
+        nit_normalizado = NitValidator.normalizar_nit(request.nit)
+        return NitValidationResponse(
+            is_valid=True,
+            nit_normalizado=nit_normalizado,
+            error=None
+        )
+    except ValueError as e:
+        return NitValidationResponse(
+            is_valid=False,
+            nit_normalizado=None,
+            error=str(e)
+        )
 
 
 @router.put("/nits/{nit_id}", response_model=NitConfiguracionResponse)
