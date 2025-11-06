@@ -856,7 +856,7 @@ def obtener_factura_con_workflow(
             } if factura_anterior else None
         }
 
-    # ✨ NUEVO: Análisis de patrones históricos
+    # NUEVO: Análisis de patrones históricos
     contexto_historico = None
     try:
         if factura.concepto_normalizado and factura.proveedor_id:

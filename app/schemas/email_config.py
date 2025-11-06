@@ -146,6 +146,27 @@ class CuentaCorreoSummary(BaseModel):
         from_attributes = True
 
 
+# ==================== Actualización de Ejecución ====================
+
+class ActualizarUltimaEjecucionRequest(BaseModel):
+    """Schema para actualizar timestamp de última ejecución exitosa"""
+    cuenta_id: int = Field(..., gt=0, description="ID de la cuenta de correo")
+    fecha_ejecucion: datetime = Field(..., description="Timestamp de última ejecución exitosa (UTC)")
+    fecha_ultimo_correo: Optional[datetime] = Field(None, description="Timestamp del último correo procesado (opcional)")
+
+
+class ActualizarUltimaEjecucionResponse(BaseModel):
+    """Respuesta de actualización de ejecución"""
+    cuenta_id: int
+    email: str
+    ultima_ejecucion_exitosa: Optional[datetime]
+    fecha_ultimo_correo_procesado: Optional[datetime]
+    actualizado_en: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ==================== Historial Extracción ====================
 
 class HistorialExtraccionCreate(BaseModel):

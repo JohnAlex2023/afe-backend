@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recuperación de Contraseña</title>
+    <title>Código de Verificación 2FA</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -22,42 +22,33 @@
         }
         .header {
             text-align: center;
-            border-bottom: 3px solid #6c757d;
+            border-bottom: 3px solid #007bff;
             padding-bottom: 20px;
             margin-bottom: 30px;
         }
         .header h1 {
-            color: #6c757d;
+            color: #007bff;
             margin: 0;
             font-size: 24px;
         }
-        .button-container {
+        .code-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
             text-align: center;
+            padding: 30px;
+            border-radius: 8px;
             margin: 30px 0;
         }
-        .button {
-            display: inline-block;
-            padding: 15px 30px;
-            background-color: #007bff;
-            color: white !important;
-            text-decoration: none;
-            border-radius: 5px;
+        .code {
+            font-size: 36px;
             font-weight: bold;
-            font-size: 16px;
-        }
-        .button:hover {
-            background-color: #0056b3;
-        }
-        .token-box {
-            background-color: #f8f9fa;
-            border: 2px dashed #dee2e6;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 4px;
-            text-align: center;
+            letter-spacing: 8px;
             font-family: 'Courier New', monospace;
-            word-break: break-all;
-            color: #495057;
+            margin: 10px 0;
+        }
+        .code-label {
+            font-size: 14px;
+            opacity: 0.9;
         }
         .warning {
             background-color: #fff3cd;
@@ -66,7 +57,11 @@
             margin: 20px 0;
             border-radius: 4px;
         }
-        .security-note {
+        .warning-icon {
+            font-size: 20px;
+            margin-right: 10px;
+        }
+        .security-tip {
             background-color: #e7f3ff;
             border-left: 4px solid #007bff;
             padding: 15px;
@@ -83,59 +78,50 @@
         }
         .expiry {
             text-align: center;
-            color: #dc3545;
+            color: #666;
             margin-top: 15px;
             font-size: 14px;
-            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1> Recuperación de Contraseña</h1>
+            <h1> Código de Verificación</h1>
         </div>
 
         <p>Hola <strong>{nombre_usuario}</strong>,</p>
 
-        <p>Hemos recibido una solicitud para restablecer la contraseña de tu cuenta en el Sistema AFE.</p>
+        <p>Has solicitado acceder al Sistema AFE. Para completar tu inicio de sesión, utiliza el siguiente código de verificación:</p>
 
-        <div class="button-container">
-            <a href="{link_recuperacion}" class="button">
-                 Restablecer mi contraseña
-            </a>
-        </div>
-
-        <div class="expiry">
-             Este enlace expira en {minutos_validez} minutos
+        <div class="code-box">
+            <div class="code-label">TU CÓDIGO DE VERIFICACIÓN</div>
+            <div class="code">{codigo_2fa}</div>
+            <div class="expiry"> Válido por {minutos_validez} minutos</div>
         </div>
 
         <div class="warning">
-            <strong> Importante:</strong> Si no solicitaste este restablecimiento, ignora este correo. Tu contraseña actual seguirá siendo válida.
+            <span class="warning-icon"></span>
+            <strong>Importante:</strong> Este código es de un solo uso y expirará en {minutos_validez} minutos.
         </div>
 
-        <div class="security-note">
-            <strong> Por tu seguridad:</strong>
+        <div class="security-tip">
+            <strong> Consejos de seguridad:</strong>
             <ul style="margin: 10px 0 0 0;">
-                <li>Este enlace solo puede usarse una vez</li>
-                <li>Nunca compartas este enlace con nadie</li>
-                <li>Asegúrate de crear una contraseña segura (mínimo 8 caracteres, con mayúsculas, minúsculas y números)</li>
-                <li>Si no solicitaste este cambio, contacta al administrador inmediatamente</li>
+                <li>Nunca compartas este código con nadie</li>
+                <li>Nuestro equipo nunca te pedirá este código por teléfono o email</li>
+                <li>Si no solicitaste este código, ignora este mensaje y cambia tu contraseña</li>
             </ul>
         </div>
 
-        <p style="margin-top: 25px; padding-top: 15px; border-top: 1px solid #eee; color: #666; font-size: 14px;">
-            <strong>¿El botón no funciona?</strong> Copia y pega el siguiente enlace en tu navegador:
+        <p style="margin-top: 20px; color: #666;">
+            Si no intentaste iniciar sesión, por favor contacta al administrador del sistema de inmediato.
         </p>
-        <div class="token-box">
-            {link_recuperacion}
-        </div>
 
         <div class="footer">
             <p>Este es un correo automático del Sistema AFE - Gestión de Facturas</p>
             <p>Por favor no responda a este mensaje</p>
-            <p>Fecha y hora de solicitud: {fecha_hora}</p>
-            <p>IP de origen: {ip_address}</p>
+            <p>Fecha y hora: {fecha_hora}</p>
             <p>&copy; 2025 Zentria - Todos los derechos reservados</p>
         </div>
     </div>

@@ -16,7 +16,7 @@ from app.models.factura import Factura, EstadoFactura
 from app.models.responsable import Responsable
 from app.crud import responsable as crud_responsable
 from app.crud import audit as crud_audit
-from app.services.email_service import get_email_service
+from app.services.unified_email_service import UnifiedEmailService
 from app.services.email_template_service import get_template_service
 
 
@@ -42,8 +42,8 @@ class NotificationService:
     def __init__(self):
         self.config_default = ConfiguracionNotificacion()
 
-        # Servicios de email
-        self.email_service = get_email_service()
+        # Servicios de email (usa UnifiedEmailService que prioriza Microsoft Graph)
+        self.email_service = UnifiedEmailService()
         self.template_service = get_template_service()
         
         # Plantillas de mensajes
@@ -183,7 +183,7 @@ Sistema Automático de Facturas
             # Preparar datos para la plantilla HTML
             datos_plantilla = {
                 'numero_factura': factura.numero_factura,
-                'proveedor_nombre': factura.proveedor.nombre if factura.proveedor else 'N/A',
+                'proveedor_nombre': factura.proveedor.razon_social if factura.proveedor else 'N/A',
                 'monto': float(factura.total_a_pagar or 0),
                 'fecha_emision': factura.fecha_emision,
                 'concepto': factura.concepto_principal or factura.concepto_normalizado or 'Sin concepto',
@@ -255,7 +255,7 @@ Sistema Automático de Facturas
             # Preparar datos para la plantilla HTML
             datos_plantilla = {
                 'numero_factura': factura.numero_factura,
-                'proveedor_nombre': factura.proveedor.nombre if factura.proveedor else 'N/A',
+                'proveedor_nombre': factura.proveedor.razon_social if factura.proveedor else 'N/A',
                 'monto': float(factura.total_a_pagar or 0),
                 'fecha_emision': factura.fecha_emision,
                 'concepto': factura.concepto_principal or factura.concepto_normalizado or 'Sin concepto',
@@ -337,7 +337,7 @@ Sistema Automático de Facturas
             facturas_atencion_list = [
                 {
                     'numero_factura': f.numero_factura,
-                    'proveedor_nombre': f.proveedor.nombre if f.proveedor else 'N/A',
+                    'proveedor_nombre': f.proveedor.razon_social if f.proveedor else 'N/A',
                     'monto': float(f.total_a_pagar or 0),
                     'motivo': 'Requiere revisión manual'
                 }
@@ -350,7 +350,7 @@ Sistema Automático de Facturas
                 facturas_aprobadas_list = [
                     {
                         'numero_factura': f.numero_factura,
-                        'proveedor_nombre': f.proveedor.nombre if f.proveedor else 'N/A',
+                        'proveedor_nombre': f.proveedor.razon_social if f.proveedor else 'N/A',
                         'monto': float(f.total_a_pagar or 0),
                         'confianza': f.confianza_automatizacion or 0.0
                     }
@@ -415,7 +415,7 @@ Sistema Automático de Facturas
             # Preparar datos para la plantilla HTML
             datos_plantilla = {
                 'numero_factura': factura.numero_factura,
-                'proveedor_nombre': factura.proveedor.nombre if factura.proveedor else 'N/A',
+                'proveedor_nombre': factura.proveedor.razon_social if factura.proveedor else 'N/A',
                 'error_descripcion': error_descripcion,
                 'fecha_error': datetime.now(),
                 'stack_trace': stack_trace,
@@ -453,24 +453,45 @@ Sistema Automático de Facturas
             return {'exito': False, 'error': str(e)}
 
     def _obtener_responsables_factura(self, db: Session, factura: Factura) -> List[Responsable]:
-        """Obtiene los responsables que deben ser notificados para una factura."""
+        """
+        Obtiene los responsables que deben ser notificados para una factura.
+
+        Enterprise Pattern: Multi-Responsable por NIT
+        - Los responsables se asignan por NIT, no por proveedor
+        - Un NIT puede tener múltiples responsables
+        - Se consulta la tabla asignacion_nit_responsable
+        """
+        from app.models.workflow_aprobacion import AsignacionNitResponsable
+
         responsables = []
-        
-        # Responsables por proveedor
-        if factura.proveedor and factura.proveedor.responsables:
-            responsables.extend(factura.proveedor.responsables)
-        
+
+        # Obtener NIT de la factura
+        nit = None
+        if factura.proveedor:
+            nit = factura.proveedor.nit
+
+        # Buscar responsables asignados a este NIT
+        if nit:
+            asignaciones = db.query(AsignacionNitResponsable).filter(
+                AsignacionNitResponsable.nit == nit,
+                AsignacionNitResponsable.activo == True
+            ).all()
+
+            for asignacion in asignaciones:
+                if asignacion.responsable and asignacion.responsable.activo:
+                    responsables.append(asignacion.responsable)
+
         # Si no hay responsables específicos, usar responsables generales
         if not responsables:
             responsables = crud_responsable.get_responsables_activos(db)
-        
+
         return responsables
 
     def _preparar_datos_factura(self, factura: Factura, datos_extra: Dict[str, Any] = None) -> Dict[str, Any]:
         """Prepara los datos básicos de la factura para las plantillas."""
         datos = {
             'numero_factura': factura.numero_factura,
-            'nombre_proveedor': factura.proveedor.nombre if factura.proveedor else 'N/A',
+            'nombre_proveedor': factura.proveedor.razon_social if factura.proveedor else 'N/A',
             'fecha_emision': factura.fecha_emision.strftime('%d/%m/%Y') if factura.fecha_emision else 'N/A',
             'monto': float(factura.total_a_pagar or 0),
             'concepto': factura.concepto_principal or factura.concepto_normalizado or 'Sin concepto'
@@ -527,12 +548,11 @@ Sistema Automático de Facturas
             plantilla = self.plantillas[tipo_notificacion][config.idioma]
             asunto = plantilla['asunto'].format(**datos_plantilla)
 
-            # Enviar email real usando EmailService
+            # Enviar email real usando UnifiedEmailService (Microsoft Graph + SMTP fallback)
             resultado_email = self.email_service.send_email(
                 to_email=responsable.email,
                 subject=asunto,
-                body_html=html_body,
-                body_text=text_body
+                body_html=html_body
             )
 
             if resultado_email['success']:
@@ -572,7 +592,7 @@ Sistema Automático de Facturas
         lineas = []
         for i, factura in enumerate(facturas_pendientes[:10], 1):  # Máximo 10
             monto_str = f"${float(factura.total_a_pagar or 0):,.2f}"
-            proveedor = factura.proveedor.nombre if factura.proveedor else "Sin proveedor"
+            proveedor = factura.proveedor.razon_social if factura.proveedor else "Sin proveedor"
             lineas.append(f"{i}. {factura.numero_factura} - {proveedor} - {monto_str}")
         
         if len(facturas_pendientes) > 10:
@@ -614,11 +634,11 @@ Sistema Automático de Facturas
         
         crud_audit.create_audit(
             db=db,
-            tabla="factura",
-            registro_id=factura.id,
+            entidad="factura",
+            entidad_id=factura.id,
             accion=f"notificacion_{tipo_notificacion}",
             usuario="sistema_notificaciones",
-            detalles=detalles
+            detalle=detalles
         )
 
     def obtener_configuracion_plantillas(self) -> Dict[str, Any]:

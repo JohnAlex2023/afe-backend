@@ -273,7 +273,7 @@ def list_facturas(
     ).offset(skip).limit(limit).all()
 
 
-# ✨ CURSOR-BASED PAGINATION (Para grandes volúmenes) ✨
+# CURSOR-BASED PAGINATION (Para grandes volúmenes) ✨
 
 def list_facturas_cursor(
     db: Session,
@@ -388,7 +388,7 @@ def list_facturas_cursor(
     return result_facturas, has_more
 
 
-# ✨ ENDPOINT PARA DASHBOARD EMPRESARIAL - SIN LÍMITES ✨
+# ENDPOINT PARA DASHBOARD EMPRESARIAL - SIN LÍMITES ✨
 # -----------------------------------------------------
 # Obtener TODAS las facturas (Solo para admins con dashboard completo)
 # -----------------------------------------------------
@@ -617,7 +617,7 @@ def get_facturas_by_proveedor_fecha(
     )
 
 
-# ✨ FUNCIONES PARA CLASIFICACIÓN POR PERÍODOS MENSUALES ✨
+# FUNCIONES PARA CLASIFICACIÓN POR PERÍODOS MENSUALES ✨
 
 # -----------------------------------------------------
 # Obtener resumen de facturas agrupadas por mes

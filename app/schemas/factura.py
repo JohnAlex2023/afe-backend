@@ -87,7 +87,7 @@ class FacturaRead(FacturaBase):
     motivo_rechazo_workflow: Optional[str] = None
     tipo_aprobacion_workflow: Optional[str] = None
 
-    # ✨ ACCION_POR: Leído directamente desde BD (sincronizado automáticamente)
+    # ACCION_POR: Leído directamente desde BD (sincronizado automáticamente)
     # Single source of truth - NO SE CALCULA, VIENE DE LA DB
     # Se sincroniza automáticamente en workflow_automatico.py:_sincronizar_estado_factura()
     nombre_responsable: Optional[str] = None
@@ -114,7 +114,7 @@ class FacturaRead(FacturaBase):
         if self.responsable:
             self.nombre_responsable = self.responsable.nombre
 
-        # ✨ ACCION_POR: Ya viene desde la BD sincronizado
+        # ACCION_POR: Ya viene desde la BD sincronizado
         # No se calcula más aquí - se lee directamente del campo factura.accion_por
         # Que fue populado en workflow_automatico.py:_sincronizar_estado_factura()
         # Los campos workflow_history son solo para debugging/auditoría

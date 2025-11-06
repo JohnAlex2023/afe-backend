@@ -15,8 +15,8 @@ from app.services.unified_email_service import get_unified_email_service
 
 logger = logging.getLogger(__name__)
 
-# Directorio de plantillas
-TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates" / "emails"
+# Directorio de plantillas (app/templates/emails/)
+TEMPLATES_DIR = Path(__file__).parent.parent / "templates" / "emails"
 
 
 def _load_template(template_name: str) -> str:

@@ -439,9 +439,20 @@ async def procesar_workflows_pendientes(
 
                         notification_service = NotificationService()
 
+                        # Extraer información del patrón detectado
+                        patron_detectado = "Mes sobre mes"
+                        factura_referencia = None
+                        variacion_monto = 0.0
+
+                        if workflow.diferencias_detectadas:
+                            variacion_monto = workflow.diferencias_detectadas.get('diferencia_porcentual', 0.0)
+                            monto_anterior = workflow.diferencias_detectadas.get('monto_anterior', 0)
+                            if monto_anterior:
+                                factura_referencia = f"Factura mes anterior: ${monto_anterior:,.2f}"
+
                         # Obtener criterios cumplidos para la notificación
                         criterios_cumplidos = [
-                            f"Variación de monto: {workflow.diferencias_detectadas.get('diferencia_porcentual', 0):.2f}%",
+                            f"Variación de monto: {variacion_monto:.2f}%",
                             "Factura idéntica al mes anterior",
                             f"Similitud: {workflow.porcentaje_similitud}%"
                         ]
@@ -450,7 +461,10 @@ async def procesar_workflows_pendientes(
                             db=db,
                             factura=factura,
                             criterios_cumplidos=criterios_cumplidos,
-                            confianza=comparacion_mes_anterior['confianza']
+                            confianza=comparacion_mes_anterior['confianza'],
+                            patron_detectado=patron_detectado,
+                            factura_referencia=factura_referencia,
+                            variacion_monto=variacion_monto
                         )
                         logger.info(f"  📧 Notificación de aprobación automática enviada para factura {factura.numero_factura}")
                     except Exception as e:
@@ -1374,12 +1388,26 @@ def notificar_aprobaciones_retroactivas(
             if not criterios_cumplidos:
                 criterios_cumplidos = ["Aprobada automáticamente por el sistema"]
 
+            # Construir información del patrón detectado
+            patron_detectado = "Mes sobre mes"
+            factura_referencia = None
+            variacion_monto = 0.0
+
+            if workflow.diferencias_detectadas:
+                variacion_monto = workflow.diferencias_detectadas.get('diferencia_porcentual', 0.0)
+                monto_anterior = workflow.diferencias_detectadas.get('monto_anterior', 0)
+                if monto_anterior:
+                    factura_referencia = f"Factura mes anterior: ${monto_anterior:,.2f}"
+
             # Enviar notificación retroactiva
             resultado = notification_service.notificar_aprobacion_automatica(
                 db=db,
                 factura=factura,
                 criterios_cumplidos=criterios_cumplidos,
-                confianza=0.95  # Default para aprobaciones retroactivas
+                confianza=0.95,  # Default para aprobaciones retroactivas
+                patron_detectado=patron_detectado,
+                factura_referencia=factura_referencia,
+                variacion_monto=variacion_monto
             )
 
             if resultado.get('exito'):

@@ -11,7 +11,7 @@ class ResponseBase(BaseModel):
     data: Optional[Any] = None
 
 
-# ✨ SCHEMAS PARA PAGINACIÓN EMPRESARIAL ✨
+# SCHEMAS PARA PAGINACIÓN EMPRESARIAL ✨
 
 class PaginationMetadata(BaseModel):
     """Metadata de paginación para respuestas empresariales"""
@@ -58,7 +58,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
         }
 
 
-# ✨ CURSOR-BASED PAGINATION (Para grandes volúmenes) ✨
+# CURSOR-BASED PAGINATION (Para grandes volúmenes) ✨
 
 class CursorPaginationMetadata(BaseModel):
     """Metadata para cursor-based pagination (escalable para millones de registros)"""

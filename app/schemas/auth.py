@@ -39,3 +39,9 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UsuarioResponse
+
+
+class MicrosoftAuthResponse(BaseModel):
+    """Respuesta de autorización de Microsoft"""
+    authorization_url: str
+    state: str

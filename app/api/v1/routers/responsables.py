@@ -61,7 +61,7 @@ def create_responsable_endpoint(
 )
 def list_responsables(
     db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin", "responsable")),
+    current_user=Depends(require_role("admin", "responsable", "viewer")),
 ):
     """Lista todos los responsables"""
     from app.models.responsable import Responsable
@@ -77,7 +77,7 @@ def list_responsables(
 def get_responsable(
     responsable_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin", "responsable")),
+    current_user=Depends(require_role("admin", "responsable", "viewer")),
 ):
     """Obtiene un responsable por ID"""
     from app.models.responsable import Responsable

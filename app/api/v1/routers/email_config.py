@@ -26,6 +26,8 @@ from app.schemas.email_config import (
     EstadisticasExtraccion,
     NitValidationRequest,
     NitValidationResponse,
+    ActualizarUltimaEjecucionRequest,
+    ActualizarUltimaEjecucionResponse,
 )
 from app.crud import email_config as crud
 from app.utils.nit_validator import NitValidator
@@ -482,6 +484,60 @@ def obtener_configuracion_para_extractor_public(
         total_cuentas=len(users),
         total_nits=total_nits,
         generado_en=datetime.utcnow(),
+    )
+
+
+# ==================== Endpoints para Tracking de Ejecución ====================
+
+@router.post("/actualizar-ultimo-procesamiento", response_model=ActualizarUltimaEjecucionResponse)
+def actualizar_ultimo_procesamiento(
+    request: ActualizarUltimaEjecucionRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    **Endpoint PÚBLICO para invoice_extractor** (sin autenticación).
+
+    Actualiza el timestamp de la última ejecución exitosa para una cuenta.
+
+    **Usado por invoice_extractor después de cada ejecución exitosa para:**
+    - Rastrear cuándo fue la última ejecución
+    - Habilitar extracción incremental en la próxima ejecución
+    - Evitar reprocesar correos ya descargados
+
+    **Parámetros:**
+    - `cuenta_id`: ID de la cuenta de correo
+    - `fecha_ejecucion`: Timestamp UTC de la ejecución (ISO 8601)
+    - `fecha_ultimo_correo`: Timestamp del último correo procesado (opcional)
+
+    **Ejemplo de uso:**
+    ```
+    POST /api/v1/email-config/actualizar-ultimo-procesamiento
+    {
+        "cuenta_id": 1,
+        "fecha_ejecucion": "2025-01-15T10:30:45Z",
+        "fecha_ultimo_correo": "2025-01-15T09:45:30Z"
+    }
+    ```
+    """
+    cuenta = crud.update_ultima_ejecucion(
+        db,
+        request.cuenta_id,
+        request.fecha_ejecucion,
+        request.fecha_ultimo_correo
+    )
+
+    if not cuenta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Cuenta de correo con ID {request.cuenta_id} no encontrada"
+        )
+
+    return ActualizarUltimaEjecucionResponse(
+        cuenta_id=cuenta.id,
+        email=cuenta.email,
+        ultima_ejecucion_exitosa=cuenta.ultima_ejecucion_exitosa,
+        fecha_ultimo_correo_procesado=cuenta.fecha_ultimo_correo_procesado,
+        actualizado_en=datetime.utcnow(),
     )
 
 

@@ -18,6 +18,6 @@ router = APIRouter(tags=["Roles y Permisos"])
 )
 def list_all(
     db: Session = Depends(get_db),
-    current_user=Depends(require_role("admin")),
+    current_user=Depends(require_role("admin", "viewer")),
 ):
     return list_roles(db)

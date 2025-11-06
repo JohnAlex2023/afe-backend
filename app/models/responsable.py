@@ -15,8 +15,13 @@ class Responsable(Base):
     activo = Column(Boolean, server_default=text("1"), nullable=False)
     last_login = Column(DateTime(timezone=True), nullable=True)
     role_id = Column(BigInteger, ForeignKey("roles.id", onupdate="CASCADE", ondelete="RESTRICT"), nullable=False)
-    hashed_password = Column(String(255), nullable=False)
+    hashed_password = Column(String(255), nullable=True)  # Nullable para usuarios OAuth
     must_change_password = Column(Boolean, server_default=text("1"), nullable=False) # obliga a cambiar la contraseña en el primer login
+
+    # Campos para autenticación OAuth
+    auth_provider = Column(String(50), server_default=text("'local'"), nullable=False)  # 'local', 'microsoft', 'google', etc.
+    oauth_id = Column(String(255), nullable=True, unique=True)  # ID del usuario en el proveedor OAuth
+    oauth_picture = Column(String(500), nullable=True)  # URL de la foto de perfil
 
     creado_en = Column(DateTime(timezone=True), server_default=func.now(), nullable=False) # fecha de creación
 

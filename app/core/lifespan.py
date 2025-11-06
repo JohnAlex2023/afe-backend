@@ -53,14 +53,14 @@ def run_automation_task():
                     resultado = workflow_service.procesar_factura_nueva(factura.id)
                     if resultado.get('exito'):
                         workflows_creados += 1
-                        logger.info(f"  ✅ Workflow creado para factura {factura.id}")
+                        logger.info(f"   Workflow creado para factura {factura.id}")
                     else:
                         logger.warning(f"  ⚠️  Workflow no se creó para factura {factura.id}: {resultado.get('error')}")
                 except Exception as e:
                     logger.error(f"  ❌ Error creando workflow para factura {factura.id}: {str(e)}")
 
             if workflows_creados > 0:
-                logger.info(f" [PASO 1] ✅ {workflows_creados} workflows creados")
+                logger.info(f" [PASO 1]  {workflows_creados} workflows creados")
                 db.commit()
 
             # PASO 2: Procesar facturas pendientes con automatización

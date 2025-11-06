@@ -265,7 +265,7 @@ SI necesitas corregir datos en BD:
 ❌ NUNCA:
 UPDATE facturas SET accion_por = 'Juan' WHERE id = 5;
 
-✅ SIEMPRE:
+ SIEMPRE:
 1. Crear migración Alembic que documente el cambio
 2. Incluir razón en comentario
 3. Hacer reversible (downgrade)
@@ -393,7 +393,7 @@ print(f"workflow.aprobada_por: {workflow.aprobada_por}")
 4. **NUNCA** agregar campo nuevo sin test de sincronización
 5. **NUNCA** cambiar migración después de push a remoto
 
-✅ **SIEMPRE:**
+ **SIEMPRE:**
 1. Ejecutar `validate_before_commit.py`
 2. Usar `_sincronizar_estado_factura()` para cambios
 3. Documentar en este archivo nuevos flujos

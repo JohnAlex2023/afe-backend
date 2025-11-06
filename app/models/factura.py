@@ -50,13 +50,13 @@ class Factura(Base):
     total_a_pagar = Column(Numeric(15, 2, asdecimal=True))
     responsable_id = Column(BigInteger, ForeignKey("responsables.id"), nullable=True)
 
-    # ✨ ACCION_POR: Single source of truth for "who changed the status"
+    # ACCION_POR: Single source of truth for "who changed the status"
     # Automatically synchronized from workflow_aprobacion_facturas.aprobada_por/rechazada_por
     # This is the ONLY place this information should be read from in the dashboard
     accion_por = Column(String(255), nullable=True, index=True,
                        comment="Who approved/rejected the factura - synchronized from workflow")
 
-    # ✨ PHASE 3: ESTADO_ASIGNACION: Track assignment lifecycle
+    # PHASE 3: ESTADO_ASIGNACION: Track assignment lifecycle
     # Automatically computed field: sin_asignar, asignado, huerfano, inconsistente
     # Used by dashboard to display accurate assignment status and identify orphaned facturas
     estado_asignacion = Column(
@@ -70,7 +70,7 @@ class Factura(Base):
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
     actualizado_en = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    # ✨ CAMPOS PARA AUTOMATIZACIÓN DE FACTURAS RECURRENTES ✨
+    # CAMPOS PARA AUTOMATIZACIÓN DE FACTURAS RECURRENTES ✨
     # NOTA: Campos de aprobación/rechazo eliminados en Fase 2.4
     # Ahora viven en workflow_aprobacion_facturas
     # Acceso vía propiedades: aprobado_por_workflow, fecha_aprobacion_workflow, etc.
@@ -87,7 +87,7 @@ class Factura(Base):
     fecha_procesamiento_auto = Column(DateTime(timezone=True), nullable=True,
                                      comment="Cuándo se ejecutó el procesamiento automático")
 
-    # ✨ CAMPOS PARA MATCHING Y COMPARACIÓN EMPRESARIAL ✨
+    # CAMPOS PARA MATCHING Y COMPARACIÓN EMPRESARIAL ✨
 
     # Concepto y descripción
     concepto_principal = Column(String(500), nullable=True,
@@ -115,7 +115,7 @@ class Factura(Base):
     # Relationship para factura de referencia (para automatización)
     factura_referencia = relationship("Factura", remote_side=[id], backref="facturas_relacionadas")
 
-    # ✨ NUEVA RELACIÓN: Items de la factura (líneas individuales)
+    # NUEVA RELACIÓN: Items de la factura (líneas individuales)
     items = relationship(
         "FacturaItem",
         back_populates="factura",
@@ -124,7 +124,7 @@ class Factura(Base):
         order_by="FacturaItem.numero_linea"  # Ordenados por línea
     )
 
-    # ✨ FASE 2: Relación a Workflow (para normalización de datos)
+    # FASE 2: Relación a Workflow (para normalización de datos)
     # NOTA: uselist=True porque con multi-responsable, una factura puede tener múltiples workflows
     workflow_history = relationship(
         "WorkflowAprobacionFactura",

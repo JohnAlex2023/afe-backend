@@ -9,7 +9,7 @@
 ### 1.1 Ejecutar Validación Automática
 ```bash
 python scripts/validate_before_commit.py
-# Debe mostrar: ✅ TODAS LAS VALIDACIONES PASARON
+# Debe mostrar:  TODAS LAS VALIDACIONES PASARON
 ```
 
 **Validaciones que ejecuta:**

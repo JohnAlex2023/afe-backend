@@ -52,7 +52,7 @@ def limpiar_asignaciones_inactivas():
         
         db.commit()
         
-        logger.info(f"✅ {total_inactivos} registros eliminados exitosamente")
+        logger.info(f" {total_inactivos} registros eliminados exitosamente")
         
     except Exception as e:
         db.rollback()

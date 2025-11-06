@@ -5,9 +5,9 @@
 Este documento define la arquitectura empresarial de la columna "ACCION POR" en el dashboard de AFE.
 
 **Decisión Arquitectónica:**
-- ✅ **RESPONSABLE** = quién está asignado a revisar (de asignaciones NIT) - NUNCA cambia
-- ✅ **ESTADO** = estado actual de la factura - Cambia por el workflow
-- ✅ **ACCION_POR** = quién hizo el ÚLTIMO cambio de estado - SINCRONIZADO AUTOMÁTICAMENTE desde BD
+-  **RESPONSABLE** = quién está asignado a revisar (de asignaciones NIT) - NUNCA cambia
+-  **ESTADO** = estado actual de la factura - Cambia por el workflow
+-  **ACCION_POR** = quién hizo el ÚLTIMO cambio de estado - SINCRONIZADO AUTOMÁTICAMENTE desde BD
 
 **Crítico:** `accion_por` es **NUNCA manual**, se sincroniza **AUTOMÁTICAMENTE** desde `workflow_aprobacion_facturas.aprobada_por` o `rechazada_por`.
 
@@ -44,7 +44,7 @@ SET fecha_aprobacion = NOW()          SET fecha_rechazo = NOW()
                      │
                      ▼
         ┌─────────────────────────────────────┐
-        │ _sincronizar_estado_factura()       │ ✨ SYNC AUTOMÁTICA
+        │ _sincronizar_estado_factura()       │ SYNC AUTOMÁTICA
         │                                     │
         │ Copia automáticamente:              │
         │ - aprobada_por → factura.accion_por │
@@ -76,17 +76,17 @@ SET fecha_aprobacion = NOW()          SET fecha_rechazo = NOW()
 **Archivo:** `app/models/factura.py` (línea 30-34)
 
 ```python
-# ✨ ACCION_POR: Single source of truth for "who changed the status"
+# ACCION_POR: Single source of truth for "who changed the status"
 # Automatically synchronized from workflow_aprobacion_facturas.aprobada_por/rechazada_por
 accion_por = Column(String(255), nullable=True, index=True,
                    comment="Who approved/rejected the factura - synchronized from workflow")
 ```
 
 **Características:**
-- ✅ String(255) para almacenar nombres de usuarios
-- ✅ Nullable (inicialmente NULL hasta que se aprueba/rechaza)
-- ✅ Indexado para performance en dashboard
-- ✅ Con comentario documentando su propósito
+-  String(255) para almacenar nombres de usuarios
+-  Nullable (inicialmente NULL hasta que se aprueba/rechaza)
+-  Indexado para performance en dashboard
+-  Con comentario documentando su propósito
 
 ### 2. Servicio: Sincronización Automática
 
@@ -103,14 +103,14 @@ def _sincronizar_estado_factura(self, workflow: WorkflowAprobacionFactura) -> No
         if workflow.aprobada:
             workflow.factura.aprobado_por = workflow.aprobada_por
             workflow.factura.fecha_aprobacion = workflow.fecha_aprobacion
-            # ✨ ACCION_POR: Single source of truth para dashboard
+            # ACCION_POR: Single source of truth para dashboard
             workflow.factura.accion_por = workflow.aprobada_por  # ← SINCRONIZADO
 
         if workflow.rechazada:
             workflow.factura.rechazado_por = workflow.rechazada_por
             workflow.factura.fecha_rechazo = workflow.fecha_rechazo
             workflow.factura.motivo_rechazo = workflow.detalle_rechazo
-            # ✨ ACCION_POR: Single source of truth para dashboard
+            # ACCION_POR: Single source of truth para dashboard
             workflow.factura.accion_por = workflow.rechazada_por  # ← SINCRONIZADO
 ```
 
@@ -125,7 +125,7 @@ def _sincronizar_estado_factura(self, workflow: WorkflowAprobacionFactura) -> No
 **Archivo:** `app/schemas/factura.py` (líneas 90-136)
 
 ```python
-# ✨ ACCION_POR: Leído directamente desde BD (sincronizado automáticamente)
+# ACCION_POR: Leído directamente desde BD (sincronizado automáticamente)
 # Single source of truth - NO SE CALCULA, VIENE DE LA DB
 # Se sincroniza automáticamente en workflow_automatico.py:_sincronizar_estado_factura()
 accion_por: Optional[str] = None
@@ -135,7 +135,7 @@ def populate_calculated_fields(self):
     """Poblar campos calculados desde relaciones (NO incluye accion_por)"""
     # ... otros campos ...
 
-    # ✨ ACCION_POR: Ya viene desde la BD sincronizado
+    # ACCION_POR: Ya viene desde la BD sincronizado
     # No se calcula más aquí - se lee directamente del campo factura.accion_por
 
     # Si accion_por aún no está poblado y es aprobación automática,
@@ -177,22 +177,22 @@ def upgrade() -> None:
 ## Garantías de Consistencia
 
 ### 1. Sincronización Automática (No Manual)
-- ✅ Se sincroniza EN TIEMPO DE APROBACIÓN/RECHAZO
-- ✅ En la misma transacción del workflow
-- ✅ NO hay campo manual en formulario
-- ✅ Si cambias usuario, se refleja automáticamente
+-  Se sincroniza EN TIEMPO DE APROBACIÓN/RECHAZO
+-  En la misma transacción del workflow
+-  NO hay campo manual en formulario
+-  Si cambias usuario, se refleja automáticamente
 
 ### 2. Single Source of Truth
-- ✅ BD es la fuente única (no cálculos en schema)
-- ✅ Indexado para queries rápidas
-- ✅ Un solo lugar donde escribir
-- ✅ Múltiples lecturas consistentes
+-  BD es la fuente única (no cálculos en schema)
+-  Indexado para queries rápidas
+-  Un solo lugar donde escribir
+-  Múltiples lecturas consistentes
 
 ### 3. Integridad de Datos
-- ✅ Diferencia clara entre RESPONSABLE y ACCION_POR
-- ✅ RESPONSABLE nunca cambia (asignación original)
-- ✅ ACCION_POR siempre refleja quién actuó
-- ✅ Test suite previene regresiones
+-  Diferencia clara entre RESPONSABLE y ACCION_POR
+-  RESPONSABLE nunca cambia (asignación original)
+-  ACCION_POR siempre refleja quién actuó
+-  Test suite previene regresiones
 
 ---
 
@@ -266,13 +266,13 @@ UPDATE facturas SET accion_por = 'Maria Garcia' WHERE id = 1;
 ### Test Suite Creada
 **Archivo:** `tests/test_accion_por_sync.py` (7 tests)
 
-1. ✅ `test_accion_por_sincroniza_en_aprobacion_manual` - Verifica sincronización básica
-2. ✅ `test_accion_por_sincroniza_en_rechazo` - Verifica sincronización en rechazo
-3. ✅ `test_accion_por_se_sincroniza_automaticamente_no_manual` - Verifica que NO es manual
-4. ✅ `test_accion_por_en_aprobacion_automatica` - Verifica caso "SISTEMA"
-5. ✅ `test_accion_por_en_schema_siempre_consistente` - Verifica schema lee de BD
-6. ✅ `test_accion_por_diferencia_responsable_vs_accion_por` - Verifica diferencia arquitectónica
-7. ✅ `test_accion_por_nunca_vacio_despues_aprobacion` - Verifica integridad
+1.  `test_accion_por_sincroniza_en_aprobacion_manual` - Verifica sincronización básica
+2.  `test_accion_por_sincroniza_en_rechazo` - Verifica sincronización en rechazo
+3.  `test_accion_por_se_sincroniza_automaticamente_no_manual` - Verifica que NO es manual
+4.  `test_accion_por_en_aprobacion_automatica` - Verifica caso "SISTEMA"
+5.  `test_accion_por_en_schema_siempre_consistente` - Verifica schema lee de BD
+6.  `test_accion_por_diferencia_responsable_vs_accion_por` - Verifica diferencia arquitectónica
+7.  `test_accion_por_nunca_vacio_despues_aprobacion` - Verifica integridad
 
 ### Ejecución
 ```bash
@@ -342,9 +342,9 @@ pytest tests/test_accion_por_sync.py -v
 
 Esta arquitectura implementa el patrón empresarial correcto para sistemas de aprobación:
 
-✅ **RESPONSABLE** = Estructura organizacional (quién está asignado)
-✅ **ACCION_POR** = Auditoría operacional (quién actuó)
-✅ **ESTADO** = Estado actual de la factura
+ **RESPONSABLE** = Estructura organizacional (quién está asignado)
+ **ACCION_POR** = Auditoría operacional (quién actuó)
+ **ESTADO** = Estado actual de la factura
 
 Esto es estándar en SAP, Oracle, Fintech, y otros sistemas empresariales.
 

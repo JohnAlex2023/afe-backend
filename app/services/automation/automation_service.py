@@ -6,7 +6,7 @@ Este es el punto de entrada principal para todo el sistema de automatización.
 Orquesta todos los componentes (detector de patrones, generador de fingerprints,
 motor de decisiones) para procesar facturas pendientes de forma inteligente.
 
-✨ INTEGRACIÓN CON HISTORIAL_PAGOS:
+INTEGRACIÓN CON HISTORIAL_PAGOS:
 - Consulta patrones históricos antes de tomar decisiones
 - Ajusta scores de confianza según tipo de patrón (TIPO_A/B/C)
 - Prioriza auto-aprobación para patrones TIPO_A (fijos)
@@ -221,7 +221,7 @@ class AutomationService:
         """
         facturas_historicas = []
 
-        # ✨ PRIORIDAD 1: Buscar factura del mes anterior (lógica principal de aprobación)
+        # PRIORIDAD 1: Buscar factura del mes anterior (lógica principal de aprobación)
         factura_mes_anterior = crud_factura.find_factura_mes_anterior(
             db=db,
             proveedor_id=factura.proveedor_id,

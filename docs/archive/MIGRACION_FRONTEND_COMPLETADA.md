@@ -449,7 +449,7 @@ npm run dev
 
 ### Nuevos
 ```
-✨ src/services/asignacionNit.api.ts (268 líneas)
+src/services/asignacionNit.api.ts (268 líneas)
 ```
 
 ### Modificados

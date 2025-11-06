@@ -177,7 +177,7 @@ curl http://prod-server/metrics | grep "inconsistent_facturas"
 6. **NUNCA** omitir transacción atómica en cambios relacionados
 7. **NUNCA** push a remoto sin tests pasando 100%
 
-### ✅ SIEMPRE:
+###  SIEMPRE:
 
 1. **SIEMPRE** ejecutar validación antes de commit
 2. **SIEMPRE** completar DEPLOYMENT_CHECKLIST
@@ -303,11 +303,11 @@ Como equipo senior, sabemos que:
 
 Has implementado un sistema profesional de 4 capas que:
 
-✅ **PREVIENE** errores operacionales antes de que ocurran
-✅ **DOCUMENTA** reglas de sincronización exhaustivamente
-✅ **VALIDA** automáticamente antes de cada commit
-✅ **MONITOREA** después de deployment
-✅ **ESCALA** con el equipo (procesos, no individuos)
+ **PREVIENE** errores operacionales antes de que ocurran
+ **DOCUMENTA** reglas de sincronización exhaustivamente
+ **VALIDA** automáticamente antes de cada commit
+ **MONITOREA** después de deployment
+ **ESCALA** con el equipo (procesos, no individuos)
 
 **Resultado:** Equipo senior competente que comete errores → Equipo senior con procesos que previene errores
 
@@ -339,4 +339,4 @@ Si encuentras:
 **Nivel:** Enterprise / Fortune 500
 **Responsable:** Senior Development Team
 
-**Status:** ✅ SYSTEM OPERATIONAL - All 4 protection layers active
+**Status:**  SYSTEM OPERATIONAL - All 4 protection layers active

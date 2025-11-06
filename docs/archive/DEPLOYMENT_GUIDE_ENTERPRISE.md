@@ -331,7 +331,7 @@ groups:
 
 ---
 
-## ✅ Ventajas de Esta Arquitectura
+##  Ventajas de Esta Arquitectura
 
 ### 1. **Independencia de Código**
 - Los triggers garantizan sincronización incluso si el código Python tiene bugs

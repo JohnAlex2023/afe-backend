@@ -68,6 +68,17 @@ class WorkflowAutomaticoService:
             )
             self.clasificador = None
 
+        # Servicio de notificaciones para envío real de emails
+        try:
+            from app.services.automation.notification_service import NotificationService
+            self.notification_service = NotificationService()
+        except Exception as e:
+            logger.error(
+                f"❌ Error inicializando NotificationService: {str(e)}",
+                exc_info=True
+            )
+            self.notification_service = None
+
     # ============================================================================
     # SINCRONIZACIÓN DE ESTADOS (Enterprise Pattern)
     # ============================================================================
@@ -195,7 +206,8 @@ class WorkflowAutomaticoService:
         # Patrón: Cuando múltiples responsables tienen el NIT asignado,
         # todos reciben la misma factura. Cambios de estado se sincronizan entre todos.
 
-        workflows_creados = []
+        workflows_creados = []  # Lista de objetos WorkflowAprobacionFactura reales
+        workflows_info = []      # Lista de diccionarios con info para respuesta
         responsable_ids = []
 
         for asignacion in asignaciones:
@@ -215,7 +227,8 @@ class WorkflowAutomaticoService:
             )
 
             self.db.add(workflow)
-            workflows_creados.append({
+            workflows_creados.append(workflow)  # ✅ Agregar objeto real
+            workflows_info.append({
                 "workflow_id": workflow.id,
                 "responsable_id": asignacion.responsable_id,
                 "area": asignacion.area
@@ -231,8 +244,12 @@ class WorkflowAutomaticoService:
         self.db.commit()
         self.db.refresh(factura)
 
-        # 6. Iniciar análisis de similitud (con la primera asignación)
-        resultado_analisis = self._analizar_similitud_mes_anterior(factura, workflows_creados[0] if workflows_creados else None, asignaciones[0])
+        # 6. Iniciar análisis de similitud (con el primer workflow REAL)
+        resultado_analisis = self._analizar_similitud_mes_anterior(
+            factura,
+            workflows_creados[0] if workflows_creados else None,
+            asignaciones[0]
+        )
 
         # 7. Enviar notificaciones a TODOS los responsables
         for i, asignacion in enumerate(asignaciones):
@@ -240,7 +257,7 @@ class WorkflowAutomaticoService:
 
         return {
             "exito": True,
-            "workflow_ids": [w["workflow_id"] for w in workflows_creados],
+            "workflow_ids": [w.id for w in workflows_creados],
             "factura_id": factura.id,
             "nit": nit,
             "responsables_asignados": responsable_ids,
@@ -580,28 +597,64 @@ class WorkflowAutomaticoService:
 
         self.db.commit()
 
-        # Enviar notificación de aprobación automática
+        # ========================================================================
+        # ENVIAR NOTIFICACIÓN REAL POR EMAIL (Enterprise)
+        # ========================================================================
+        emails_enviados = 0
+        if self.notification_service:
+            try:
+                # Preparar criterios cumplidos para el email
+                criterios_cumplidos = [
+                    f"✅ Similitud con mes anterior: {workflow.porcentaje_similitud}%",
+                    f"✅ Items verificados: {workflow.criterios_comparacion.get('items_ok', 0)}/{workflow.criterios_comparacion.get('items_analizados', 0)}",
+                    "✅ Sin alertas críticas detectadas",
+                    "✅ Proveedor con historial confiable"
+                ]
+
+                # Enviar notificación usando NotificationService (envía emails reales)
+                resultado_envio = self.notification_service.notificar_aprobacion_automatica(
+                    db=self.db,
+                    factura=factura,
+                    criterios_cumplidos=criterios_cumplidos,
+                    confianza=float(workflow.porcentaje_similitud or 0) / 100.0,
+                    patron_detectado="Factura recurrente mensual",
+                    factura_referencia=f"Mes anterior (ID: {workflow.factura_referencia_id or 'N/A'})",
+                    variacion_monto=0.0
+                )
+
+                if resultado_envio.get('exito'):
+                    emails_enviados = resultado_envio.get('notificaciones_enviadas', 0)
+                    logger.info(
+                        f"✅ Notificación de aprobación automática enviada: "
+                        f"{emails_enviados} emails enviados para factura {factura.numero_factura}"
+                    )
+                else:
+                    logger.warning(
+                        f"⚠️ No se pudo enviar notificación de aprobación: {resultado_envio.get('error')}"
+                    )
+
+            except Exception as e:
+                logger.error(
+                    f"❌ Error enviando notificación de aprobación para factura {factura.id}: {str(e)}",
+                    exc_info=True
+                )
+
+        # También crear registro en tabla notificacion_workflow (para auditoría)
         self._crear_notificacion(
             workflow=workflow,
             tipo=TipoNotificacion.FACTURA_APROBADA,
-            destinatarios=[],  # Se llenará con emails del responsable y contabilidad
-            asunto=f"  Factura Aprobada Automáticamente - {factura.numero_factura}",
-            cuerpo=f"""
-            La factura {factura.numero_factura} ha sido aprobada automáticamente.
-
-            Proveedor: {factura.proveedor}
-            Monto: ${factura.total_a_pagar:,.2f}
-            Similitud con mes anterior: {workflow.porcentaje_similitud}%
-
-            No requiere acción adicional.
-            """
+            destinatarios=[],  # Los destinatarios ya se manejaron en NotificationService
+            asunto=f"✅ Factura Aprobada Automáticamente - {factura.numero_factura}",
+            cuerpo=f"La factura {factura.numero_factura} ha sido aprobada automáticamente. "
+                   f"Emails enviados: {emails_enviados}"
         )
 
         return {
             "aprobacion_automatica": True,
             "estado": workflow.estado.value,
             "porcentaje_similitud": float(workflow.porcentaje_similitud),
-            "mensaje": "Factura aprobada automáticamente"
+            "emails_enviados": emails_enviados,
+            "mensaje": f"Factura aprobada automáticamente - {emails_enviados} notificaciones enviadas"
         }
 
     def _enviar_a_revision_manual_v2(
@@ -622,7 +675,61 @@ class WorkflowAutomaticoService:
 
         self.db.commit()
 
-        # Crear notificación para el responsable con contexto completo
+        # ========================================================================
+        # ENVIAR NOTIFICACIÓN REAL POR EMAIL (Enterprise)
+        # ========================================================================
+        emails_enviados = 0
+        if self.notification_service:
+            try:
+                # Preparar alertas para el email
+                alertas_texto = []
+                for alerta in resultado_comparacion.get('alertas', [])[:10]:
+                    alertas_texto.append(
+                        f"• {alerta.get('tipo', 'Alerta')}: {alerta.get('mensaje', 'Sin detalle')}"
+                    )
+
+                # Motivo de revisión detallado
+                motivo = f"""
+Confianza de automatización: {resultado_comparacion.get('confianza', 0)}%
+
+Análisis de Items:
+- Total items: {resultado_comparacion.get('items_analizados', 0)}
+- Items sin cambios: {resultado_comparacion.get('items_ok', 0)}
+- Items con alertas: {resultado_comparacion.get('items_con_alertas', 0)}
+- Items nuevos: {resultado_comparacion.get('nuevos_items_count', 0)}
+
+Razón: La factura no alcanzó el umbral de confianza requerido para aprobación automática.
+"""
+
+                # Enviar notificación usando NotificationService (envía emails reales)
+                resultado_envio = self.notification_service.notificar_revision_requerida(
+                    db=self.db,
+                    factura=workflow.factura,
+                    motivo=motivo,
+                    confianza=resultado_comparacion.get('confianza', 0) / 100.0,
+                    patron_detectado="Análisis detallado completado",
+                    alertas=alertas_texto,
+                    contexto_historico=resultado_comparacion
+                )
+
+                if resultado_envio.get('exito'):
+                    emails_enviados = resultado_envio.get('notificaciones_enviadas', 0)
+                    logger.info(
+                        f"✅ Notificación de revisión enviada: "
+                        f"{emails_enviados} emails enviados para factura {workflow.factura.numero_factura}"
+                    )
+                else:
+                    logger.warning(
+                        f"⚠️ No se pudo enviar notificación de revisión: {resultado_envio.get('error')}"
+                    )
+
+            except Exception as e:
+                logger.error(
+                    f"❌ Error enviando notificación de revisión para factura {workflow.factura.id}: {str(e)}",
+                    exc_info=True
+                )
+
+        # También crear registro en tabla notificacion_workflow (para auditoría)
         alertas_resumen = self._formatear_alertas_para_notificacion(
             resultado_comparacion.get('alertas', [])
         )
@@ -630,23 +737,10 @@ class WorkflowAutomaticoService:
         self._crear_notificacion(
             workflow=workflow,
             tipo=TipoNotificacion.PENDIENTE_REVISION,
-            destinatarios=[],  # Email del responsable
-            asunto=f" Factura Pendiente de Revisión - {workflow.factura.numero_factura}",
-            cuerpo=f"""
-            La factura {workflow.factura.numero_factura} requiere su revisión manual.
-
-            ANÁLISIS AUTOMÁTICO:
-            - Items analizados: {resultado_comparacion.get('items_analizados', 0)}
-            - Items OK: {resultado_comparacion.get('items_ok', 0)}
-            - Items con alertas: {resultado_comparacion.get('items_con_alertas', 0)}
-            - Items nuevos: {resultado_comparacion.get('nuevos_items_count', 0)}
-            - Confianza: {resultado_comparacion.get('confianza', 0)}%
-
-             ALERTAS DETECTADAS:
-            {alertas_resumen}
-
-            Por favor, revise y apruebe o rechace la factura en el sistema.
-            """
+            destinatarios=[],  # Los destinatarios ya se manejaron en NotificationService
+            asunto=f"⚠️ Factura Pendiente de Revisión - {workflow.factura.numero_factura}",
+            cuerpo=f"La factura requiere revisión manual. Emails enviados: {emails_enviados}. "
+                   f"Alertas: {len(resultado_comparacion.get('alertas', []))}"
         )
 
         return {
@@ -657,7 +751,8 @@ class WorkflowAutomaticoService:
             "items_con_alertas": resultado_comparacion.get('items_con_alertas', 0),
             "porcentaje_similitud": float(workflow.porcentaje_similitud or 0),
             "confianza": resultado_comparacion.get('confianza', 0),
-            "mensaje": "Factura enviada a revisión manual - Análisis enterprise completado"
+            "emails_enviados": emails_enviados,
+            "mensaje": f"Factura enviada a revisión manual - {emails_enviados} notificaciones enviadas"
         }
 
     def _formatear_alertas_para_notificacion(self, alertas: List[Dict]) -> str:

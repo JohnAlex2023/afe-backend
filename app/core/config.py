@@ -4,6 +4,14 @@ from pydantic import Field
 from typing import List
 
 
+# Roles del sistema
+class Roles:
+    """Constantes para roles de usuario."""
+    ADMIN = "admin"
+    RESPONSABLE = "responsable"
+    VIEWER = "viewer"  # Solo lectura
+
+
 class Settings(BaseSettings):
     # --- Core ---
     environment: str = Field("development", env="ENVIRONMENT")  
@@ -25,6 +33,15 @@ class Settings(BaseSettings):
     graph_client_secret: str = Field("", env="GRAPH_CLIENT_SECRET")
     graph_from_email: str = Field("notificacionrpa.auto@zentria.com.co", env="GRAPH_FROM_EMAIL")
     graph_from_name: str = Field("Sistema AFE - Notificaciones", env="GRAPH_FROM_NAME")
+
+    # --- Microsoft OAuth (para autenticación de usuarios) ---
+    # Usar el mismo tenant y client_id si se usa la misma app registration
+    # O crear variables separadas si se usa una app diferente para auth
+    oauth_microsoft_tenant_id: str = Field("", env="OAUTH_MICROSOFT_TENANT_ID")
+    oauth_microsoft_client_id: str = Field("", env="OAUTH_MICROSOFT_CLIENT_ID")
+    oauth_microsoft_client_secret: str = Field("", env="OAUTH_MICROSOFT_CLIENT_SECRET")
+    oauth_microsoft_redirect_uri: str = Field("http://localhost:3000/auth/microsoft/callback", env="OAUTH_MICROSOFT_REDIRECT_URI")
+    oauth_microsoft_scopes: str = Field("openid email profile User.Read", env="OAUTH_MICROSOFT_SCOPES")
 
     # --- SMTP (fallback opcional) ---
     smtp_host: str = Field("smtp.gmail.com", env="SMTP_HOST")

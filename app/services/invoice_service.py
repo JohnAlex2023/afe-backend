@@ -64,7 +64,7 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
         {"msg": "Nueva factura creada desde Microsoft Graph"}
     )
 
-    # ✨ ENTERPRISE PATTERN: ACTIVAR WORKFLOW AUTOMÁTICO
+    # ENTERPRISE PATTERN: ACTIVAR WORKFLOW AUTOMÁTICO
     # El workflow es CRÍTICO para la operación correcta del sistema.
     # Si falla, debemos saberlo inmediatamente.
     try:
@@ -77,7 +77,7 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
 
         if workflow_resultado.get("exito"):
             logger.info(
-                f"✅ Workflow creado exitosamente para factura {inv.id}",
+                f" Workflow creado exitosamente para factura {inv.id}",
                 extra={
                     "factura_id": inv.id,
                     "responsable_id": workflow_resultado.get('responsable_id'),

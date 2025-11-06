@@ -1,0 +1,378 @@
+================================================================================
+                   ANÁLISIS EJECUTIVO - EXTRACCIÓN DE FACTURAS
+                        Problema: ¿Dónde están las facturas?
+================================================================================
+
+PREGUNTA: "¿Por qué NO se están pasando todas las facturas extraidas a la BD?
+           ¿Se extraen todas las facturas correspondientes a los NITs?"
+
+RESPUESTA: 🔴 NO SE EXTRAEN AUTOMÁTICAMENTE - El sistema falta el componente clave
+
+================================================================================
+                              1. ESTADO ACTUAL
+================================================================================
+
+Sistema esperado:
+
+  Correos con PDFs → [EXTRACTOR] → Parseo PDF → Filtro por NIT → BD Facturas
+
+Sistema actual:
+
+  Usuario manualmente copia datos del PDF → [API REST] → BD Facturas
+
+  ❌ EL EXTRACTOR NO EXISTE
+  ❌ NO HAY DESCARGA AUTOMÁTICA DE EMAILS
+  ❌ NO HAY PARSEO AUTOMÁTICO DE PDFs
+  ❌ EL FILTRADO POR NIT NO FUNCIONA (porque no hay extracción)
+
+================================================================================
+                          2. ARCHIVOS CLAVE ANALIZADOS
+================================================================================
+
+ARQUITECTURA DE EXTRACCIÓN:
+  app/services/extractor/base.py                      ✅ Interface definida
+  app/services/extractor/invoice_extractor_dummy.py   ✅ Solo para pruebas
+  app/services/extractor/invoice_extractor_graph.py   ❌ ❌ ❌ NO EXISTE
+
+CONFIGURACIÓN DE NITs:
+  app/models/email_config.py                  ✅ Tablas: cuentas_correo, nit_configuracion
+  app/crud/email_config.py                    ✅ Funciones CRUD para NITs
+  app/api/v1/routers/email_config.py          ✅ Endpoints REST para configurar
+
+PROCESAMIENTO:
+  app/services/invoice_service.py             ✅ Espera FacturaCreate (manual)
+  app/services/workflow_automatico.py         ✅ Asigna a responsables
+  app/core/lifespan.py                        ✅ Scheduler cada hora
+                                              ❌ Pero NO llama al extractor
+
+INTEGRACIÓN MICROSOFT:
+  app/services/microsoft_oauth_service.py     ✅ OAuth funciona
+                                              ❌ Nunca se usa en flujo de extracción
+
+================================================================================
+                        3. DIAGRAMA DEL PROBLEMA
+================================================================================
+
+PASO 1: OBTENER NITs CONFIGURADOS
+  └─ ✅ Implementado: get_cuentas_activas_para_extraccion(db)
+
+     Ubicación: app/crud/email_config.py:54-66
+
+     Devuelve:
+       CuentaCorreo(
+         email="facturacion@empresa.com",
+         nits=[
+           NitConfiguracion(nit="800.123.456-7", activo=True),
+           NitConfiguracion(nit="600.789.123-4", activo=True)
+         ]
+       )
+
+PASO 2: DESCARGAR EMAILS DE MICROSOFT GRAPH
+  └─ ❌ NO IMPLEMENTADO
+
+     Pseudocódigo esperado:
+       graph_client = GraphClient(token)
+       emails = graph_client.get_mails(
+         folder="Inbox",
+         filter="hasAttachments:true",
+         from_date=7_days_ago
+       )
+
+PASO 3: PARSEAR PDF → EXTRAER NIT
+  └─ ❌ NO IMPLEMENTADO
+
+     Pseudocódigo esperado:
+       pdf_data = extract_from_pdf(email.attachment)
+       nit_emisor = pdf_data['nit_emisor']  # "800.123.456-7"
+       numero_factura = pdf_data['numero']
+       monto = pdf_data['total']
+
+PASO 4: FILTRADO POR NIT CONFIGURADO ⭐ AQUÍ ES EL PROBLEMA
+  └─ ❌ NO IMPLEMENTADO (porque no hay extracción)
+
+     Pseudocódigo esperado:
+       nits_configurados = [nit.nit for nit in cuenta.nits if nit.activo]
+
+       if nit_emisor not in nits_configurados:
+           logger.info(f"Ignorando factura {nit_emisor} - no configurado")
+           continue  # ← FILTRADO
+
+       # Si está configurado, procesar
+       yield FacturaCreate(numero_factura, nit_emisor, monto, ...)
+
+PASO 5: CREAR WORKFLOWS Y ASIGNAR A RESPONSABLES
+  └─ ✅ IMPLEMENTADO: WorkflowAutomaticoService.procesar_factura_nueva()
+
+     Ubicación: app/services/workflow_automatico.py:157-249
+
+     Flujo:
+     1. Extraer NIT de la factura
+     2. Buscar AsignacionNitResponsable para ese NIT
+     3. Crear WorkflowAprobacionFactura para cada responsable
+     4. Analizar similitud con mes anterior
+     5. Aprobar automáticamente o enviar a revisión
+
+================================================================================
+                       4. CUELLO DE BOTELLA IDENTIFICADO
+================================================================================
+
+El sistema falla en el PASO 4 (Filtrado por NIT) porque:
+
+A. El extractor real NUNCA se ejecuta
+   └─ No hay código que descargue PDFs de emails
+
+B. No hay validación preactiva
+   └─ Si llegara una factura con NIT no configurado, se crearía workflow incompleto
+   └─ Estado: "EN_REVISIÓN" esperando asignación manual
+
+C. El scheduler NO vincula el extractor
+   └─ Ubicación: app/core/lifespan.py:19-116
+   └─ Ejecuta: run_automation_task()
+   └─ Pero NO llama a: invoice_extractor.extract()
+
+D. Configuración de NITs es MANUAL
+   └─ Ubicación: POST /api/v1/email-config/nits
+   └─ Usuario debe crear manualmente cada NIT en el sistema
+   └─ No hay sincronización con facturas que llegan
+
+================================================================================
+                         5. TABLA COMPARATIVA
+================================================================================
+
+┌─────────────────────────┬──────────────┬──────────────┬─────────────────────┐
+│ Componente              │ Status       │ Ubicación    │ Problema            │
+├─────────────────────────┼──────────────┼──────────────┼─────────────────────┤
+│ Interface Extractor     │ ✅ Existe    │ base.py      │ Solo contrato       │
+│ Extractor Dummy         │ ✅ Existe    │ dummy.py     │ Solo para pruebas    │
+│ Extractor Real          │ ❌ FALTA     │ graph.py (?) │ 🔴 BLOQUEADOR       │
+│ Descarga Graph          │ ❌ FALTA     │ ?            │ 🔴 CRÍTICO          │
+│ Parseo de PDF           │ ❌ FALTA     │ ?            │ 🔴 CRÍTICO          │
+│ Filtrado por NIT        │ ❌ FALTA     │ ?            │ 🔴 CRÍTICO          │
+│ Configuración NITs      │ ✅ Existe    │ email_cfg.py │ Manual, funciona    │
+│ Workflow Automático     │ ✅ Existe    │ workflow.py  │ Esperando facturas  │
+│ Scheduler               │ ✅ Existe    │ lifespan.py  │ No vinculado        │
+│ Validación Preactiva    │ ⚠️  Parcial  │ invoice_svc  │ Mejora necesaria    │
+└─────────────────────────┴──────────────┴──────────────┴─────────────────────┘
+
+================================================================================
+                        6. SOLUCIONES NECESARIAS
+================================================================================
+
+PRIORIDAD 1 (CRÍTICA): Implementar Extractor Real
+  ├─ Crear: app/services/extractor/invoice_extractor_graph.py
+  ├─ Implementar: Descarga desde Microsoft Graph
+  ├─ Implementar: Parseo de PDFs
+  ├─ Implementar: Filtrado por NIT configurado
+  ├─ Retornar: Iterable[FacturaCreate]
+  └─ Tiempo estimado: 2-3 días
+
+PRIORIDAD 2 (ALTA): Validación de NITs Pre-activa
+  ├─ Ubicación: app/services/invoice_service.py
+  ├─ Cambio: Rechazar si NIT no está en AsignacionNitResponsable
+  ├─ Evita: Workflows incompletos
+  └─ Tiempo estimado: 1 día
+
+PRIORIDAD 3 (ALTA): Vincular Extractor con Scheduler
+  ├─ Ubicación: app/core/lifespan.py
+  ├─ Agregar: PASO 0 que llama a extractor.extract()
+  ├─ Inicia: Proceso automático cada hora
+  └─ Tiempo estimado: 4 horas
+
+================================================================================
+                          7. CÓMO FUNCIONA AHORA
+================================================================================
+
+FLUJO ACTUAL (MANUAL):
+
+  Usuario en Portal Web
+    ↓ (manualmente copia datos del PDF)
+  Ingresa: POST /api/v1/facturas/
+    {
+      "numero_factura": "FAC-001",
+      "fecha_emision": "2025-10-30",
+      "nit_emisor": "800.123.456-7",
+      "subtotal": 1000.00,
+      "iva": 190.00,
+      "total_a_pagar": 1190.00,
+      "cufe": "ABC123..."
+    }
+    ↓
+  process_and_persist_invoice() en invoice_service.py:11-147
+    ├─ Valida totales
+    ├─ Deduplicación por CUFE
+    ├─ Deduplicación por numero+proveedor
+    └─ Crea Factura en BD
+    ↓
+  WorkflowAutomaticoService.procesar_factura_nueva() en workflow_automatico.py:157
+    ├─ Extrae NIT: "800.123.456-7"
+    ├─ Busca: AsignacionNitResponsable.nit = "800.123.456-7"
+    ├─ Si existe:
+    │  ├─ Crea WorkflowAprobacionFactura
+    │  ├─ Asigna a responsable
+    │  ├─ Analiza similitud con mes anterior
+    │  └─ Aprueba automática o envía a revisión
+    ├─ Si NO existe:
+    │  ├─ Crea workflow incompleto (SIN responsable)
+    │  └─ Factura queda en "EN_REVISIÓN" esperando asignación manual
+    ↓
+  Notificación enviada al responsable
+    ↓
+  Responsable aprueba/rechaza manualmente (si es necesario)
+
+PROBLEMA: Solo se procesan las facturas que el usuario ingresa manualmente
+SOLUCIÓN: Que el sistema EXTRAIGA automáticamente de los emails
+
+================================================================================
+                          8. CÓMO DEBE FUNCIONAR
+================================================================================
+
+FLUJO ESPERADO (AUTOMÁTICO):
+
+  Correo llega a inbox de facturacion@empresa.com
+    ↓ (con PDF adjunto)
+  ⏰ Scheduler se ejecuta cada hora (lifespan.py:102)
+    ↓
+  run_automation_task()
+    ↓
+  PASO 0: EXTRACCIÓN (NUEVO)
+    ├─ MicrosoftGraphInvoiceExtractor.extract()
+    │  ├─ get_cuentas_activas_para_extraccion() → Cuenta + NITs
+    │  ├─ Para cada cuenta:
+    │  │  ├─ download_from_graph(token) → Lista emails
+    │  │  ├─ Para cada email con PDF:
+    │  │  │  ├─ parse_pdf(pdf) → nit, numero, monto, cufe
+    │  │  │  ├─ ✅ FILTRADO: ¿NIT en cuenta.nits activos?
+    │  │  │  │  ├─ SI: yield FacturaCreate
+    │  │  │  │  └─ NO: ignorar y log
+    │  │  └─ Marcar email como procesado
+    │  └─ Yield todas las FacturaCreate
+    │
+    ├─ FOR cada factura_create en extract():
+    │  └─ process_and_persist_invoice(factura_create, created_by="INVOICE_EXTRACTOR")
+    │     └─ Crea Factura en BD
+    ↓
+  PASO 1: WORKFLOW AUTOMÁTICO
+    ├─ Para cada factura SIN workflow:
+    │  ├─ WorkflowAutomaticoService.procesar_factura_nueva()
+    │  ├─ Asigna a responsables configurados
+    │  ├─ Analiza similitud
+    │  └─ Aprueba automática o envía a revisión
+    ↓
+  PASO 2: PROCESAMIENTO DE DECISIONES
+    ├─ Para facturas con workflow:
+    │  ├─ Aplica reglas de aprobación automática
+    │  ├─ Genera notificaciones
+    │  └─ Sincroniza estados
+    ↓
+  Resultado: Tablero actualizado con todas las facturas
+
+VENTAJAS:
+  ✅ Automático - sin intervención manual
+  ✅ Filtrado - solo procesa NITs configurados
+  ✅ Escalable - procesa cientos de facturas por hora
+  ✅ Trazable - auditoría completa de cada paso
+  ✅ Robusto - manejo de errores en cada PDF
+
+================================================================================
+                      9. CONFIGURACIÓN DE NITs (Manual)
+================================================================================
+
+Para que el sistema funcione, el usuario DEBE configurar:
+
+1. Crear cuenta de correo:
+   POST /api/v1/email-config/cuentas
+   {
+     "email": "facturacion@empresa.com",
+     "nombre_descriptivo": "Facturación Angiografía",
+     "max_correos_por_ejecucion": 10000,
+     "ventana_inicial_dias": 30,
+     "organizacion": "ANGIOGRAFIA"
+   }
+
+2. Agregar NITs a la cuenta:
+   POST /api/v1/email-config/nits
+   {
+     "cuenta_correo_id": 1,
+     "nit": "800.123.456-7",
+     "nombre_proveedor": "Proveedor A",
+     "activo": true
+   }
+
+3. Asignar responsables a cada NIT:
+   POST /api/v1/asignacion-nit/asignar
+   {
+     "nit": "800.123.456-7",
+     "responsable_id": 5,
+     "area": "Compras"
+   }
+
+SI ESTO NO SE HACE: El sistema extraerá facturas pero quedarán SIN RESPONSABLE
+
+================================================================================
+                      10. VERIFICACIÓN RÁPIDA
+================================================================================
+
+¿Por qué no se están pasando las facturas a BD?
+
+1. ❌ ¿Hay un script/endpoint que extraiga de emails?
+   → NO. No existe invoice_extractor_graph.py
+
+2. ❌ ¿Se descarga automáticamente de Microsoft Graph?
+   → NO. OAuth existe pero nunca se usa en extracción
+
+3. ❌ ¿Se parsean los PDFs automáticamente?
+   → NO. No hay código que lea PDFs
+
+4. ❌ ¿Se filtra por NITs configurados?
+   → NO. No hay lógica de filtrado (porque no hay extracción)
+
+5. ✅ ¿Funciona el workflow automático una vez que la factura está en BD?
+   → SÍ. Asigna responsables y aprueba automáticamente
+
+6. ✅ ¿Están configurados los NITs en la BD?
+   → Depende. Si el usuario usó POST /api/v1/email-config/nits → SÍ
+   → Si no, hay que agregar manualmente en nit_configuracion table
+
+7. ✅ ¿Están asignados responsables a los NITs?
+   → Depende. Si el usuario usó POST /api/v1/asignacion-nit/asignar → SÍ
+   → Si no, hay que agregar en asignacion_nit_responsable table
+
+================================================================================
+                          11. RESUMEN CRÍTICO
+================================================================================
+
+PROBLEMA RAÍZ:
+  No existe implementación del extractor automático de PDFs desde emails.
+  El sistema es 80% automático pero el 20% inicial (extracción) es manual.
+
+IMPACTO:
+  - Usuario debe copiar manualmente datos de cada PDF
+  - No hay procesamiento en batch
+  - No hay aprovechamiento de la configuración de NITs
+  - Cuello de botella en entrada de datos
+
+SOLUCIÓN:
+  1. Implementar invoice_extractor_graph.py (2-3 días)
+  2. Agregar validación de NITs (1 día)
+  3. Vincular con scheduler (4 horas)
+
+BENEFICIO:
+  ✅ Facturas se procesan automáticamente
+  ✅ Se extraen TODAS las facturas de los NITs configurados
+  ✅ Se aprueban automáticamente según criterios
+  ✅ Todo se sincroniza en tablero en tiempo real
+  ✅ Reducción de trabajo manual del 80%
+
+ESTIMACIÓN TOTAL: 3-4 días para implementación completa
+
+================================================================================
+                           FIN DEL ANÁLISIS
+================================================================================
+
+Documento: ANALISIS_PROBLEMA_EXTRACCION_FACTURAS.md
+Ubicación: c:\Users\jhont\PRIVADO_ODO\afe-backend\
+Detalles técnicos completos en archivo markdown
+
+Preparado para: Development Team
+Severidad: 🔴 CRÍTICA
+Acción: Implementación inmediata del extractor

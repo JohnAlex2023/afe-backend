@@ -326,7 +326,7 @@ class CargadorProveedoresCSV:
     def generar_reporte(self) -> str:
         """Genera reporte profesional detallado de la carga."""
         fecha_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        modo_str = '🔍 DRY RUN (Sin cambios en BD)' if self.dry_run else '✅ Cambios aplicados a BD'
+        modo_str = '🔍 DRY RUN (Sin cambios en BD)' if self.dry_run else ' Cambios aplicados a BD'
 
         reporte = f"""
 ╔════════════════════════════════════════════════════════════════════════════╗

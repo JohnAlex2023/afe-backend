@@ -570,7 +570,7 @@ def aprobar_factura(
     factura_id: int,
     payload: dict,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(require_role("admin", "responsable")),
 ):
     """
     Aprueba una factura y registra quién la aprobó.
@@ -696,7 +696,7 @@ def rechazar_factura(
     factura_id: int,
     payload: dict,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(require_role("admin", "responsable")),
 ):
     """
     Rechaza una factura y registra el motivo.
@@ -1332,7 +1332,7 @@ def trigger_automation_manually(
                 if resultado.get('exito'):
                     workflows_creados += 1
                     if idx <= 5:  # Log first 5 only
-                        logger.info(f"  ✅ Workflow creado para factura {factura.id}")
+                        logger.info(f"   Workflow creado para factura {factura.id}")
                 else:
                     workflows_fallidos += 1
                     if idx <= 5:
@@ -1345,7 +1345,7 @@ def trigger_automation_manually(
         if workflows_creados > 0:
             db.commit()
 
-        logger.info(f"✅ [FASE 1] Completada: {workflows_creados} creados, {workflows_fallidos} fallidos")
+        logger.info(f" [FASE 1] Completada: {workflows_creados} creados, {workflows_fallidos} fallidos")
 
         # PHASE 3: Run automation decisions
         logger.info(f"⚙️  [FASE 2] Procesando automatización de facturas...")
@@ -1357,7 +1357,7 @@ def trigger_automation_manually(
         )
 
         logger.info(
-            f"✅ [FASE 2] Completada: "
+            f" [FASE 2] Completada: "
             f"{automation_resultado['aprobadas_automaticamente']} aprobadas, "
             f"{automation_resultado['enviadas_revision']} a revisión, "
             f"{automation_resultado['errores']} errores"
@@ -1366,7 +1366,7 @@ def trigger_automation_manually(
         # PHASE 4: Get statistics AFTER automation
         total_workflows_after = db.query(WorkflowAprobacionFactura).count()
 
-        logger.info(f"✅ MANUAL AUTOMATION TRIGGER completed by admin {current_user.usuario}")
+        logger.info(f" MANUAL AUTOMATION TRIGGER completed by admin {current_user.usuario}")
 
         return {
             "status": "success",
