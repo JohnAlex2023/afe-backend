@@ -348,21 +348,28 @@ def get_graph_email_service(
     tenant_id: str,
     client_id: str,
     client_secret: str,
-    from_email: str = "notificacionrpa.auto@zentria.com.co",
-    from_name: str = "Sistema AFE - Notificaciones"
+    from_email: str,
+    from_name: str
 ) -> MicrosoftGraphEmailService:
     """
     Crea instancia del servicio de email con Graph.
+
+    IMPORTANTE: from_email y from_name DEBEN ser provistos explícitamente
+    desde la configuración (app.core.config.settings). No hay valores por defecto
+    para evitar hardcodeo de credenciales.
 
     Args:
         tenant_id: Tenant ID de Azure
         client_id: Client ID de la aplicación
         client_secret: Client Secret
-        from_email: Email del buzón compartido
-        from_name: Nombre para mostrar
+        from_email: Email del buzón compartido (desde GRAPH_FROM_EMAIL en .env)
+        from_name: Nombre para mostrar (desde GRAPH_FROM_NAME en .env)
 
     Returns:
         Instancia configurada del servicio
+
+    Raises:
+        TypeError: Si from_email o from_name no están provistos
     """
     config = GraphEmailConfig(
         tenant_id=tenant_id,

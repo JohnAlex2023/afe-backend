@@ -1,37 +1,61 @@
 # app/api/v1/routers/auth.py
+"""
+Router de autenticación - Manejo de login, OAuth y JWT.
+
+Nota: Este router utiliza funciones centralizadas de seguridad en app.core.security
+para garantizar consistencia en toda la aplicación.
+"""
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 import secrets
-import jwt
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-from passlib.context import CryptContext
 
 from app.core.database import get_db
+from app.core.security import (
+    verify_password,
+    create_access_token,
+    hash_password
+)
 from app.models.responsable import Responsable
 from app.schemas.auth import LoginRequest, TokenResponse, UsuarioResponse
 from app.services.microsoft_oauth_service import microsoft_oauth_service
 
 router = APIRouter()
 
-# Configuración
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-SECRET_KEY = "zentria-afe-secret-key-change-in-production-2025"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+
+@router.post("/logout", summary="Cerrar sesión del usuario")
+def logout():
+    """
+    Endpoint para cerrar sesión del usuario.
+    Invalida el token JWT en el cliente.
+
+    En una arquitectura de producción, aquí se podría:
+    - Agregar el token a una blacklist (Redis/DB)
+    - Registrar el logout en auditoría
+    - Limpiar sesiones activas
+    - Revocar refresh tokens
+    """
+    print(f"🔐 Usuario cerrando sesión")
+    return {
+        "message": "Sesión cerrada correctamente",
+        "status": "success"
+    }
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def create_access_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+@router.get("/microsoft/logout-url", summary="Obtener URL de logout de Microsoft")
+def get_microsoft_logout_url():
+    """
+    Obtiene la URL de logout para Microsoft OAuth.
+    El frontend debe redirigir a esta URL para cerrar la sesión en Microsoft.
+    """
+    logout_url = microsoft_oauth_service.get_logout_url()
+    print(f"🔐 Logout URL de Microsoft solicitada: {logout_url}")
+    return {
+        "logout_url": logout_url,
+        "message": "Redirige a esta URL para cerrar la sesión en Microsoft"
+    }
 
 
 @router.post("/login", response_model=TokenResponse, summary="Login con usuario y contraseña")
@@ -82,8 +106,11 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     usuario.last_login = datetime.utcnow()
     db.commit()
 
-    # Crear token
-    access_token = create_access_token(data={"sub": usuario.usuario, "id": usuario.id})
+    # Crear token JWT (usa configuración centralizada en security.py)
+    access_token = create_access_token(
+        subject=usuario.usuario,
+        extra_claims={"id": usuario.id}
+    )
 
     return TokenResponse(
         access_token=access_token,
@@ -169,10 +196,13 @@ def microsoft_callback(
         usuario.last_login = datetime.utcnow()
         db.commit()
 
-        # Crear token JWT para nuestra aplicación
-        jwt_token = create_access_token(data={"sub": usuario.usuario, "id": usuario.id})
+        # Crear token JWT para nuestra aplicación (usa configuración centralizada)
+        jwt_token = create_access_token(
+            subject=usuario.usuario,
+            extra_claims={"id": usuario.id}
+        )
 
-        print(f"   ✅ Login exitoso - Usuario ID: {usuario.id}")
+        print(f"    Login exitoso - Usuario ID: {usuario.id}")
 
         return TokenResponse(
             access_token=jwt_token,

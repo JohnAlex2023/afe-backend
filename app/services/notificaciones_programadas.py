@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 
+from app.core.config import settings
 from app.models.factura import Factura, EstadoFactura
 from app.models.responsable import Responsable
 from app.services.email_notifications import (
@@ -92,7 +93,7 @@ class NotificacionesProgramadasService:
             fecha_recepcion=factura.fecha_emision.strftime("%Y-%m-%d") if factura.fecha_emision else "N/A",
             centro_costos="N/A",  # TODO: Agregar centro de costos si existe
             dias_pendiente=dias_desde_recepcion,
-            link_sistema=f"http://localhost:5173/facturas/{factura.id}"  # TODO: URL de producción
+            link_sistema=f"{settings.frontend_url}/facturas/{factura.id}"
         )
 
         if resultado.get('success'):
@@ -310,7 +311,7 @@ class NotificacionesProgramadasService:
                 {html_recientes}
 
                 <div style="text-align: center; margin-top: 30px;">
-                    <a href="http://localhost:5173/facturas"
+                    <a href="{settings.frontend_url}/facturas"
                        style="display: inline-block; padding: 12px 24px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">
                         Ver todas en el sistema
                     </a>
@@ -360,7 +361,7 @@ class NotificacionesProgramadasService:
                 {html_facturas}
 
                 <div style="text-align: center; margin-top: 30px;">
-                    <a href="http://localhost:5173/facturas"
+                    <a href="{settings.frontend_url}/facturas"
                        style="display: inline-block; padding: 12px 24px; background-color: #dc3545; color: white; text-decoration: none; border-radius: 5px;">
                         Revisar urgentemente
                     </a>
