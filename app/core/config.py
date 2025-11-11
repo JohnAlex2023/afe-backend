@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     graph_tenant_id: str = Field("", env="GRAPH_TENANT_ID")
     graph_client_id: str = Field("", env="GRAPH_CLIENT_ID")
     graph_client_secret: str = Field("", env="GRAPH_CLIENT_SECRET")
-    graph_from_email: str = Field("notificacionrpa.auto@zentria.com.co", env="GRAPH_FROM_EMAIL")
-    graph_from_name: str = Field("Sistema AFE - Notificaciones", env="GRAPH_FROM_NAME")
+    graph_from_email: str = Field("", env="GRAPH_FROM_EMAIL")
+    graph_from_name: str = Field("", env="GRAPH_FROM_NAME")
 
     # --- Microsoft OAuth (para autenticación de usuarios) ---
     # Usar el mismo tenant y client_id si se usa la misma app registration
@@ -40,19 +40,55 @@ class Settings(BaseSettings):
     oauth_microsoft_tenant_id: str = Field("", env="OAUTH_MICROSOFT_TENANT_ID")
     oauth_microsoft_client_id: str = Field("", env="OAUTH_MICROSOFT_CLIENT_ID")
     oauth_microsoft_client_secret: str = Field("", env="OAUTH_MICROSOFT_CLIENT_SECRET")
-    oauth_microsoft_redirect_uri: str = Field("http://localhost:3000/auth/microsoft/callback", env="OAUTH_MICROSOFT_REDIRECT_URI")
+    oauth_microsoft_redirect_uri: str = Field("", env="OAUTH_MICROSOFT_REDIRECT_URI")
     oauth_microsoft_scopes: str = Field("openid email profile User.Read", env="OAUTH_MICROSOFT_SCOPES")
 
     # --- SMTP (fallback opcional) ---
-    smtp_host: str = Field("smtp.gmail.com", env="SMTP_HOST")
+    smtp_host: str = Field("", env="SMTP_HOST")
     smtp_port: int = Field(587, env="SMTP_PORT")
     smtp_user: str = Field("", env="SMTP_USER")
     smtp_password: str = Field("", env="SMTP_PASSWORD")
-    smtp_from_email: str = Field("noreply@afe.com", env="SMTP_FROM_EMAIL")
-    smtp_from_name: str = Field("AFE Sistema de Facturas", env="SMTP_FROM_NAME")
+    smtp_from_email: str = Field("", env="SMTP_FROM_EMAIL")
+    smtp_from_name: str = Field("Sistema de Facturas", env="SMTP_FROM_NAME")
     smtp_use_tls: bool = Field(True, env="SMTP_USE_TLS")
     smtp_use_ssl: bool = Field(False, env="SMTP_USE_SSL")
     smtp_timeout: int = Field(30, env="SMTP_TIMEOUT")
+
+    # --- Frontend URLs (para emails y redirecciones) ---
+    frontend_url: str = Field("http://localhost:5173", env="FRONTEND_URL")
+
+    # ============================================================================
+    # AUTO-CREACIÓN DE PROVEEDORES (NUEVO 2025-11-06)
+    # ============================================================================
+    # Configuración para auto-crear proveedores desde facturas
+    # Cuando llega una factura con NIT que no tiene proveedor:
+    # - Si PROVIDER_AUTO_CREATE_ENABLED=true → Crear automáticamente
+    # - Si PROVIDER_AUTO_CREATE_ENABLED=false → Dejar para revisión manual
+    # ============================================================================
+
+    provider_auto_create_enabled: bool = Field(
+        True,
+        env="PROVIDER_AUTO_CREATE_ENABLED",
+        description="Habilitar auto-creación de proveedores desde facturas"
+    )
+
+    provider_auto_create_log_audit: bool = Field(
+        True,
+        env="PROVIDER_AUTO_CREATE_LOG_AUDIT",
+        description="Registrar auditoría completa de cada creación automática"
+    )
+
+    provider_auto_create_notify_admin: bool = Field(
+        False,
+        env="PROVIDER_AUTO_CREATE_NOTIFY_ADMIN",
+        description="Enviar notificación a admin cuando se auto-cree proveedor"
+    )
+
+    provider_auto_create_admin_email: str = Field(
+        "",
+        env="PROVIDER_AUTO_CREATE_ADMIN_EMAIL",
+        description="Email del admin para notificaciones de auto-creación"
+    )
 
     class Config:
         env_file = ".env"

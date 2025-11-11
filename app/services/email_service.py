@@ -69,15 +69,15 @@ class EmailService:
     def _load_config_from_settings(self) -> EmailConfig:
         """Carga configuración desde settings de la aplicación."""
         return EmailConfig(
-            smtp_host=getattr(settings, 'SMTP_HOST', 'smtp.gmail.com'),
-            smtp_port=getattr(settings, 'SMTP_PORT', 587),
-            smtp_user=getattr(settings, 'SMTP_USER', ''),
-            smtp_password=getattr(settings, 'SMTP_PASSWORD', ''),
-            from_email=getattr(settings, 'SMTP_FROM_EMAIL', 'noreply@afe.com'),
-            from_name=getattr(settings, 'SMTP_FROM_NAME', 'AFE Sistema de Facturas'),
-            use_tls=getattr(settings, 'SMTP_USE_TLS', True),
-            use_ssl=getattr(settings, 'SMTP_USE_SSL', False),
-            timeout=getattr(settings, 'SMTP_TIMEOUT', 30)
+            smtp_host=settings.smtp_host,
+            smtp_port=settings.smtp_port,
+            smtp_user=settings.smtp_user,
+            smtp_password=settings.smtp_password,
+            from_email=settings.smtp_from_email,
+            from_name=settings.smtp_from_name,
+            use_tls=settings.smtp_use_tls,
+            use_ssl=settings.smtp_use_ssl,
+            timeout=settings.smtp_timeout
         )
 
     def send_email(
