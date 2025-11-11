@@ -118,15 +118,14 @@ class FacturaRead(FacturaBase):
         # No se calcula más aquí - se lee directamente del campo factura.accion_por
         # Que fue populado en workflow_automatico.py:_sincronizar_estado_factura()
         # Los campos workflow_history son solo para debugging/auditoría
-
-        # Si accion_por aún no está poblado y es aprobación automática,
-        # asignar el valor por defecto (fallback para datos históricos)
-        if not self.accion_por and self.estado == EstadoFactura.aprobada_auto:
-            self.accion_por = "SISTEMA DE AUTOMATIZACIÓN"
+        #
+        # NOTA: NO hay fallback - accion_por debe estar siempre poblado por la lógica de sincronización
+        # Si una factura no tiene accion_por, es un bug de sincronización que debe corregirse
+        # en el código de generación, no aquí
 
         # Asignar fecha_accion basado en accion_por
         if self.accion_por:
-            if self.accion_por == "SISTEMA DE AUTOMATIZACIÓN":
+            if self.accion_por == "Sistema Automático":
                 self.fecha_accion = self.fecha_aprobacion_workflow
             elif self.aprobado_por_workflow == self.accion_por:
                 self.fecha_accion = self.fecha_aprobacion_workflow
