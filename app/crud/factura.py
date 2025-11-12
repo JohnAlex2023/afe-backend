@@ -677,6 +677,84 @@ def get_facturas_resumen_por_mes(
     ]
 
 
+# =====================================================
+# NUEVO: Obtener resumen DETALLADO con desglose por estado
+# =====================================================
+def get_facturas_resumen_por_mes_detallado(
+    db: Session,
+    año: Optional[int] = None,
+    proveedor_id: Optional[int] = None
+) -> List[Dict[str, Any]]:
+    """
+    Obtiene un resumen DETALLADO de facturas agrupadas por mes/año CON DESGLOSE POR ESTADO.
+
+    Retorna para cada mes:
+    - Total facturas y montos globales
+    - Desglose por estado: en_revision, aprobada, aprobada_auto, rechazada
+
+    Ideal para dashboards que necesitan visualizar distribución de estados.
+
+    Returns:
+        Lista de diccionarios con: periodo, año, mes, total_facturas, monto_total, facturas_por_estado{}
+    """
+    from sqlalchemy import extract
+
+    # Obtener todos los períodos (año/mes)
+    periodos_query = db.query(
+        extract('year', Factura.fecha_emision).label('año'),
+        extract('month', Factura.fecha_emision).label('mes'),
+    ).filter(Factura.fecha_emision.isnot(None)).distinct()
+
+    if año:
+        periodos_query = periodos_query.filter(extract('year', Factura.fecha_emision) == año)
+
+    periodos = periodos_query.order_by(desc('año'), desc('mes')).all()
+
+    result_detallado = []
+
+    for período_año, período_mes in periodos:
+        # Query base para este período
+        base_query = db.query(Factura).filter(
+            extract('year', Factura.fecha_emision) == período_año,
+            extract('month', Factura.fecha_emision) == período_mes
+        )
+
+        if proveedor_id:
+            base_query = base_query.filter(Factura.proveedor_id == proveedor_id)
+
+        # Contar por estado
+        en_revision = base_query.filter(Factura.estado == EstadoFactura.en_revision).count()
+        aprobada = base_query.filter(Factura.estado == EstadoFactura.aprobada).count()
+        aprobada_auto = base_query.filter(Factura.estado == EstadoFactura.aprobada_auto).count()
+        rechazada = base_query.filter(Factura.estado == EstadoFactura.rechazada).count()
+
+        # Totales globales
+        total_facturas = base_query.count()
+
+        if total_facturas > 0:  # Solo incluir períodos con datos
+            monto_total = base_query.with_entities(func.sum(Factura.total_a_pagar)).scalar() or 0.0
+            subtotal_total = base_query.with_entities(func.sum(Factura.subtotal)).scalar() or 0.0
+            iva_total = base_query.with_entities(func.sum(Factura.iva)).scalar() or 0.0
+
+            result_detallado.append({
+                "periodo": f"{int(período_año)}-{int(período_mes):02d}",
+                "año": int(período_año),
+                "mes": int(período_mes),
+                "total_facturas": total_facturas,
+                "monto_total": float(monto_total),
+                "subtotal_total": float(subtotal_total),
+                "iva_total": float(iva_total),
+                "facturas_por_estado": {
+                    "en_revision": en_revision,
+                    "aprobada": aprobada,
+                    "aprobada_auto": aprobada_auto,
+                    "rechazada": rechazada
+                }
+            })
+
+    return result_detallado
+
+
 # -----------------------------------------------------
 # Obtener facturas de un período específico
 # -----------------------------------------------------

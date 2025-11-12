@@ -26,6 +26,7 @@ from app.crud.factura import (
     find_by_cufe,
     get_factura_by_numero,
     get_facturas_resumen_por_mes,
+    get_facturas_resumen_por_mes_detallado,
     get_facturas_por_periodo,
     count_facturas_por_periodo,
     get_estadisticas_periodo,
@@ -863,6 +864,51 @@ def get_resumen_por_mes(
     )
 
 
+# =====================================================
+# NUEVO: Obtener resumen DETALLADO con desglose por estado
+# =====================================================
+@router.get(
+    "/periodos/resumen-detallado",
+    tags=["Reportes - Períodos Mensuales"],
+    summary="Resumen DETALLADO de facturas por mes con desglose por estado",
+    description="Obtiene un resumen de facturas agrupadas por mes/año CON DESGLOSE POR ESTADO. Ideal para dashboards que necesitan visualizar distribución de estados (en_revision, aprobada, aprobada_auto, rechazada)."
+)
+def get_resumen_detallado_por_mes(
+    año: Optional[int] = None,
+    proveedor_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_responsable),
+):
+    """
+    Retorna facturas agrupadas por período (mes/año) CON DESGLOSE DETALLADO POR ESTADO.
+
+    Ejemplo de respuesta:
+    [
+        {
+            "periodo": "2025-10",
+            "año": 2025,
+            "mes": 10,
+            "total_facturas": 100,
+            "monto_total": 50000000.00,
+            "subtotal_total": 42000000.00,
+            "iva_total": 8000000.00,
+            "facturas_por_estado": {
+                "en_revision": 30,
+                "aprobada": 40,
+                "aprobada_auto": 25,
+                "rechazada": 5
+            }
+        },
+        ...
+    ]
+    """
+    return get_facturas_resumen_por_mes_detallado(
+        db=db,
+        año=año,
+        proveedor_id=proveedor_id
+    )
+
+
 # -----------------------------------------------------
 # Obtener facturas de un período específico (con paginación)
 # -----------------------------------------------------
@@ -1313,14 +1359,14 @@ def trigger_automation_manually(
         facturas_sin_workflow_count = len(facturas_sin_workflow)
 
         logger.info(
-            f"📊 BEFORE automation: "
+            f" BEFORE automation: "
             f"Total facturas: {total_facturas}, "
             f"Workflows: {total_workflows_before}, "
             f"Sin workflow: {facturas_sin_workflow_count}"
         )
 
         # PHASE 2: Create workflows for facturas without them
-        logger.info(f"📋 [FASE 1] Creando workflows para {facturas_sin_workflow_count} facturas...")
+        logger.info(f" [FASE 1] Creando workflows para {facturas_sin_workflow_count} facturas...")
         workflow_service = WorkflowAutomaticoService(db)
 
         workflows_creados = 0
