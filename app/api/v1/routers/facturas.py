@@ -656,6 +656,9 @@ def aprobar_factura(
             for responsable in responsables:
                 if responsable.email:
                     try:
+                        # Construir URL de la factura para el email
+                        url_factura = f"/facturas/{factura.id}"
+
                         resultado = enviar_notificacion_factura_aprobada(
                             email_responsable=responsable.email,
                             nombre_responsable=responsable.nombre or responsable.usuario,
@@ -664,7 +667,8 @@ def aprobar_factura(
                             nit_proveedor=factura.proveedor.nit if factura.proveedor else "N/A",
                             monto_factura=monto_formateado,
                             aprobado_por=aprobado_por_nombre,
-                            fecha_aprobacion=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            fecha_aprobacion=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            url_factura=url_factura
                         )
 
                         if resultado.get('success'):
@@ -783,6 +787,9 @@ def rechazar_factura(
             for responsable in responsables:
                 if responsable.email:
                     try:
+                        # Construir URL de la factura para el email
+                        url_factura = f"/facturas/{factura.id}"
+
                         resultado = enviar_notificacion_factura_rechazada(
                             email_responsable=responsable.email,
                             nombre_responsable=responsable.nombre or responsable.usuario,
@@ -792,7 +799,8 @@ def rechazar_factura(
                             monto_factura=monto_formateado,
                             rechazado_por=rechazado_por_nombre,
                             motivo_rechazo=request.motivo,
-                            fecha_rechazo=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            fecha_rechazo=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            url_factura=url_factura
                         )
 
                         if resultado.get('success'):

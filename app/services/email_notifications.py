@@ -71,7 +71,8 @@ def enviar_notificacion_factura_aprobada(
     nit_proveedor: str,
     monto_factura: str,
     aprobado_por: str,
-    fecha_aprobacion: Optional[str] = None
+    fecha_aprobacion: Optional[str] = None,
+    url_factura: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Envía notificación de factura aprobada.
@@ -85,6 +86,7 @@ def enviar_notificacion_factura_aprobada(
         monto_factura: Monto formateado (ej: "$1,000,000 COP")
         aprobado_por: Nombre de quien aprobó
         fecha_aprobacion: Fecha de aprobación (default: ahora)
+        url_factura: URL para acceder a la factura en el dashboard
 
     Returns:
         Dict con resultado del envío
@@ -102,7 +104,8 @@ def enviar_notificacion_factura_aprobada(
         nit_proveedor=nit_proveedor,
         monto_factura=monto_factura,
         fecha_aprobacion=fecha_aprobacion,
-        aprobado_por=aprobado_por
+        aprobado_por=aprobado_por,
+        url_factura=url_factura
     )
 
     # Enviar email
@@ -124,7 +127,8 @@ def enviar_notificacion_factura_rechazada(
     monto_factura: str,
     rechazado_por: str,
     motivo_rechazo: str,
-    fecha_rechazo: Optional[str] = None
+    fecha_rechazo: Optional[str] = None,
+    url_factura: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Envía notificación de factura rechazada.
@@ -139,6 +143,7 @@ def enviar_notificacion_factura_rechazada(
         rechazado_por: Nombre de quien rechazó
         motivo_rechazo: Motivo del rechazo
         fecha_rechazo: Fecha de rechazo (default: ahora)
+        url_factura: URL para acceder a la factura en el dashboard
 
     Returns:
         Dict con resultado del envío
@@ -156,7 +161,8 @@ def enviar_notificacion_factura_rechazada(
         monto_factura=monto_factura,
         fecha_rechazo=fecha_rechazo,
         rechazado_por=rechazado_por,
-        motivo_rechazo=motivo_rechazo
+        motivo_rechazo=motivo_rechazo,
+        url_factura=url_factura
     )
 
     email_service = get_unified_email_service()

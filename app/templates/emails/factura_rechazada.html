@@ -262,6 +262,15 @@
             <strong>Nota:</strong> Esta factura no será procesada para pago hasta que se corrijan los problemas identificados y se presente una nueva versión aprobada.
         </div>
 
+        {# Botón para ir a la factura en el dashboard #}
+        {% if url_factura %}
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{url_factura}" style="display: inline-block; padding: 14px 36px; background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3); transition: transform 0.2s;">
+                📋 Ver Detalles en el Dashboard
+            </a>
+        </div>
+        {% endif %}
+
         <div class="footer">
             <p class="footer-brand">Sistema AFE - Gestión de Facturas Empresariales</p>
             <p>Este es un correo automático generado por el sistema</p>
