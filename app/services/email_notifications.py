@@ -10,6 +10,7 @@ import logging
 from typing import Dict, Any, Optional
 from pathlib import Path
 from datetime import datetime
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.services.unified_email_service import get_unified_email_service
 
@@ -18,49 +19,54 @@ logger = logging.getLogger(__name__)
 # Directorio de plantillas (app/templates/emails/)
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates" / "emails"
 
+# Configurar Jinja2 Environment
+_jinja_env = Environment(
+    loader=FileSystemLoader(str(TEMPLATES_DIR)),
+    autoescape=select_autoescape(['html', 'xml']),
+    trim_blocks=True,
+    lstrip_blocks=True
+)
 
-def _load_template(template_name: str) -> str:
+
+def _load_template(template_name: str):
     """
-    Carga una plantilla HTML desde el sistema de archivos.
+    Carga una plantilla Jinja2 desde el sistema de archivos.
 
     Args:
         template_name: Nombre del archivo de plantilla (ej: 'factura_aprobada.html')
 
     Returns:
-        str: Contenido HTML de la plantilla
+        jinja2.Template: Plantilla compilada
     """
-    template_path = TEMPLATES_DIR / template_name
     try:
-        with open(template_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except FileNotFoundError:
-        logger.error(f"Plantilla no encontrada: {template_path}")
-        raise
+        return _jinja_env.get_template(template_name)
     except Exception as e:
         logger.error(f"Error cargando plantilla {template_name}: {str(e)}")
         raise
 
 
-def _render_template(template_html: str, **kwargs) -> str:
+def _render_template(template, **kwargs) -> str:
     """
-    Renderiza una plantilla reemplazando variables.
+    Renderiza una plantilla Jinja2 con las variables proporcionadas.
 
-    Usa {{variable}} para marcar las variables en las plantillas HTML.
-    Las llaves simples {} se usan para CSS y no se reemplazan.
+    Procesa correctamente:
+    - Variables: {{variable}}
+    - Condicionales: {% if condition %} ... {% endif %}
+    - Comentarios: {# comentario #}
+    - Filtros: {{variable|filter}}
 
     Args:
-        template_html: Contenido HTML de la plantilla
+        template: Plantilla compilada de Jinja2
         **kwargs: Variables para reemplazar en la plantilla
 
     Returns:
         str: HTML renderizado
     """
-    # Reemplazar variables manualmente para evitar conflictos con CSS
-    result = template_html
-    for key, value in kwargs.items():
-        # Buscar patrón {key} y reemplazarlo
-        result = result.replace(f"{{{key}}}", str(value))
-    return result
+    try:
+        return template.render(**kwargs)
+    except Exception as e:
+        logger.error(f"Error renderizando plantilla: {str(e)}")
+        raise
 
 
 def enviar_notificacion_factura_aprobada(
