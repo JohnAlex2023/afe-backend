@@ -178,34 +178,34 @@
             <div class="status-badge">APROBADA</div>
         </div>
 
-        <p class="greeting">Estimado/a <strong>{nombre_responsable}</strong>,</p>
+        <p class="greeting">Estimado/a <strong>{{ nombre_responsable }}</strong>,</p>
 
         <p>Nos complace informarle que la siguiente factura ha sido <strong>aprobada exitosamente</strong> y será procesada para pago:</p>
 
         <div class="info-section">
             <div class="info-row">
                 <span class="info-label"> Número de Factura</span>
-                <span class="info-value">{numero_factura}</span>
+                <span class="info-value">{{ numero_factura }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">🏢 Proveedor</span>
-                <span class="info-value">{nombre_proveedor}</span>
+                <span class="info-value">{{ nombre_proveedor }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">🔢 NIT</span>
-                <span class="info-value">{nit_proveedor}</span>
+                <span class="info-value">{{ nit_proveedor }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">💰 Monto Total</span>
-                <span class="monto-value">{monto_factura}</span>
+                <span class="monto-value">{{ monto_factura }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">📅 Fecha de Aprobación</span>
-                <span class="info-value">{fecha_aprobacion}</span>
+                <span class="info-value">{{ fecha_aprobacion }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">👤 Aprobado por</span>
-                <span class="info-value">{aprobado_por}</span>
+                <span class="info-value">{{ aprobado_por }}</span>
             </div>
         </div>
 
@@ -237,7 +237,7 @@
         {# Botón para ir a la factura en el dashboard #}
         {% if url_factura %}
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{url_factura}" style="display: inline-block; padding: 14px 36px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3); transition: transform 0.2s;">
+            <a href="{{ url_factura }}" style="display: inline-block; padding: 14px 36px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3); transition: transform 0.2s;">
                 📊 Ver Factura en el Dashboard
             </a>
         </div>

@@ -185,34 +185,34 @@
             <div class="status-badge">REQUIERE ACCIÓN</div>
         </div>
 
-        <p class="greeting">Estimado/a <strong>{nombre_responsable}</strong>,</p>
+        <p class="greeting">Estimado/a <strong>{{ nombre_responsable }}</strong>,</p>
 
         <p>Tiene una nueva factura <strong>asignada para su revisión y aprobación</strong>. Su pronta atención es necesaria para mantener el flujo de pagos actualizado:</p>
 
         <div class="info-section">
             <div class="info-row">
                 <span class="info-label"> Número de Factura</span>
-                <span class="info-value">{numero_factura}</span>
+                <span class="info-value">{{ numero_factura }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">🏢 Proveedor</span>
-                <span class="info-value">{nombre_proveedor}</span>
+                <span class="info-value">{{ nombre_proveedor }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">🔢 NIT</span>
-                <span class="info-value">{nit_proveedor}</span>
+                <span class="info-value">{{ nit_proveedor }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">💰 Monto Total</span>
-                <span class="monto-value">{monto_factura}</span>
+                <span class="monto-value">{{ monto_factura }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">📅 Fecha de Recepción</span>
-                <span class="info-value">{fecha_recepcion}</span>
+                <span class="info-value">{{ fecha_recepcion }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">🏷️ Centro de Costos</span>
-                <span class="info-value">{centro_costos}</span>
+                <span class="info-value">{{ centro_costos }}</span>
             </div>
         </div>
 
@@ -220,7 +220,7 @@
             <div class="urgency-title">
                 ⏰ Tiempo Pendiente
             </div>
-            <div class="urgency-value">{dias_pendiente} días</div>
+            <div class="urgency-value">{{ dias_pendiente }} días</div>
             <p class="urgency-message">
                 ⚠️ Atención prioritaria requerida
             </p>
@@ -235,7 +235,7 @@
             </div>
 
             <div class="button-container">
-                <a href="{link_sistema}" class="button">
+                <a href="{{ link_sistema }}" class="button">
                     👁️ Revisar Factura en el Sistema
                 </a>
             </div>

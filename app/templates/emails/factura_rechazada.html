@@ -198,34 +198,34 @@
             <div class="status-badge">RECHAZADA</div>
         </div>
 
-        <p class="greeting">Estimado/a <strong>{nombre_responsable}</strong>,</p>
+        <p class="greeting">Estimado/a <strong>{{ nombre_responsable }}</strong>,</p>
 
         <p>Le informamos que la siguiente factura ha sido <strong>rechazada</strong> y requiere acciones correctivas antes de poder ser procesada:</p>
 
         <div class="info-section">
             <div class="info-row">
                 <span class="info-label"> Número de Factura</span>
-                <span class="info-value">{numero_factura}</span>
+                <span class="info-value">{{ numero_factura }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">🏢 Proveedor</span>
-                <span class="info-value">{nombre_proveedor}</span>
+                <span class="info-value">{{ nombre_proveedor }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">🔢 NIT</span>
-                <span class="info-value">{nit_proveedor}</span>
+                <span class="info-value">{{ nit_proveedor }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">💰 Monto Total</span>
-                <span class="monto-value">{monto_factura}</span>
+                <span class="monto-value">{{ monto_factura }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">📅 Fecha de Rechazo</span>
-                <span class="info-value">{fecha_rechazo}</span>
+                <span class="info-value">{{ fecha_rechazo }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">👤 Rechazado por</span>
-                <span class="info-value">{rechazado_por}</span>
+                <span class="info-value">{{ rechazado_por }}</span>
             </div>
         </div>
 
@@ -234,7 +234,7 @@
                 ⚠️ Motivo del Rechazo
             </div>
             <div class="reason-content">
-                {motivo_rechazo}
+                {{ motivo_rechazo }}
             </div>
         </div>
 
@@ -254,7 +254,7 @@
         <div class="contact-box">
             <strong>💬 ¿Necesita Aclaraciones?</strong>
             <p>
-                Si requiere más detalles sobre el rechazo o necesita orientación, por favor contacte a <strong>{rechazado_por}</strong> o al área de contabilidad.
+                Si requiere más detalles sobre el rechazo o necesita orientación, por favor contacte a <strong>{{ rechazado_por }}</strong> o al área de contabilidad.
             </p>
         </div>
 
@@ -265,7 +265,7 @@
         {# Botón para ir a la factura en el dashboard #}
         {% if url_factura %}
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{url_factura}" style="display: inline-block; padding: 14px 36px; background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3); transition: transform 0.2s;">
+            <a href="{{ url_factura }}" style="display: inline-block; padding: 14px 36px; background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3); transition: transform 0.2s;">
                 📋 Ver Detalles en el Dashboard
             </a>
         </div>
