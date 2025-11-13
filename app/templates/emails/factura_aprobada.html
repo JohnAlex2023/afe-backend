@@ -218,6 +218,18 @@
             </div>
         </div>
 
+        {# Mostrar observaciones si existen #}
+        {% if observaciones %}
+        <div style="background: linear-gradient(135deg, #e8f4f8 0%, #d4e8f0 100%); border-left: 4px solid #17a2b8; padding: 20px; margin: 25px 0; border-radius: 6px; box-shadow: 0 1px 4px rgba(23, 162, 184, 0.2);">
+            <div style="font-weight: bold; color: #005a6f; margin-bottom: 12px; font-size: 16px;">
+                📝 Observaciones Adicionales
+            </div>
+            <div style="background-color: white; padding: 15px; border-radius: 4px; border: 1px solid #b8daff; color: #333; line-height: 1.8; font-size: 15px;">
+                {{ observaciones }}
+            </div>
+        </div>
+        {% endif %}
+
         <div class="next-steps">
             <div class="next-steps-title">
                  Próximos Pasos

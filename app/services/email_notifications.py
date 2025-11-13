@@ -78,7 +78,8 @@ def enviar_notificacion_factura_aprobada(
     monto_factura: str,
     aprobado_por: str,
     fecha_aprobacion: Optional[str] = None,
-    url_factura: Optional[str] = None
+    url_factura: Optional[str] = None,
+    observaciones: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Envía notificación de factura aprobada.
@@ -93,6 +94,7 @@ def enviar_notificacion_factura_aprobada(
         aprobado_por: Nombre de quien aprobó
         fecha_aprobacion: Fecha de aprobación (default: ahora)
         url_factura: URL para acceder a la factura en el dashboard
+        observaciones: Observaciones adicionales sobre la aprobación
 
     Returns:
         Dict con resultado del envío
@@ -111,7 +113,8 @@ def enviar_notificacion_factura_aprobada(
         monto_factura=monto_factura,
         fecha_aprobacion=fecha_aprobacion,
         aprobado_por=aprobado_por,
-        url_factura=url_factura
+        url_factura=url_factura,
+        observaciones=observaciones
     )
 
     # Enviar email
@@ -134,7 +137,8 @@ def enviar_notificacion_factura_rechazada(
     rechazado_por: str,
     motivo_rechazo: str,
     fecha_rechazo: Optional[str] = None,
-    url_factura: Optional[str] = None
+    url_factura: Optional[str] = None,
+    observaciones: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Envía notificación de factura rechazada.
@@ -150,6 +154,7 @@ def enviar_notificacion_factura_rechazada(
         motivo_rechazo: Motivo del rechazo
         fecha_rechazo: Fecha de rechazo (default: ahora)
         url_factura: URL para acceder a la factura en el dashboard
+        observaciones: Observaciones adicionales sobre el rechazo
 
     Returns:
         Dict con resultado del envío
@@ -168,7 +173,8 @@ def enviar_notificacion_factura_rechazada(
         fecha_rechazo=fecha_rechazo,
         rechazado_por=rechazado_por,
         motivo_rechazo=motivo_rechazo,
-        url_factura=url_factura
+        url_factura=url_factura,
+        observaciones=observaciones
     )
 
     email_service = get_unified_email_service()

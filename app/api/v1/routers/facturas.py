@@ -669,7 +669,8 @@ def aprobar_factura(
                             monto_factura=monto_formateado,
                             aprobado_por=aprobado_por_nombre,
                             fecha_aprobacion=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            url_factura=url_factura
+                            url_factura=url_factura,
+                            observaciones=request.observaciones
                         )
 
                         if resultado.get('success'):
@@ -801,7 +802,8 @@ def rechazar_factura(
                             rechazado_por=rechazado_por_nombre,
                             motivo_rechazo=request.motivo,
                             fecha_rechazo=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            url_factura=url_factura
+                            url_factura=url_factura,
+                            observaciones=request.observaciones
                         )
 
                         if resultado.get('success'):
