@@ -658,7 +658,7 @@ def aprobar_factura(
                 if responsable.email:
                     try:
                         # Construir URL absoluta de la factura para el email
-                        url_factura = f"{settings.frontend_url}/facturas/{factura.id}"
+                        url_factura = f"{settings.frontend_url}/facturas?id={factura.id}"
 
                         resultado = enviar_notificacion_factura_aprobada(
                             email_responsable=responsable.email,
@@ -789,7 +789,7 @@ def rechazar_factura(
                 if responsable.email:
                     try:
                         # Construir URL absoluta de la factura para el email
-                        url_factura = f"{settings.frontend_url}/facturas/{factura.id}"
+                        url_factura = f"{settings.frontend_url}/facturas?id={factura.id}"
 
                         resultado = enviar_notificacion_factura_rechazada(
                             email_responsable=responsable.email,
