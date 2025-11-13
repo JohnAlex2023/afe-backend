@@ -202,7 +202,7 @@ async def regenerar_hashes_facturas(
                 }
             }
 
-        logger.info(f"📊 Encontradas {len(facturas_sin_hash)} facturas sin concepto_hash")
+        logger.info(f" Encontradas {len(facturas_sin_hash)} facturas sin concepto_hash")
 
         actualizadas = 0
         errores = 0
@@ -329,7 +329,7 @@ async def procesar_workflows_pendientes(
                 }
             }
 
-        logger.info(f"📊 Encontrados {len(workflows_pendientes)} workflows pendientes")
+        logger.info(f" Encontrados {len(workflows_pendientes)} workflows pendientes")
 
         # Inicializar servicios
         workflow_service = WorkflowAutomaticoService(db)
@@ -350,7 +350,7 @@ async def procesar_workflows_pendientes(
                     errores += 1
                     continue
 
-                logger.info(f"📋 Procesando workflow {workflow.id} - Factura {factura.numero_factura}")
+                logger.info(f" Procesando workflow {workflow.id} - Factura {factura.numero_factura}")
 
                 # PASO 1: Buscar factura del mes anterior
                 # Si incluir_no_aprobadas=True, buscar manualmente sin filtro de estado
@@ -1168,7 +1168,7 @@ def debug_conteos_workflows(db: Session = Depends(get_db)):
     }
 
 
-@router.post("/resincronizar-estados-facturas", summary="🔄 Re-sincronizar Estados de Facturas")
+@router.post("/resincronizar-estados-facturas", summary=" Re-sincronizar Estados de Facturas")
 def resincronizar_estados_facturas(db: Session = Depends(get_db)):
     """
     Re-sincroniza el estado de TODAS las facturas basándose en TODOS sus workflows.
@@ -1412,7 +1412,7 @@ def notificar_aprobaciones_retroactivas(
 
             if resultado.get('exito'):
                 notificaciones_enviadas += resultado.get('notificaciones_enviadas', 0)
-                logger.info(f"  ✅ Notificación retroactiva enviada para workflow {workflow.id} - factura {factura.numero_factura}")
+                logger.info(f"   Notificación retroactiva enviada para workflow {workflow.id} - factura {factura.numero_factura}")
 
                 detalles.append({
                     'workflow_id': workflow.id,

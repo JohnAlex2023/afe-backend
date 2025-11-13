@@ -253,7 +253,7 @@ def enviar_codigo_2fa(
     email_service = get_unified_email_service()
     return email_service.send_email(
         to_email=email_usuario,
-        subject=f"🔐 Tu código de verificación: {codigo_2fa}",
+        subject=f" Tu código de verificación: {codigo_2fa}",
         body_html=html_body,
         importance="high"
     )

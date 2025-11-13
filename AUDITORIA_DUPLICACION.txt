@@ -1,0 +1,18 @@
+# AUDITORÍA DE CÓDIGO DUPLICADO - afe-backend
+
+RESUMEN EJECUTIVO
+================
+
+Se han identificado 4 areas criticas de duplicacion:
+
+1. CRITICO - Analisis de Patrones (462 + 613 lineas)
+   - analisis_patrones.py (ANTIGUO, eliminar)
+   - analisis_patrones_service.py (PRODUCCION, mantener)
+
+2. CRITICO - Email/Notificacion (6+ servicios solapados)
+   - notificaciones.py (ANTIGUO, eliminar - 350 lineas)
+   - email_service.py (ANTIGUO, eliminar - 347 lineas)
+   - unified_email_service.py (MANTENER)
+   - automation/notification_service.py (consolidar)
+   - notificaciones_programadas.py (consolidar)
+

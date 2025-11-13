@@ -18,9 +18,9 @@ Frontend:
 └─ AddNitsBulkDialog.tsx con validación incompleta
 
 Backend:
-├─ ✅ NitValidator funciona correctamente
-├─ ✅ API pública retorna NITs normalizados
-└─ ✅ invoice_extractor consume correctamente
+├─  NitValidator funciona correctamente
+├─  API pública retorna NITs normalizados
+└─  invoice_extractor consume correctamente
 
 invoice_extractor:
 ├─ settings.json.backup (VIEJA, legacy)
@@ -53,8 +53,8 @@ invoice_extractor:
 
 ```
 JUSTIFICACIÓN:
-✅ Si se usa en frontend → importar en diálogos
-✅ Si NO se usa en frontend → eliminar
+ Si se usa en frontend → importar en diálogos
+ Si NO se usa en frontend → eliminar
 
 ACTUAL: NO se usa en diálogos
 ACCIÓN: Eliminar archivo
@@ -79,17 +79,17 @@ FLUJO:
 6. Backend: Crea NIT
 
 BENEFICIO:
-✅ Fuente única de verdad (backend)
-✅ UX mejorada (usuario ve NIT normalizado)
-✅ Sin duplicación de código
-✅ Si DIAN cambia, solo cambiar backend
+ Fuente única de verdad (backend)
+ UX mejorada (usuario ve NIT normalizado)
+ Sin duplicación de código
+ Si DIAN cambia, solo cambiar backend
 ```
 
 **3. invoice_extractor - Eliminar settings.json.backup y settings.json.OLD**
 
 ```
 JUSTIFICACIÓN:
-✅ Si todavía se usan → documentar
+ Si todavía se usan → documentar
 ❌ Si NO se usan → eliminar
 
 ACTUAL: NO se usan (fallback existe pero deprecated)
@@ -118,9 +118,9 @@ Contenido (COMENTADO):
 }
 
 BENEFICIO:
-✅ Nuevo dev entiende estructura
-✅ Documentación clara (fallback deprecado)
-✅ No causa confusión
+ Nuevo dev entiende estructura
+ Documentación clara (fallback deprecado)
+ No causa confusión
 ```
 
 #### Resultado de Opción A:
@@ -204,15 +204,15 @@ Después:
 ```
 
 **Ventajas**:
-- ✅ Un algoritmo, un lugar
-- ✅ Si cambia DIAN → cambiar 1 vez
-- ✅ Frontend obtiene NITs validados
-- ✅ invoice_extractor obtiene NITs validados
-- ✅ Cero duplicación de lógica
+-  Un algoritmo, un lugar
+-  Si cambia DIAN → cambiar 1 vez
+-  Frontend obtiene NITs validados
+-  invoice_extractor obtiene NITs validados
+-  Cero duplicación de lógica
 
 ---
 
-## 📋 PLAN DE EJECUCIÓN
+##  PLAN DE EJECUCIÓN
 
 ### FASE 1: Decisión (Inmediato - 30 min)
 
@@ -268,7 +268,7 @@ Después:
 
 ---
 
-## 🔄 RESPECTO A LA EXTRACCIÓN DE FACTURAS (Tu pregunta)
+##  RESPECTO A LA EXTRACCIÓN DE FACTURAS (Tu pregunta)
 
 ### Está 100% CORRECTO tu análisis:
 
@@ -315,15 +315,15 @@ def get_fecha_inicio(self) -> Optional[datetime]:
 
 **Resultado**:
 ```
-✅ Primera vez: extrae HISTÓRICO (365 días)
-✅ Después: extrae INCREMENTAL (desde última ejecución)
-✅ Cero re-procesamiento
-✅ Eficiente
+ Primera vez: extrae HISTÓRICO (365 días)
+ Después: extrae INCREMENTAL (desde última ejecución)
+ Cero re-procesamiento
+ Eficiente
 ```
 
 ---
 
-## 📊 IMPACTO DE DECISIONES
+##  IMPACTO DE DECISIONES
 
 ### Si implementas Opción A (Recomendada):
 
@@ -459,16 +459,16 @@ settings.json.OLD
 
 ---
 
-## ✅ CONCLUSIÓN
+##  CONCLUSIÓN
 
 ### Tu pregunta sobre extracción:
-✅ **Correcto**. El sistema ya implementa esto correctamente:
+ **Correcto**. El sistema ya implementa esto correctamente:
 - Primera ejecución: 365 días
 - Siguientes: incrementales desde última ejecución
 - Cero re-procesamiento
 
 ### Tu preocupación sobre settings.json:
-✅ **Válida**. Es legacy y debe limpiarse.
+ **Válida**. Es legacy y debe limpiarse.
 
 ### Recomendación:
 🎯 **Opción A (Limpieza Agresiva)**:

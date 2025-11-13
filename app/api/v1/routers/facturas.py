@@ -4,10 +4,9 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
-from io import StringIO
 
 from app.db.session import get_db
-from app.schemas.factura import FacturaCreate, FacturaRead
+from app.schemas.factura import FacturaCreate, FacturaRead, AprobacionRequest, RechazoRequest
 from app.schemas.common import (
     ErrorResponse,
     PaginatedResponse,
@@ -569,7 +568,7 @@ def get_by_numero(
 )
 def aprobar_factura(
     factura_id: int,
-    payload: dict,
+    request: AprobacionRequest,
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin", "responsable")),
 ):
@@ -603,11 +602,11 @@ def aprobar_factura(
         # Si existe workflow, usar el servicio enterprise para mantener sincronización
         servicio = WorkflowAutomaticoService(db)
         # Usar el nombre completo del usuario, no el username
-        aprobado_por = payload.get("aprobado_por", current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)
+        aprobado_por = request.aprobado_por or (current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)
         resultado = servicio.aprobar_manual(
             workflow_id=workflow.id,
             aprobado_por=aprobado_por,
-            observaciones=payload.get("observaciones")
+            observaciones=request.observaciones
         )
 
         if resultado.get("error"):
@@ -624,10 +623,10 @@ def aprobar_factura(
         # TODO: Migrar a crear workflow en lugar de actualizar campos directos
         factura.estado = EstadoFactura.aprobada
         # Usar el nombre completo del usuario, no el username
-        factura.aprobado_por = payload.get("aprobado_por", current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)
+        factura.aprobado_por = request.aprobado_por or (current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)
         factura.fecha_aprobacion = datetime.now()
-        if payload.get("observaciones"):
-            factura.observaciones = payload.get("observaciones")
+        if request.observaciones:
+            factura.observaciones = request.observaciones
 
         db.commit()
         db.refresh(factura)
@@ -695,7 +694,7 @@ def aprobar_factura(
 )
 def rechazar_factura(
     factura_id: int,
-    payload: dict,
+    request: RechazoRequest,
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin", "responsable")),
 ):
@@ -721,12 +720,6 @@ def rechazar_factura(
             detail="Factura no encontrada"
         )
 
-    if not payload.get("motivo"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El motivo de rechazo es requerido"
-        )
-
     # Buscar workflow asociado
     workflow = db.query(WorkflowAprobacionFactura).filter(
         WorkflowAprobacionFactura.factura_id == factura_id
@@ -736,12 +729,12 @@ def rechazar_factura(
         # Si existe workflow, usar el servicio enterprise para mantener sincronización
         servicio = WorkflowAutomaticoService(db)
         # Usar el nombre completo del usuario, no el username
-        rechazado_por = payload.get("rechazado_por", current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)
+        rechazado_por = request.rechazado_por or (current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)
         resultado = servicio.rechazar(
             workflow_id=workflow.id,
             rechazado_por=rechazado_por,
-            motivo=payload.get("motivo"),
-            detalle=payload.get("detalle")
+            motivo=request.motivo,
+            detalle=request.detalle
         )
 
         if resultado.get("error"):
@@ -758,15 +751,15 @@ def rechazar_factura(
         # TODO: Migrar a crear workflow en lugar de actualizar campos directos
         factura.estado = EstadoFactura.rechazada
         # Usar el nombre completo del usuario, no el username
-        factura.rechazado_por = payload.get("rechazado_por", current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)
+        factura.rechazado_por = request.rechazado_por or (current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario)
         factura.fecha_rechazo = datetime.now()
-        factura.motivo_rechazo = payload.get("motivo")
+        factura.motivo_rechazo = request.motivo
 
         db.commit()
         db.refresh(factura)
 
     logger.info(
-        f"Factura {factura.numero_factura} rechazada por {current_user.usuario}. Motivo: {payload.get('motivo')}",
+        f"Factura {factura.numero_factura} rechazada por {current_user.usuario}. Motivo: {request.motivo}",
         extra={"factura_id": factura_id, "usuario": current_user.usuario, "con_workflow": workflow is not None}
     )
 
@@ -798,7 +791,7 @@ def rechazar_factura(
                             nit_proveedor=factura.proveedor.nit if factura.proveedor else "N/A",
                             monto_factura=monto_formateado,
                             rechazado_por=rechazado_por_nombre,
-                            motivo_rechazo=payload.get("motivo"),
+                            motivo_rechazo=request.motivo,
                             fecha_rechazo=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         )
 

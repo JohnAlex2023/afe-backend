@@ -53,7 +53,7 @@
             color: #0277bd;
         }
         .auto-badge::before {
-            content: "🤖";
+            content: "";
             font-size: 24px;
         }
         .info-section {
@@ -142,7 +142,7 @@
             gap: 8px;
         }
         .analysis-title::before {
-            content: "📊";
+            content: "";
             font-size: 20px;
         }
         .metric {
@@ -204,7 +204,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🤖 Factura Aprobada Automáticamente</h1>
+            <h1> Factura Aprobada Automáticamente</h1>
             <div class="status-badge">APROBADA AUTOMÁTICAMENTE</div>
         </div>
 
@@ -218,7 +218,7 @@
 
         <div class="info-section">
             <div class="info-row">
-                <span class="info-label">📄 Número de Factura:</span>
+                <span class="info-label"> Número de Factura:</span>
                 <span class="info-value">{{numero_factura}}</span>
             </div>
             <div class="info-row">
@@ -234,11 +234,11 @@
                 <span class="info-value">{{fecha_emision}}</span>
             </div>
             <div class="info-row">
-                <span class="info-label">📋 Concepto:</span>
+                <span class="info-label"> Concepto:</span>
                 <span class="info-value">{{concepto}}</span>
             </div>
             <div class="info-row">
-                <span class="info-label">✅ Fecha de Aprobación:</span>
+                <span class="info-label"> Fecha de Aprobación:</span>
                 <span class="info-value">{{fecha_aprobacion|default('Hoy')}}</span>
             </div>
         </div>

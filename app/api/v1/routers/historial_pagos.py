@@ -8,9 +8,7 @@ Endpoints enterprise:
 - GET /estadisticas: Estadísticas globales de patrones
 - GET /patrones/{id}: Detalle de un patrón específico
 
-Nivel: Enterprise Fortune 500
-Autor: Sistema de Automatización AFE
-Fecha: 2025-10-08
+
 """
 
 from typing import List, Optional

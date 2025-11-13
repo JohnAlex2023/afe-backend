@@ -1,5 +1,5 @@
 """
-SOLUCION DEFINITIVA: Normalización de NITs y Asignación de Responsables
+Normalización de NITs y Asignación de Responsables
 
 Este script implementa la decisión arquitectónica:
 REGLA: TODOS los NITs en la BD se almacenan SIN dígito de verificación
@@ -20,7 +20,7 @@ from app.utils.normalizacion import normalizar_nit, formatear_nit_con_dv
 engine = create_engine(settings.database_url)
 
 print('=' * 90)
-print('SOLUCION DEFINITIVA: NORMALIZACION DE NITS (SIN DV) + SINCRONIZACION')
+print('NORMALIZACION DE NITS (SIN DV) + SINCRONIZACION')
 print('=' * 90)
 print('\nREGLA ENTERPRISE: Todos los NITs se almacenan SIN digito de verificacion')
 print('El DV se calcula dinamicamente cuando se necesita mostrar\n')

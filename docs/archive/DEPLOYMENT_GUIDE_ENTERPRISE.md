@@ -298,7 +298,7 @@ python -c "import sys; sys.path.insert(0, '.'); from scripts.limpiar_facturas_hu
 
 ---
 
-## 📊 Monitoreo Continuo
+##  Monitoreo Continuo
 
 ### Métricas clave
 

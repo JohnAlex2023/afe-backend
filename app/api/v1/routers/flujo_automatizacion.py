@@ -7,9 +7,7 @@ Endpoints principales:
 - POST /comparar-aprobar: Solo ejecuta comparación y aprobación
 - GET /estadisticas-flujo: Obtiene estadísticas del último flujo ejecutado
 
-Nivel: Enterprise Fortune 500
-Autor: Sistema de Automatización AFE
-Fecha: 2025-10-09
+
 """
 
 from typing import Optional, List

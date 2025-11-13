@@ -4,8 +4,7 @@ Script Enterprise: Clasificación Automática de Proveedores
 
 Clasifica proveedores según análisis estadístico de sus facturas históricas.
 
-Nivel: Fortune 500 Risk Management
-Autor: Sistema de Automatización AFE
+
 Fecha: 2025-10-15
 
 FUNCIONALIDAD:

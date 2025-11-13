@@ -334,9 +334,9 @@ class CargadorProveedoresCSV:
 ║                           CSV → BD AFE                                     ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 
-📄 ARCHIVO: {self.csv_path.name}
+ ARCHIVO: {self.csv_path.name}
 🕐 FECHA: {fecha_str}
-📋 MODO: {modo_str}
+ MODO: {modo_str}
 
 ┌─ ESTADÍSTICAS DE PROCESAMIENTO ──────────────────────────────────────────┐
 │                                                                            │

@@ -1,6 +1,6 @@
 # DATA SYNCHRONIZATION RULES
 
-**🔐 CRITICAL DOCUMENT: Reglas exhaustivas de sincronización de datos**
+** CRITICAL DOCUMENT: Reglas exhaustivas de sincronización de datos**
 
 ---
 

@@ -1,23 +1,155 @@
 # app/services/invoice_service.py
+"""
+Servicio de Procesamiento de Facturas - Enterprise Edition
+
+Responsable de:
+1. Validación de facturas
+2. Deduplicación (CUFE, número+proveedor)
+3. Auto-creación de proveedores (NUEVO)
+4. Persistencia en BD
+5. Activación de workflows
+6. Auditoría completa
+
+Cambios principales (2025-11-06):
+- NUEVO: Auto-creación de proveedores desde facturas
+- NUEVO: Búsqueda y vinculación automática de proveedor_id
+- MEJORADO: Logging estructurado
+- MEJORADO: Manejo de errores robusto
+
+Autor: Equipo Senior de Desarrollo
+Nivel: Enterprise Fortune 500
+"""
+
 from sqlalchemy.orm import Session
 from app.crud.factura import create_factura, find_by_cufe, find_by_numero_proveedor, update_factura
 from app.crud.audit import create_audit
+from app.crud.proveedor import get_or_create_proveedor
 from app.schemas.factura import FacturaCreate
-from typing import Tuple
+from app.services.provider_management import ProviderManagementException
+from typing import Tuple, Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
-def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by: str) -> Tuple[dict, str]:
+
+def process_and_persist_invoice(
+    db: Session,
+    payload: FacturaCreate,
+    created_by: str,
+    auto_create_provider: bool = True
+) -> Tuple[dict, str]:
+    """
+    Procesa y persiste una factura en BD.
+
+    Pasos:
+    1. Validación de datos requeridos
+    2. Intento de auto-creación/búsqueda de proveedor (NUEVO)
+    3. Deduplicación por CUFE
+    4. Deduplicación por número + proveedor
+    5. Creación de nueva factura
+    6. Activación de workflow automático
+
+    Args:
+        db: Sesión de BD
+        payload: FacturaCreate con datos de la factura
+        created_by: Usuario/sistema que crea
+        auto_create_provider: Si True, auto-crea proveedor si no existe
+
+    Returns:
+        Tuple[dict, str]: (resultado, acción)
+    """
     data = payload.dict()
 
-    # Validar que total y total_a_pagar estén presentes, no se calculan aquí
+    # ============================================================================
+    # PASO 1: VALIDACIÓN
+    # ============================================================================
+
     if data.get("total") is None:
         raise ValueError("El campo 'total' es obligatorio y debe venir en la factura.")
     if data.get("total_a_pagar") is None:
         raise ValueError("El campo 'total_a_pagar' es obligatorio y debe venir en la factura.")
 
-    # Deduplicación por CUFE
+    # ============================================================================
+    # PASO 2: AUTO-CREACIÓN/BÚSQUEDA DE PROVEEDOR (NUEVO)
+    # ============================================================================
+
+    # NUEVO: Si auto_create_provider=True y no hay proveedor_id, intentar crear/buscar
+    if auto_create_provider and not data.get("proveedor_id"):
+        try:
+            nit_proveedor = data.get("nit")
+
+            if nit_proveedor:
+                logger.info(
+                    f"Intentando auto-crear/buscar proveedor por NIT",
+                    extra={
+                        "nit": nit_proveedor,
+                        "numero_factura": data.get("numero_factura"),
+                        "cufe": data.get("cufe")
+                    }
+                )
+
+                # Usar get_or_create_proveedor para búsqueda/creación idempotente
+                proveedor, fue_creado = get_or_create_proveedor(
+                    db=db,
+                    nit=nit_proveedor,
+                    razon_social=data.get("nombre_proveedor") or "Sin especificar",
+                    email=data.get("email_proveedor"),
+                    telefono=data.get("telefono_proveedor"),
+                    direccion=data.get("direccion_proveedor"),
+                    area=data.get("area_proveedor"),
+                    auto_create=True,
+                    created_by="INVOICE_EXTRACTOR"
+                )
+
+                if proveedor:
+                    data["proveedor_id"] = proveedor.id
+
+                    if fue_creado:
+                        logger.info(
+                            f"Proveedor AUTO-CREADO exitosamente",
+                            extra={
+                                "proveedor_id": proveedor.id,
+                                "nit": nit_proveedor,
+                                "razon_social": proveedor.razon_social
+                            }
+                        )
+                    else:
+                        logger.debug(
+                            f"Proveedor encontrado existente",
+                            extra={
+                                "proveedor_id": proveedor.id,
+                                "nit": nit_proveedor,
+                                "razon_social": proveedor.razon_social
+                            }
+                        )
+
+        except ProviderManagementException as e:
+            logger.warning(
+                f"No se pudo auto-crear/buscar proveedor (continuar sin proveedor)",
+                extra={
+                    "nit": data.get("nit"),
+                    "error": str(e),
+                    "numero_factura": data.get("numero_factura")
+                }
+            )
+            # Continuar sin proveedor (factura irá a revisión manual)
+
+        except Exception as e:
+            logger.error(
+                f"Error inesperado auto-creando proveedor",
+                extra={
+                    "nit": data.get("nit"),
+                    "error": str(e),
+                    "numero_factura": data.get("numero_factura")
+                },
+                exc_info=True
+            )
+            # Continuar sin proveedor
+
+    # ============================================================================
+    # PASO 3: DEDUPLICACIÓN POR CUFE
+    # ============================================================================
+
     existing = find_by_cufe(db, data["cufe"])
     if existing:
         changed_fields = {}
@@ -33,7 +165,10 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
             return {"id": inv.id, "action": "updated"}, "updated"
         return {"id": existing.id, "action": "ignored"}, "ignored"
 
-    # Deduplicación por número + proveedor
+    # ============================================================================
+    # PASO 4: DEDUPLICACIÓN POR NÚMERO + PROVEEDOR
+    # ============================================================================
+
     if data.get("proveedor_id") is not None:
         existing2 = find_by_numero_proveedor(db, data["numero_factura"], data["proveedor_id"])
         if existing2:
@@ -53,7 +188,10 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
                 return {"id": existing2.id, "action": "conflict"}, "conflict"
             return {"id": existing2.id, "action": "ignored"}, "ignored"
 
-    # Crear nueva factura
+    # ============================================================================
+    # PASO 5: CREAR NUEVA FACTURA
+    # ============================================================================
+
     inv = create_factura(db, data)
     create_audit(
         db,
@@ -61,8 +199,16 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
         inv.id,
         "create",
         created_by,
-        {"msg": "Nueva factura creada desde Microsoft Graph"}
+        {
+            "msg": "Nueva factura creada desde Microsoft Graph",
+            "proveedor_id": data.get("proveedor_id"),
+            "proveedor_auto_creado": data.get("proveedor_id") is not None
+        }
     )
+
+    # ============================================================================
+    # PASO 6: ACTIVAR WORKFLOW AUTOMÁTICO
+    # ============================================================================
 
     # ENTERPRISE PATTERN: ACTIVAR WORKFLOW AUTOMÁTICO
     # El workflow es CRÍTICO para la operación correcta del sistema.
@@ -71,30 +217,32 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
         from app.services.workflow_automatico import WorkflowAutomaticoService
         workflow_service = WorkflowAutomaticoService(db)
 
-        logger.info(f"🔄 Iniciando workflow automático para factura {inv.id}")
+        logger.info(f"Iniciando workflow automático para factura {inv.id}")
         workflow_resultado = workflow_service.procesar_factura_nueva(inv.id)
-        logger.info(f"📋 Resultado del workflow: {workflow_resultado}")
+        logger.info(f"Resultado del workflow: {workflow_resultado}")
 
         if workflow_resultado.get("exito"):
             logger.info(
-                f" Workflow creado exitosamente para factura {inv.id}",
+                f"Workflow creado exitosamente para factura {inv.id}",
                 extra={
                     "factura_id": inv.id,
                     "responsable_id": workflow_resultado.get('responsable_id'),
                     "nit": workflow_resultado.get('nit'),
-                    "tipo_aprobacion": workflow_resultado.get('tipo_aprobacion', 'N/A')
+                    "tipo_aprobacion": workflow_resultado.get('tipo_aprobacion', 'N/A'),
+                    "proveedor_id": data.get("proveedor_id")
                 }
             )
         else:
             # Workflow creado pero con advertencias (ej: NIT sin asignación)
             logger.warning(
-                f"⚠️  Workflow NO se creó para factura {inv.id}. Resultado: {workflow_resultado}",
+                f"Workflow NO se creó para factura {inv.id}. Resultado: {workflow_resultado}",
                 extra={
                     "factura_id": inv.id,
                     "error": workflow_resultado.get('error'),
                     "nit": workflow_resultado.get('nit'),
                     "mensaje": workflow_resultado.get('mensaje'),
-                    "requiere_configuracion": workflow_resultado.get('requiere_configuracion', False)
+                    "requiere_configuracion": workflow_resultado.get('requiere_configuracion', False),
+                    "proveedor_id": data.get("proveedor_id")
                 }
             )
 
@@ -116,13 +264,14 @@ def process_and_persist_invoice(db: Session, payload: FacturaCreate, created_by:
     except Exception as e:
         # ❌ CRITICAL: El workflow falló completamente
         logger.error(
-            f"❌ ERROR CRÍTICO al crear workflow para factura {inv.id}: {str(e)}",
+            f"ERROR CRÍTICO al crear workflow para factura {inv.id}: {str(e)}",
             extra={
                 "factura_id": inv.id,
                 "error_type": type(e).__name__,
-                "error_message": str(e)
+                "error_message": str(e),
+                "proveedor_id": data.get("proveedor_id")
             },
-            exc_info=True  # Incluir stack trace completo
+            exc_info=True
         )
 
         # Registrar en auditoría con severidad alta

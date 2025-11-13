@@ -4,8 +4,7 @@ Servicio de Comparación Inteligente de Items de Facturas.
 Este servicio compara items de facturas actuales contra históricos
 para detectar anomalías, cambios de precios y nuevos servicios.
 
-Nivel: Enterprise Fortune 500
-Autor: Sistema AFE
+
 Fecha: 2025-10-09
 """
 

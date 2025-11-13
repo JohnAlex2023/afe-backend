@@ -8,8 +8,7 @@ Este servicio orquesta todo el flujo de automatización mensual de facturas:
 4. Aprobación automática o marcado para revisión
 5. Notificaciones a responsables
 
-Nivel: Enterprise Fortune 500
-Autor: Sistema de Automatización AFE
+
 Fecha: 2025-10-09
 """
 
@@ -27,6 +26,7 @@ from app.models.historial_pagos import HistorialPagos, TipoPatron
 from app.models.proveedor import Proveedor
 from app.services.analisis_patrones_service import AnalizadorPatronesService
 from app.services.notificaciones import NotificacionService
+from app.utils.date_helpers import DateHelper
 
 
 logger = logging.getLogger(__name__)
@@ -339,10 +339,20 @@ class FlujoAutomatizacionFacturas:
     ) -> List[Factura]:
         """
         Obtiene facturas pendientes del período especificado.
+
+        IMPORTANTE: El período se calcula desde fecha_emision usando DateHelper
+        para garantizar consistencia en toda la aplicación.
+
+        Args:
+            periodo: str en formato "YYYY-MM"
+            solo_proveedores: opcional, list de IDs de proveedores a filtrar
+
+        Returns:
+            List[Factura]: Facturas pendientes del período
         """
         query = self.db.query(Factura).filter(
             Factura.estado == EstadoFactura.en_revision,
-            Factura.periodo_factura == periodo,
+            DateHelper.create_periodo_filter(Factura.fecha_emision, periodo),
             Factura.proveedor_id.isnot(None)
         )
 

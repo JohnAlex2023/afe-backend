@@ -23,7 +23,8 @@ class MicrosoftOAuthService:
 
         # IMPORTANTE: MSAL maneja automáticamente openid y profile
         # Solo incluir scopes que NO sean reservados
-        all_scopes = settings.oauth_microsoft_scopes.split()
+        scopes_str = str(settings.oauth_microsoft_scopes) if settings.oauth_microsoft_scopes else "User.Read"
+        all_scopes = scopes_str.split()
         reserved_scopes = {'openid', 'profile', 'offline_access'}
         self.scopes = [s for s in all_scopes if s not in reserved_scopes]
 
@@ -46,11 +47,18 @@ class MicrosoftOAuthService:
 
         Returns:
             URL de autorización de Microsoft
+
+        PROMPT MODES:
+        - select_account: Siempre muestra selector de cuentas (permite cambiar usuario)
+        - login: Siempre pide credenciales (más restrictivo)
+        - consent: Siempre pide consentimiento
+        - none: No muestra UI (solo SSO silencioso)
         """
         auth_url = self.msal_app.get_authorization_request_url(
             scopes=self.scopes,
             state=state,
-            redirect_uri=self.redirect_uri
+            redirect_uri=self.redirect_uri,
+            prompt="select_account"  # Siempre muestra selector para elegir/cambiar cuenta
         )
         return auth_url
 
@@ -67,18 +75,31 @@ class MicrosoftOAuthService:
         Raises:
             HTTPException: Si hay error al obtener el token
         """
+        print(f" Intentando intercambiar código por token...")
+        print(f"   Redirect URI configurado: {self.redirect_uri}")
+        print(f"   Scopes solicitados: {self.scopes}")
+
         result = self.msal_app.acquire_token_by_authorization_code(
             code=code,
             scopes=self.scopes,
             redirect_uri=self.redirect_uri
         )
 
+        print(f"   Resultado de MSAL: {result.keys() if isinstance(result, dict) else 'No es dict'}")
+
         if "error" in result:
+            error_msg = result.get('error_description', result.get('error', 'Unknown error'))
+            correlation_id = result.get('correlation_id', 'No correlation ID')
+            print(f"   ❌ Error MSAL: {error_msg}")
+            print(f"   Correlation ID: {correlation_id}")
+            print(f"   Error completo: {result}")
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Error obteniendo token: {result.get('error_description', 'Unknown error')}"
+                detail=f"Microsoft OAuth Error: {error_msg}. Correlation ID: {correlation_id}"
             )
 
+        print(f"   ✅ Token obtenido exitosamente")
         return result
 
     def get_user_info(self, access_token: str) -> Dict[str, Any]:
@@ -137,6 +158,21 @@ class MicrosoftOAuthService:
             "office_location": user_data.get("officeLocation"),
             "photo_url": photo_url
         }
+
+    def get_logout_url(self) -> str:
+        """
+        Genera la URL de logout para Microsoft.
+        Cuando se visita esta URL, cierra la sesión en Microsoft.
+
+        Returns:
+            URL de logout de Microsoft
+        """
+        # URL estándar de logout para Microsoft Azure AD
+        logout_url = (
+            f"https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/logout"
+            f"?post_logout_redirect_uri={self.redirect_uri.rsplit('/auth/microsoft/callback', 1)[0]}/login"
+        )
+        return logout_url
 
     def find_or_create_user(
         self,

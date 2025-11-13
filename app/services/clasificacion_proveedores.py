@@ -7,8 +7,6 @@ Este servicio se integra al workflow para:
 2. Reclasificar periódicamente proveedores existentes
 3. Detectar cambios en patrones (maduración o degradación)
 
-Nivel: Fortune 500 Automated Risk Management
-Autor: Sistema AFE Backend
 """
 
 from typing import Optional, Dict, Any
@@ -272,12 +270,17 @@ class ClasificacionProveedoresService:
                         resultado['nivel_confianza'] != nivel_anterior):
 
                         resultados['actualizados'] += 1
+
+                        # Manejar tanto enums como strings de BD
+                        tipo_ant_val = tipo_anterior.value if hasattr(tipo_anterior, 'value') else tipo_anterior
+                        nivel_ant_val = nivel_anterior.value if hasattr(nivel_anterior, 'value') else nivel_anterior
+
                         resultados['cambios'].append({
                             'nit': asignacion.nit,
                             'nombre': asignacion.nombre_proveedor,
-                            'tipo_anterior': tipo_anterior.value if tipo_anterior else None,
+                            'tipo_anterior': tipo_ant_val,
                             'tipo_nuevo': resultado['tipo_servicio'].value,
-                            'nivel_anterior': nivel_anterior.value if nivel_anterior else None,
+                            'nivel_anterior': nivel_ant_val,
                             'nivel_nuevo': resultado['nivel_confianza'].value
                         })
                     else:
@@ -444,7 +447,8 @@ class ClasificacionProveedoresService:
             Factura.estado.in_([
                 EstadoFactura.aprobada,
                 EstadoFactura.aprobada_auto,
-                EstadoFactura.pagada
+                EstadoFactura.pagada,
+                EstadoFactura.en_revision  # Incluir para cálculo estadístico de CV
             ])
         ).all()
 
@@ -465,8 +469,15 @@ class ClasificacionProveedoresService:
         desviacion = stdev(montos) if len(montos) > 1 else 0
         cv = (desviacion / monto_promedio * 100) if monto_promedio > 0 else 0
 
+        from datetime import date as date_type
+
         fechas = [f.fecha_emision for f in facturas if f.fecha_emision]
         fecha_primera = min(fechas) if fechas else datetime.now()
+
+        # Convertir date a datetime si es necesario (date no tiene hora, datetime sí)
+        if isinstance(fecha_primera, date_type) and not isinstance(fecha_primera, datetime):
+            fecha_primera = datetime.combine(fecha_primera, datetime.min.time())
+
         antiguedad_dias = (datetime.now() - fecha_primera).days
 
         meses_unicos = set()
@@ -474,12 +485,18 @@ class ClasificacionProveedoresService:
             if f.fecha_emision:
                 meses_unicos.add(f"{f.fecha_emision.year}-{f.fecha_emision.month:02d}")
 
+        # Convertir fecha_primera a date para retorno
+        if isinstance(fecha_primera, datetime):
+            fecha_primera_date = fecha_primera.date()
+        else:
+            fecha_primera_date = fecha_primera
+
         return {
             'cv': cv,
             'monto_promedio': monto_promedio,
             'antiguedad_dias': antiguedad_dias,
             'meses_con_facturas': len(meses_unicos),
-            'fecha_primera_factura': fecha_primera.date()
+            'fecha_primera_factura': fecha_primera_date
         }
 
     def _determinar_tipo_servicio(self, cv: float) -> TipoServicioProveedor:

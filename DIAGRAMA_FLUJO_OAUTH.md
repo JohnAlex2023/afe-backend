@@ -198,7 +198,7 @@ ZENTRIA AFE OAuth System
 │   │   ├── .env ...................................... Credenciales Azure
 │   │   └── requirements.txt .......................... authlib, msal
 │   │
-│   ├── 📊 Base de Datos
+│   ├──  Base de Datos
 │   │   ├── app/models/responsable.py ................. Modelo OAuth
 │   │   │   ├── auth_provider (local/microsoft)
 │   │   │   ├── oauth_id (unique)
@@ -208,7 +208,7 @@ ZENTRIA AFE OAuth System
 │   │   └── alembic/versions/
 │   │       └── oauth_support_responsables_clean.py ... Migración
 │   │
-│   ├── 🔐 Servicios OAuth
+│   ├──  Servicios OAuth
 │   │   └── app/services/microsoft_oauth_service.py
 │   │       ├── get_authorization_url() ............... Genera URL
 │   │       ├── get_token_from_code() ................. Intercambio
@@ -417,7 +417,7 @@ oauth_pic │     usuario
    ┌────────────────┐
    │ Usuario        │
    │ Autenticado    │
-   │ ✅ Dashboard   │
+   │  Dashboard   │
    └────────────────┘
 ```
 
@@ -658,8 +658,8 @@ Escenario: Usuario existe con auth local, login con Microsoft por primera vez
    └────────────────────────────────┘
 
 Resultado: Usuario puede usar AMBOS métodos de login
-- Microsoft OAuth ✅
-- Usuario + Password ✅ (password no se borra)
+- Microsoft OAuth 
+- Usuario + Password  (password no se borra)
 ```
 
 ---
@@ -836,11 +836,11 @@ Fase 6: Enterprise Features
 
 Este sistema OAuth implementa autenticación corporativa de clase enterprise con:
 
-✅ **Seguridad robusta**: CSRF protection, token validation, HTTPS
-✅ **Experiencia premium**: Diseño Fortune 500, animaciones suaves
-✅ **Escalabilidad**: Arquitectura preparada para múltiples proveedores
-✅ **Flexibilidad**: Soporte dual auth (local + OAuth)
-✅ **Mantenibilidad**: Código limpio, documentación completa
+ **Seguridad robusta**: CSRF protection, token validation, HTTPS
+ **Experiencia premium**: Diseño Fortune 500, animaciones suaves
+ **Escalabilidad**: Arquitectura preparada para múltiples proveedores
+ **Flexibilidad**: Soporte dual auth (local + OAuth)
+ **Mantenibilidad**: Código limpio, documentación completa
 
 **Estado**: 🚀 Listo para producción
 **Próximo paso**: Ejecutar migración y configurar Azure Portal

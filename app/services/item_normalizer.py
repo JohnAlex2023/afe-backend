@@ -4,7 +4,7 @@ Servicio de Normalización de Items de Facturas.
 Este servicio normaliza descripciones de items para permitir comparaciones
 consistentes entre facturas de diferentes períodos.
 
-Autor: Sistema AFE
+
 Fecha: 2025-10-09
 """
 

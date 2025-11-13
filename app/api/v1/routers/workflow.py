@@ -25,6 +25,7 @@ from app.models.workflow_aprobacion import (
     EstadoFacturaWorkflow
 )
 from app.models.factura import Factura, EstadoFactura
+from app.schemas.factura import AprobacionRequest, RechazoRequest
 
 
 router = APIRouter(prefix="/workflow", tags=["Workflow Aprobación"])
@@ -34,17 +35,6 @@ router = APIRouter(prefix="/workflow", tags=["Workflow Aprobación"])
 
 class ProcesarFacturaRequest(BaseModel):
     factura_id: int
-
-
-class AprobacionManualRequest(BaseModel):
-    aprobado_por: str
-    observaciones: Optional[str] = None
-
-
-class RechazoRequest(BaseModel):
-    rechazado_por: str
-    motivo: str
-    detalle: Optional[str] = None
 
 
 class AsignacionNitRequest(BaseModel):
@@ -138,7 +128,7 @@ def procesar_facturas_pendientes(
 @router.post("/aprobar/{workflow_id}")
 def aprobar_factura_manual(
     workflow_id: int,
-    request: AprobacionManualRequest,
+    request: AprobacionRequest,
     db: Session = Depends(get_db)
 ):
     """
@@ -191,7 +181,7 @@ def rechazar_factura(
 @router.post("/factura/aprobar/{factura_id}")
 def aprobar_por_factura_id(
     factura_id: int,
-    request: AprobacionManualRequest,
+    request: AprobacionRequest,
     db: Session = Depends(get_db)
 ):
     """

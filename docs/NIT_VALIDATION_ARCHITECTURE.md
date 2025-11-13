@@ -247,31 +247,31 @@ isValidBasicFormat(nit: string): boolean
 ## Beneficios de esta Arquitectura
 
 ### 1. Backend como única fuente de verdad
-- ✅ Un solo lugar donde se implementa el algoritmo DIAN
-- ✅ Si DIAN cambia el algoritmo, solo se actualiza en un lugar
-- ✅ Todos los clientes (frontend, invoice_extractor, APIs externas) usan la misma lógica
+-  Un solo lugar donde se implementa el algoritmo DIAN
+-  Si DIAN cambia el algoritmo, solo se actualiza en un lugar
+-  Todos los clientes (frontend, invoice_extractor, APIs externas) usan la misma lógica
 
 ### 2. Validación robusta
-- ✅ El frontend no puede engañar la validación
-- ✅ NITs siempre se almacenan normalizados
-- ✅ Consistencia garantizada en toda la base de datos
+-  El frontend no puede engañar la validación
+-  NITs siempre se almacenan normalizados
+-  Consistencia garantizada en toda la base de datos
 
 ### 3. UX mejorada
-- ✅ Validación en tiempo real mientras el usuario escribe
-- ✅ Feedback visual inmediato (spinner, checkmark, error)
-- ✅ Usuario ve exactamente qué NIT se almacenará
-- ✅ No hay sorpresas al guardar
+-  Validación en tiempo real mientras el usuario escribe
+-  Feedback visual inmediato (spinner, checkmark, error)
+-  Usuario ve exactamente qué NIT se almacenará
+-  No hay sorpresas al guardar
 
 ### 4. Eliminación de deuda técnica
-- ✅ Removido código muerto (nit.ts en frontend)
-- ✅ Eliminados archivos legacy en invoice_extractor
-- ✅ Código duplicado centralizado en backend
+-  Removido código muerto (nit.ts en frontend)
+-  Eliminados archivos legacy en invoice_extractor
+-  Código duplicado centralizado en backend
 
 ### 5. Mejor experiencia para desarrolladores
-- ✅ Un endpoint REST documentado para validación
-- ✅ Código mantenible y fácil de entender
-- ✅ Servicios TypeScript tipados
-- ✅ Errores descriptivos para debugging
+-  Un endpoint REST documentado para validación
+-  Código mantenible y fácil de entender
+-  Servicios TypeScript tipados
+-  Errores descriptivos para debugging
 
 ## Cambios de Implementación
 
@@ -311,7 +311,7 @@ isValidBasicFormat(nit: string): boolean
 
 **Jerarquía de configuración (ACTUALIZADA):**
 
-1. **API del backend** (Primary) ✅
+1. **API del backend** (Primary) 
    - Endpoint: `/api/v1/email-config/configuracion-extractor-public`
    - Siempre se intenta primero
    - Proporciona NITs normalizados

@@ -37,7 +37,7 @@ def logout():
     - Limpiar sesiones activas
     - Revocar refresh tokens
     """
-    print(f"🔐 Usuario cerrando sesión")
+    print(f" Usuario cerrando sesión")
     return {
         "message": "Sesión cerrada correctamente",
         "status": "success"
@@ -51,7 +51,7 @@ def get_microsoft_logout_url():
     El frontend debe redirigir a esta URL para cerrar la sesión en Microsoft.
     """
     logout_url = microsoft_oauth_service.get_logout_url()
-    print(f"🔐 Logout URL de Microsoft solicitada: {logout_url}")
+    print(f" Logout URL de Microsoft solicitada: {logout_url}")
     return {
         "logout_url": logout_url,
         "message": "Redirige a esta URL para cerrar la sesión en Microsoft"
@@ -64,7 +64,7 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     Endpoint de login tradicional con usuario y contraseña.
     Retorna JWT token y datos del usuario.
     """
-    print(f"🔐 Login attempt for user: {credentials.usuario}")
+    print(f" Login attempt for user: {credentials.usuario}")
 
     # Buscar usuario en tabla responsables
     usuario = db.query(Responsable).filter(Responsable.usuario == credentials.usuario).first()
@@ -166,7 +166,7 @@ def microsoft_callback(
     # if not state_valido:
     #     raise HTTPException(status_code=400, detail="State inválido (CSRF)")
 
-    print(f"🔐 Microsoft OAuth callback - código recibido")
+    print(f" Microsoft OAuth callback - código recibido")
 
     try:
         # Intercambiar código por token

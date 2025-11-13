@@ -22,7 +22,7 @@ if not factura:
     print("❌ No hay facturas sin workflow")
     sys.exit(1)
 
-print(f"\n📋 Factura: {factura.numero_factura} (ID: {factura.id})")
+print(f"\n Factura: {factura.numero_factura} (ID: {factura.id})")
 print(f"   Estado: {factura.estado}")
 print(f"   Proveedor ID: {factura.proveedor_id}")
 
@@ -55,10 +55,10 @@ else:
     print(f"   ❌ NIT es NULL")
 
 # Intentar procesar workflow
-print(f"\n🔄 Intentando procesar workflow...")
+print(f"\n Intentando procesar workflow...")
 workflow_service = WorkflowAutomaticoService(db)
 resultado = workflow_service.procesar_factura_nueva(factura.id)
 
-print(f"\n📊 Resultado: {resultado}")
+print(f"\n Resultado: {resultado}")
 
 db.close()

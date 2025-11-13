@@ -5,8 +5,7 @@ Modelo para items/líneas individuales de facturas.
 Este modelo almacena cada línea de la factura extraída del XML (<InvoiceLine>),
 permitiendo comparaciones granulares y análisis detallado de servicios/productos.
 
-Autor: Sistema AFE
-Fecha: 2025-10-09
+
 """
 
 from sqlalchemy import Column, BigInteger, String, Numeric, Integer, ForeignKey, DateTime, Index

@@ -108,4 +108,4 @@ def downgrade():
     op.execute("DROP TRIGGER IF EXISTS after_asignacion_activate")
     op.execute("DROP TRIGGER IF EXISTS after_asignacion_restore")
 
-    print("🔄 Triggers de integridad eliminados")
+    print(" Triggers de integridad eliminados")

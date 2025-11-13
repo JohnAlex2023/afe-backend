@@ -6,7 +6,7 @@
 
 ---
 
-## 📋 PROBLEMA IDENTIFICADO
+##  PROBLEMA IDENTIFICADO
 
 ### Síntomas
 - Usuarios con rol RESPONSABLE no veían ninguna factura en su dashboard (0 facturas)
@@ -171,7 +171,7 @@ create_audit(db, "workflow", inv.id, "error", "SISTEMA", {
 
 ---
 
-## 📊 RESULTADOS
+##  RESULTADOS
 
 ### Antes de la Solución
 - John (ID:6): **0 facturas visibles** ❌

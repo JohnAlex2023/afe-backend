@@ -127,42 +127,42 @@ class WorkflowAutomaticoService:
         ] for w in todos_workflows)
 
         # Lógica de precedencia
+        # NOTA: Los datos de aprobación/rechazo se almacenan en workflow_aprobacion_facturas
+        # La tabla facturas SOLO almacena el estado final.
+        # Los detalles se acceden vía propiedades: factura.aprobado_por_workflow, etc.
+
         if tiene_rechazado:
+            # Factura rechazada por al menos un responsable
             workflow.factura.estado = EstadoFactura.rechazada
-            # Buscar el workflow rechazado para auditoría
+            # Obtener el primer workflow rechazado para auditoría
             workflow_rechazado = next((w for w in todos_workflows if w.rechazada), None)
-            if workflow_rechazado:
-                workflow.factura.rechazado_por = workflow_rechazado.rechazada_por
-                workflow.factura.fecha_rechazo = workflow_rechazado.fecha_rechazo
-                workflow.factura.motivo_rechazo = workflow_rechazado.detalle_rechazo
+            if workflow_rechazado and workflow_rechazado.rechazada_por:
+                # accion_por se sincroniza desde el workflow
                 workflow.factura.accion_por = workflow_rechazado.rechazada_por
 
         elif tiene_pendiente:
+            # Al menos un workflow está pendiente
             workflow.factura.estado = EstadoFactura.en_revision
 
         elif todos_aprobados_auto:
-            # TODOS los workflows fueron aprobados automáticamente
+            # TODOS los workflows fueron aprobados automáticamente por el sistema
             workflow.factura.estado = EstadoFactura.aprobada_auto
-            workflow.factura.aprobado_por = 'Sistema Automático'
-            workflow.factura.fecha_aprobacion = workflow.fecha_aprobacion
             workflow.factura.accion_por = 'Sistema Automático'
 
         elif todos_aprobados:
             # Mezcla de aprobaciones automáticas y manuales
             workflow.factura.estado = EstadoFactura.aprobada
-            # Buscar el primer workflow aprobado manualmente para auditoría
+            # Obtener el primer workflow aprobado manualmente para auditoría
             workflow_manual = next((w for w in todos_workflows if w.estado == EstadoFacturaWorkflow.APROBADA_MANUAL), None)
-            if workflow_manual:
-                workflow.factura.aprobado_por = workflow_manual.aprobada_por
-                workflow.factura.fecha_aprobacion = workflow_manual.fecha_aprobacion
+            if workflow_manual and workflow_manual.aprobada_por:
+                # accion_por se sincroniza desde el workflow aprobador manual
                 workflow.factura.accion_por = workflow_manual.aprobada_por
             else:
-                workflow.factura.aprobado_por = 'Sistema Automático'
-                workflow.factura.fecha_aprobacion = workflow.fecha_aprobacion
+                # Si todos son automáticos, indicar que fue sistema
                 workflow.factura.accion_por = 'Sistema Automático'
 
         else:
-            # Fallback
+            # Fallback: estado indeterminado
             workflow.factura.estado = EstadoFactura.en_revision
 
     def procesar_factura_nueva(self, factura_id: int) -> Dict[str, Any]:
@@ -227,7 +227,7 @@ class WorkflowAutomaticoService:
             )
 
             self.db.add(workflow)
-            workflows_creados.append(workflow)  # ✅ Agregar objeto real
+            workflows_creados.append(workflow)  #  Agregar objeto real
             workflows_info.append({
                 "workflow_id": workflow.id,
                 "responsable_id": asignacion.responsable_id,
@@ -605,10 +605,10 @@ class WorkflowAutomaticoService:
             try:
                 # Preparar criterios cumplidos para el email
                 criterios_cumplidos = [
-                    f"✅ Similitud con mes anterior: {workflow.porcentaje_similitud}%",
-                    f"✅ Items verificados: {workflow.criterios_comparacion.get('items_ok', 0)}/{workflow.criterios_comparacion.get('items_analizados', 0)}",
-                    "✅ Sin alertas críticas detectadas",
-                    "✅ Proveedor con historial confiable"
+                    f" Similitud con mes anterior: {workflow.porcentaje_similitud}%",
+                    f" Items verificados: {workflow.criterios_comparacion.get('items_ok', 0)}/{workflow.criterios_comparacion.get('items_analizados', 0)}",
+                    " Sin alertas críticas detectadas",
+                    " Proveedor con historial confiable"
                 ]
 
                 # Enviar notificación usando NotificationService (envía emails reales)
@@ -625,7 +625,7 @@ class WorkflowAutomaticoService:
                 if resultado_envio.get('exito'):
                     emails_enviados = resultado_envio.get('notificaciones_enviadas', 0)
                     logger.info(
-                        f"✅ Notificación de aprobación automática enviada: "
+                        f" Notificación de aprobación automática enviada: "
                         f"{emails_enviados} emails enviados para factura {factura.numero_factura}"
                     )
                 else:
@@ -644,7 +644,7 @@ class WorkflowAutomaticoService:
             workflow=workflow,
             tipo=TipoNotificacion.FACTURA_APROBADA,
             destinatarios=[],  # Los destinatarios ya se manejaron en NotificationService
-            asunto=f"✅ Factura Aprobada Automáticamente - {factura.numero_factura}",
+            asunto=f" Factura Aprobada Automáticamente - {factura.numero_factura}",
             cuerpo=f"La factura {factura.numero_factura} ha sido aprobada automáticamente. "
                    f"Emails enviados: {emails_enviados}"
         )
@@ -715,7 +715,7 @@ Razón: La factura no alcanzó el umbral de confianza requerido para aprobación
                 if resultado_envio.get('exito'):
                     emails_enviados = resultado_envio.get('notificaciones_enviadas', 0)
                     logger.info(
-                        f"✅ Notificación de revisión enviada: "
+                        f" Notificación de revisión enviada: "
                         f"{emails_enviados} emails enviados para factura {workflow.factura.numero_factura}"
                     )
                 else:

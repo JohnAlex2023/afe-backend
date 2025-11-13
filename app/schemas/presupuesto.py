@@ -1,8 +1,6 @@
 """
 Schemas Pydantic para sistema de importación y comparación presupuestal.
 
-Nivel: Enterprise
-Autor: Backend AFE
 Fecha: 2025-10-04
 """
 

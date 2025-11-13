@@ -1,6 +1,6 @@
 # Solución: Consulta de Responsables por Proveedor con Normalización de NITs
 
-## 📋 Problema Reportado
+##  Problema Reportado
 
 **Fecha**: 2025-10-22
 **Usuario**: jhontaimal
@@ -184,7 +184,7 @@ Responsables:
 
 ---
 
-## 📊 Impacto de la Solución
+##  Impacto de la Solución
 
 ### Antes de la solución ❌
 ```
@@ -252,7 +252,7 @@ La solución funciona en:
 
 ---
 
-## 🔄 Consistencia con Solución Anterior
+##  Consistencia con Solución Anterior
 
 Esta solución es **consistente** con la implementación anterior en:
 -  `app/crud/factura.py` - Ya usa `_normalizar_nit()`

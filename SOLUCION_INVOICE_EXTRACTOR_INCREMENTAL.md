@@ -149,7 +149,7 @@ Ejecución 1:
 ├─ Ingesta a DB
 ├─ POST /actualizar-ultimo-procesamiento
 │  └─ Registra: ultima_ejecucion_exitosa = 2025-11-04T07:57:00Z
-└─ ✅ FIN
+└─  FIN
 
 Ejecución 2 (1 hora después):
 ├─ GET /configuracion-extractor-public
@@ -160,7 +160,7 @@ Ejecución 2 (1 hora después):
 ├─ Ingesta a DB
 ├─ POST /actualizar-ultimo-procesamiento
 │  └─ Registra: ultima_ejecucion_exitosa = [hora actual]
-└─ ✅ FIN (optimizado)
+└─  FIN (optimizado)
 ```
 
 ---
@@ -187,10 +187,10 @@ else:
 def get_fecha_inicio(self) -> Optional[datetime]:
     """Calcula fecha desde la cual extraer correos"""
     if self.ultima_ejecucion_exitosa:
-        # ✅ EJECUCIÓN INCREMENTAL
+        #  EJECUCIÓN INCREMENTAL
         return self.ultima_ejecucion_exitosa
     elif self.fecha_ultimo_correo_procesado:
-        # ✅ ALTERNATIVA
+        #  ALTERNATIVA
         return self.fecha_ultimo_correo_procesado
     else:
         # ❌ PRIMERA EJECUCIÓN
@@ -296,7 +296,7 @@ Si no está configurada, usará `http://localhost:8000` por defecto.
 
 ### Campos que se Actualizan
 
-1. **`ultima_ejecucion_exitosa`**: ✅ Se actualiza automáticamente en cada ejecución exitosa
+1. **`ultima_ejecucion_exitosa`**:  Se actualiza automáticamente en cada ejecución exitosa
 2. **`fecha_ultimo_correo_procesado`**: Opcional, se puede enviar si se desea registrar el timestamp del último correo procesado
 
 ### Manejo de Errores
@@ -312,9 +312,9 @@ Si falla la actualización de timestamps (ej: backend inaccesible):
 ## Cambios Requeridos en Despliegue
 
 Ninguno especial. Solo necesita:
-1. ✅ Deploy del backend con nuevo endpoint
-2. ✅ Deploy del extractor con nuevo código
-3. ✅ Las tablas `email_config.cuenta_correo` ya tienen los campos requeridos
+1.  Deploy del backend con nuevo endpoint
+2.  Deploy del extractor con nuevo código
+3.  Las tablas `email_config.cuenta_correo` ya tienen los campos requeridos
 
 ---
 

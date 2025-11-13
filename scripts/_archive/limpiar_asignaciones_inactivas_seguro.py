@@ -10,8 +10,7 @@ después de aplicar el fix de soft delete.
 - Requiere confirmación explícita del usuario
 - Crea backup automático en JSON antes de eliminar
 
-Nivel: Enterprise Production-Ready with Safety Checks
-Autor: Equipo de Desarrollo Senior
+
 Fecha: 2025-10-21
 """
 import sys

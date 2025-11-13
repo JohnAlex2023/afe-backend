@@ -6,7 +6,7 @@
 
 ---
 
-## 📋 RESUMEN EJECUTIVO
+##  RESUMEN EJECUTIVO
 
 Se ha completado exitosamente la refactorización del sistema para eliminar el estado `pendiente` y simplificar el flujo de aprobación de facturas. El sistema ahora utiliza `en_revision` como único estado de espera, mejorando la claridad y experiencia de usuario.
 
@@ -190,7 +190,7 @@ export type EstadoFactura =
 
 ---
 
-## 📊 ESTADÍSTICAS POST-MIGRACIÓN
+##  ESTADÍSTICAS POST-MIGRACIÓN
 
 ```
 Estado              | Cantidad

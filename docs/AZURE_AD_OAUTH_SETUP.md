@@ -217,7 +217,7 @@ curl http://localhost:8000/api/v1/auth/microsoft/authorize
 
 ## 8️⃣ Seguridad - Mejores Prácticas
 
-### ✅ Production Checklist
+###  Production Checklist
 
 - [ ] **Nunca commitear secretos** al repositorio
 - [ ] **Usar HTTPS** en producción
@@ -309,14 +309,14 @@ export class AuthService {
 
 ---
 
-## ✅ Conclusión
+##  Conclusión
 
 Ahora tienes una implementación **enterprise-grade** de autenticación con Microsoft OAuth:
 
-- ✅ Backend API REST completo
-- ✅ Soporte multi-provider (local + Microsoft)
-- ✅ Base de datos preparada
-- ✅ Seguridad implementada
-- ✅ Documentación completa
+-  Backend API REST completo
+-  Soporte multi-provider (local + Microsoft)
+-  Base de datos preparada
+-  Seguridad implementada
+-  Documentación completa
 
 **Siguiente paso:** Integrar con tu frontend (React/Vue/Angular).

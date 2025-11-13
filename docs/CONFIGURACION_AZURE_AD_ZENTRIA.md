@@ -3,8 +3,8 @@
 ## 🏢 Arquitectura Empresarial Implementada
 
 **Decisión de Diseño:** Usar **UNA SOLA App Registration** para:
-- ✅ Envío de notificaciones (Graph API - Mail.Send)
-- ✅ Autenticación de usuarios (OAuth 2.0)
+-  Envío de notificaciones (Graph API - Mail.Send)
+-  Autenticación de usuarios (OAuth 2.0)
 
 **Ventajas:**
 - Gestión simplificada
@@ -14,7 +14,7 @@
 
 ---
 
-## 📋 Configuración Actual
+##  Configuración Actual
 
 ```
 Tenant: Zentria
@@ -101,7 +101,7 @@ Microsoft Graph - Delegated:
 
 ---
 
-## ✅ Verificación Final
+##  Verificación Final
 
 ### Checklist de Configuración:
 
@@ -177,7 +177,7 @@ Esperado:
 
 ---
 
-## 📊 Arquitectura del Flujo
+##  Arquitectura del Flujo
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -233,12 +233,12 @@ OAUTH_MICROSOFT_CLIENT_SECRET=M6q8Q~_g4puSEYy_gV4OmCAAk2r7oilOxXXpJc_~
 
 ### Mejores Prácticas
 
-- ✅ Rotar client secret cada 6-12 meses
-- ✅ Usar HTTPS en producción
-- ✅ Validar state en callback (CSRF protection)
-- ✅ Implementar rate limiting en endpoints OAuth
-- ✅ Logs de auditoría para autenticaciones
-- ✅ Validar dominios de email permitidos (@zentria.com.co)
+-  Rotar client secret cada 6-12 meses
+-  Usar HTTPS en producción
+-  Validar state en callback (CSRF protection)
+-  Implementar rate limiting en endpoints OAuth
+-  Logs de auditoría para autenticaciones
+-  Validar dominios de email permitidos (@zentria.com.co)
 
 ---
 
@@ -268,7 +268,7 @@ OAUTH_MICROSOFT_CLIENT_SECRET=M6q8Q~_g4puSEYy_gV4OmCAAk2r7oilOxXXpJc_~
 
 ## 🎯 Próximos Pasos
 
-1. ✅ Configurar Azure AD (este documento)
+1.  Configurar Azure AD (este documento)
 2. ⏳ Integrar frontend con endpoints OAuth
 3. ⏳ Testing end-to-end con usuarios reales
 4. ⏳ Deploy a producción

@@ -11,8 +11,7 @@ Configuración recomendada:
 - Ventana de análisis: 12 meses
 - Timeout: 30 minutos
 
-Nivel: Enterprise Fortune 500
-Autor: Sistema de Automatización AFE
+
 Fecha: 2025-10-08
 """
 

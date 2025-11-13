@@ -4,8 +4,7 @@ Servicio para Gestión de Items de Facturas.
 Este servicio maneja la creación, actualización y consulta de items
 individuales de facturas.
 
-Nivel: Enterprise
-Autor: Sistema AFE
+
 Fecha: 2025-10-09
 """
 

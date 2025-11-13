@@ -11,8 +11,7 @@ Este servicio enterprise:
 
 Este es el componente de PRODUCCIÓN que reemplaza al bootstrap inicial del Excel.
 
-Nivel: Enterprise Fortune 500
-Autor: Sistema de Automatización AFE
+
 Fecha: 2025-10-08
 """
 

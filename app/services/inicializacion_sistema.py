@@ -16,8 +16,8 @@ Características Enterprise:
 - Logging detallado
 - Reporte ejecutivo
 
-Autor: Senior Backend Developer
-Nivel: Fortune 500 Enterprise
+
+
 """
 
 import logging

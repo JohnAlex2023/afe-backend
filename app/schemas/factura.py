@@ -13,6 +13,39 @@ class EstadoFactura(str, Enum):
     aprobada_auto = "aprobada_auto"
 
 
+# =====================================================
+# REQUEST SCHEMAS - Aprobación y Rechazo de Facturas
+# =====================================================
+class AprobacionRequest(BaseModel):
+    """Schema para solicitud de aprobación de factura"""
+    aprobado_por: Optional[str] = None
+    observaciones: Optional[str] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "aprobado_por": "Juan Pérez",
+                "observaciones": "Factura validada correctamente"
+            }
+        }
+
+
+class RechazoRequest(BaseModel):
+    """Schema para solicitud de rechazo de factura"""
+    rechazado_por: Optional[str] = None
+    motivo: str
+    detalle: Optional[str] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "rechazado_por": "Juan Pérez",
+                "motivo": "Discrepancia en monto",
+                "detalle": "El monto no coincide con la orden de compra"
+            }
+        }
+
+
 # Schema simple para Proveedor anidado
 class ProveedorSimple(BaseModel):
     id: int

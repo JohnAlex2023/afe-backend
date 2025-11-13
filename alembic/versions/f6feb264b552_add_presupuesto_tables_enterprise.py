@@ -10,7 +10,6 @@ Crea sistema empresarial de control presupuestal con:
 - Workflow de aprobaciones multinivel
 - Sistema de alertas y desviaciones
 
-Nivel: Fortune 500 Enterprise
 """
 from typing import Sequence, Union
 

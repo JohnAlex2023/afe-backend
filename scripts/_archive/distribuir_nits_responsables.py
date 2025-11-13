@@ -159,7 +159,7 @@ def redistribuir_nits():
 def main():
     modo = sys.argv[1].lower() if len(sys.argv) > 1 else "ver_distribucion"
 
-    print(f"\n🔄 Modo: {modo}\n")
+    print(f"\n Modo: {modo}\n")
 
     if modo == "crear_responsables":
         crear_responsables_ejemplo()
