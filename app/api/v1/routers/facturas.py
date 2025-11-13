@@ -6,6 +6,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from app.db.session import get_db
+from app.core.config import settings
 from app.schemas.factura import FacturaCreate, FacturaRead, AprobacionRequest, RechazoRequest
 from app.schemas.common import (
     ErrorResponse,
@@ -656,8 +657,8 @@ def aprobar_factura(
             for responsable in responsables:
                 if responsable.email:
                     try:
-                        # Construir URL de la factura para el email
-                        url_factura = f"/facturas/{factura.id}"
+                        # Construir URL absoluta de la factura para el email
+                        url_factura = f"{settings.frontend_url}/facturas/{factura.id}"
 
                         resultado = enviar_notificacion_factura_aprobada(
                             email_responsable=responsable.email,
@@ -787,8 +788,8 @@ def rechazar_factura(
             for responsable in responsables:
                 if responsable.email:
                     try:
-                        # Construir URL de la factura para el email
-                        url_factura = f"/facturas/{factura.id}"
+                        # Construir URL absoluta de la factura para el email
+                        url_factura = f"{settings.frontend_url}/facturas/{factura.id}"
 
                         resultado = enviar_notificacion_factura_rechazada(
                             email_responsable=responsable.email,
