@@ -85,19 +85,12 @@ class WorkflowAutomaticoService:
 
     def _sincronizar_estado_factura(self, workflow: WorkflowAprobacionFactura) -> None:
         """
-        Sincroniza el estado de la factura con TODOS sus workflows (multi-responsable).
+        NUEVA LÓGICA - Primero Gana:
+        - RECHAZO: Primer rechazo → RECHAZADA (decisión final)
+        - APROBACIÓN: Primer aprobador → APROBADA (decisión final)
+        - CONFLICTO: Si hay rechazo DESPUÉS de aprobación → Mantener APROBADA + flag conflicto
 
-        Enterprise Pattern: Multi-Workflow Consensus
-        - Una factura puede tener múltiples workflows (uno por responsable)
-        - El estado de la factura se determina consultando TODOS los workflows
-        - Lógica de precedencia:
-          1. Si ALGUNO está rechazado → rechazada
-          2. Si ALGUNO está pendiente/en_revision → en_revision
-          3. Si TODOS están aprobados (auto o manual) → aprobada_auto/aprobada
-          4. Default → en_revision
-
-        Args:
-            workflow: Workflow actualizado (se consultan TODOS los workflows de su factura)
+        Enterprise Pattern: Simple, Professional, Auditable
         """
         if not workflow.factura:
             return
@@ -110,60 +103,63 @@ class WorkflowAutomaticoService:
         if not todos_workflows:
             return
 
-        # Analizar estados de todos los workflows
-        tiene_rechazado = any(w.estado == EstadoFacturaWorkflow.RECHAZADA for w in todos_workflows)
-        tiene_pendiente = any(w.estado in [
-            EstadoFacturaWorkflow.RECIBIDA,
-            EstadoFacturaWorkflow.EN_ANALISIS,
-            EstadoFacturaWorkflow.PENDIENTE_REVISION,
-            EstadoFacturaWorkflow.EN_REVISION,
-            EstadoFacturaWorkflow.OBSERVADA
-        ] for w in todos_workflows)
+        # Analizar acciones: quién aprobó, quién rechazó, en qué orden
+        aprobados = [w for w in todos_workflows if w.aprobada]
+        rechazados = [w for w in todos_workflows if w.rechazada]
+        pendientes = [w for w in todos_workflows if not w.aprobada and not w.rechazada]
 
-        todos_aprobados_auto = all(w.estado == EstadoFacturaWorkflow.APROBADA_AUTO for w in todos_workflows)
-        todos_aprobados = all(w.estado in [
-            EstadoFacturaWorkflow.APROBADA_AUTO,
-            EstadoFacturaWorkflow.APROBADA_MANUAL
-        ] for w in todos_workflows)
-
-        # Lógica de precedencia
-        # NOTA: Los datos de aprobación/rechazo se almacenan en workflow_aprobacion_facturas
-        # La tabla facturas SOLO almacena el estado final.
-        # Los detalles se acceden vía propiedades: factura.aprobado_por_workflow, etc.
-
-        if tiene_rechazado:
-            # Factura rechazada por al menos un responsable
-            workflow.factura.estado = EstadoFactura.rechazada
-            # Obtener el primer workflow rechazado para auditoría
-            workflow_rechazado = next((w for w in todos_workflows if w.rechazada), None)
-            if workflow_rechazado and workflow_rechazado.rechazada_por:
-                # accion_por se sincroniza desde el workflow
-                workflow.factura.accion_por = workflow_rechazado.rechazada_por
-
-        elif tiene_pendiente:
-            # Al menos un workflow está pendiente
-            workflow.factura.estado = EstadoFactura.en_revision
-
-        elif todos_aprobados_auto:
-            # TODOS los workflows fueron aprobados automáticamente por el sistema
-            workflow.factura.estado = EstadoFactura.aprobada_auto
-            workflow.factura.accion_por = 'Sistema Automático'
-
-        elif todos_aprobados:
-            # Mezcla de aprobaciones automáticas y manuales
+        # LÓGICA SIMPLE - PRIMERO GANA
+        if rechazados and aprobados:
+            # CONFLICTO: Hay aprobación Y rechazo
+            # Mantener APROBADA pero marcar conflicto
             workflow.factura.estado = EstadoFactura.aprobada
-            # Obtener el primer workflow aprobado manualmente para auditoría
-            workflow_manual = next((w for w in todos_workflows if w.estado == EstadoFacturaWorkflow.APROBADA_MANUAL), None)
-            if workflow_manual and workflow_manual.aprobada_por:
-                # accion_por se sincroniza desde el workflow aprobador manual
-                workflow.factura.accion_por = workflow_manual.aprobada_por
+            workflow.factura.accion_por = aprobados[0].aprobada_por
+
+            # Marcar conflicto en metadata
+            if not workflow.metadata_workflow:
+                workflow.metadata_workflow = {}
+            workflow.metadata_workflow["conflicto_detectado"] = True
+            workflow.metadata_workflow["aprobada_por"] = aprobados[0].aprobada_por
+            workflow.metadata_workflow["rechazada_por"] = rechazados[0].rechazada_por
+            workflow.metadata_workflow["motivo_conflicto"] = rechazados[0].detalle_rechazo
+
+            logger.warning(
+                f"CONFLICTO EN FACTURA {workflow.factura.numero_factura}: "
+                f"{aprobados[0].aprobada_por} aprobó, {rechazados[0].rechazada_por} rechazó"
+            )
+
+        elif rechazados:
+            # RECHAZADA: Al menos un rechazo (sin aprobaciones)
+            workflow.factura.estado = EstadoFactura.rechazada
+            workflow.factura.accion_por = rechazados[0].rechazada_por
+
+            # Limpiar conflicto si no hay
+            if workflow.metadata_workflow:
+                workflow.metadata_workflow["conflicto_detectado"] = False
+
+        elif aprobados:
+            # APROBADA: Al menos una aprobación (sin rechazos)
+            # Determinar si fue auto o manual
+            si_hay_manual = any(w.tipo_aprobacion == TipoAprobacion.MANUAL for w in aprobados)
+
+            if si_hay_manual:
+                workflow.factura.estado = EstadoFactura.aprobada
+                # Obtener quien aprobó manualmente
+                manual = next((w for w in aprobados if w.tipo_aprobacion == TipoAprobacion.MANUAL), None)
+                workflow.factura.accion_por = manual.aprobada_por if manual else aprobados[0].aprobada_por
             else:
-                # Si todos son automáticos, indicar que fue sistema
+                workflow.factura.estado = EstadoFactura.aprobada_auto
                 workflow.factura.accion_por = 'Sistema Automático'
 
+            # Limpiar conflicto
+            if workflow.metadata_workflow:
+                workflow.metadata_workflow["conflicto_detectado"] = False
+
         else:
-            # Fallback: estado indeterminado
+            # PENDIENTES: Todos en revisión
             workflow.factura.estado = EstadoFactura.en_revision
+            if workflow.metadata_workflow:
+                workflow.metadata_workflow["conflicto_detectado"] = False
 
     def procesar_factura_nueva(self, factura_id: int) -> Dict[str, Any]:
         """
@@ -806,6 +802,86 @@ Razón: La factura no alcanzó el umbral de confianza requerido para aprobación
 
         return notif
 
+    def _notificar_a_otros_responsables(
+        self,
+        factura_id: int,
+        evento: str,
+        quien_actuo: str,
+        motivo: str = None
+    ) -> None:
+        """
+        Notifica a TODOS los responsables sobre cambio de estado.
+
+        Eventos soportados:
+        - "APROBADA": Factura fue aprobada por quien_actuo
+        - "RECHAZADA": Factura fue rechazada por quien_actuo
+        - "CONFLICTO": Hay conflicto entre aprobaciones y rechazos
+
+        Args:
+            factura_id: ID de factura
+            evento: Tipo de evento
+            quien_actuo: Nombre de quien aprobó/rechazó
+            motivo: Motivo (para rechazos/conflictos)
+        """
+        try:
+            # Obtener factura y todos sus workflows
+            factura = self.db.query(Factura).filter(
+                Factura.id == factura_id
+            ).first()
+
+            if not factura:
+                return
+
+            todos_workflows = self.db.query(WorkflowAprobacionFactura).filter(
+                WorkflowAprobacionFactura.factura_id == factura_id
+            ).all()
+
+            # Preparar mensaje según evento
+            if evento == "APROBADA":
+                asunto = f"✅ Factura Aprobada - {factura.numero_factura}"
+                cuerpo = f"La factura ha sido APROBADA por {quien_actuo}."
+                if factura.observaciones_aprobacion:
+                    cuerpo += f"\nObservaciones: {factura.observaciones_aprobacion}"
+
+            elif evento == "RECHAZADA":
+                asunto = f"❌ Factura Rechazada - {factura.numero_factura}"
+                cuerpo = f"La factura ha sido RECHAZADA por {quien_actuo}."
+                if motivo:
+                    cuerpo += f"\nMotivo: {motivo}"
+
+            elif evento == "CONFLICTO":
+                asunto = f"⚠️ CONFLICTO EN FACTURA - {factura.numero_factura}"
+                cuerpo = (
+                    f"CONFLICTO: Hay aprobaciones y rechazos encontrados.\n"
+                    f"Aprobada por: {factura.accion_por}\n"
+                    f"Rechazada por: {quien_actuo}"
+                )
+                if motivo:
+                    cuerpo += f"\nMotivo del rechazo: {motivo}"
+            else:
+                return
+
+            # Notificar a TODOS los workflows (incluyendo quien actuó)
+            for workflow in todos_workflows:
+                self._crear_notificacion(
+                    workflow=workflow,
+                    tipo=TipoNotificacion.FACTURA_APROBADA if evento == "APROBADA"
+                    else TipoNotificacion.FACTURA_RECHAZADA
+                    if evento == "RECHAZADA"
+                    else TipoNotificacion.ALERTA,
+                    destinatarios=[],
+                    asunto=asunto,
+                    cuerpo=cuerpo
+                )
+
+            logger.info(
+                f"Notificaciones enviadas - Evento: {evento}, "
+                f"Factura: {factura.numero_factura}, Por: {quien_actuo}"
+            )
+
+        except Exception as e:
+            logger.error(f"Error notificando a responsables: {str(e)}")
+
     def _enviar_notificacion_inicial(
         self,
         workflow: WorkflowAprobacionFactura,
@@ -841,8 +917,7 @@ Razón: La factura no alcanzó el umbral de confianza requerido para aprobación
     ) -> Dict[str, Any]:
         """
         Aprueba manualmente una factura.
-
-        Enterprise Pattern: Aprobación manual con trazabilidad y sincronización.
+        Sincroniza estado y notifica a otros responsables.
         """
         workflow = self.db.query(WorkflowAprobacionFactura).filter(
             WorkflowAprobacionFactura.id == workflow_id
@@ -861,18 +936,17 @@ Razón: La factura no alcanzó el umbral de confianza requerido para aprobación
         workflow.fecha_aprobacion = datetime.now()
         workflow.observaciones_aprobacion = observaciones
 
-        #   SINCRONIZAR ESTADO CON FACTURA
+        # SINCRONIZAR ESTADO CON FACTURA
         self._sincronizar_estado_factura(workflow)
 
         self.db.commit()
 
-        # Notificar aprobación
-        self._crear_notificacion(
-            workflow=workflow,
-            tipo=TipoNotificacion.FACTURA_APROBADA,
-            destinatarios=[],  # Contabilidad
-            asunto=f"  Factura Aprobada - {workflow.factura.numero_factura}",
-            cuerpo=f"Factura aprobada manualmente por {aprobado_por}"
+        # NOTIFICAR A TODOS LOS RESPONSABLES
+        self._notificar_a_otros_responsables(
+            factura_id=workflow.factura_id,
+            evento="APROBADA",
+            quien_actuo=aprobado_por,
+            motivo=None
         )
 
         return {
@@ -917,13 +991,18 @@ Razón: La factura no alcanzó el umbral de confianza requerido para aprobación
 
         self.db.commit()
 
-        # Notificar rechazo
-        self._crear_notificacion(
-            workflow=workflow,
-            tipo=TipoNotificacion.FACTURA_RECHAZADA,
-            destinatarios=[],  # Proveedor, responsable, contabilidad
-            asunto=f" Factura Rechazada - {workflow.factura.numero_factura}",
-            cuerpo=f"Motivo: {motivo}\n{detalle or ''}"
+        # Detectar si hay conflicto (rechazo después de aprobación)
+        tiene_conflicto = (
+            workflow.metadata_workflow
+            and workflow.metadata_workflow.get("conflicto_detectado", False)
+        )
+
+        # NOTIFICAR A TODOS LOS RESPONSABLES
+        self._notificar_a_otros_responsables(
+            factura_id=workflow.factura_id,
+            evento="CONFLICTO" if tiene_conflicto else "RECHAZADA",
+            quien_actuo=rechazado_por,
+            motivo=motivo
         )
 
         return {
