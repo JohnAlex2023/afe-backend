@@ -56,6 +56,7 @@ class Settings(BaseSettings):
 
     # --- Frontend URLs (para emails y redirecciones) ---
     frontend_url: str = Field("http://localhost:5173", env="FRONTEND_URL")
+    api_base_url: str = Field("http://localhost:8000", env="API_BASE_URL")
 
     # ============================================================================
     # AUTO-CREACIÓN DE PROVEEDORES (NUEVO 2025-11-06)

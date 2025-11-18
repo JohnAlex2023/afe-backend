@@ -862,21 +862,27 @@ Razón: La factura no alcanzó el umbral de confianza requerido para aprobación
                 return
 
             # Notificar a TODOS los workflows (incluyendo quien actuó)
+            # Determinar tipo de notificación según evento (patrón defensivo)
+            if evento == "APROBADA":
+                tipo_notif = TipoNotificacion.FACTURA_APROBADA
+            elif evento == "RECHAZADA":
+                tipo_notif = TipoNotificacion.FACTURA_RECHAZADA
+            else:  # CONFLICTO
+                tipo_notif = TipoNotificacion.ALERTA
+
             for workflow in todos_workflows:
                 self._crear_notificacion(
                     workflow=workflow,
-                    tipo=TipoNotificacion.FACTURA_APROBADA if evento == "APROBADA"
-                    else TipoNotificacion.FACTURA_RECHAZADA
-                    if evento == "RECHAZADA"
-                    else TipoNotificacion.ALERTA,
+                    tipo=tipo_notif,
                     destinatarios=[],
                     asunto=asunto,
                     cuerpo=cuerpo
                 )
 
             logger.info(
-                f"Notificaciones enviadas - Evento: {evento}, "
-                f"Factura: {factura.numero_factura}, Por: {quien_actuo}"
+                f"Notificaciones creadas - Evento: {evento}, "
+                f"Factura: {factura.numero_factura}, Por: {quien_actuo}, "
+                f"Tipo: {tipo_notif.value}"
             )
 
         except Exception as e:

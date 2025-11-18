@@ -99,31 +99,51 @@ class NotificacionService:
     def _obtener_destinatarios(self, notif: NotificacionWorkflow) -> List[str]:
         """
         Obtiene la lista de emails destinatarios según el tipo de notificación.
+
+        Enterprise Pattern: Routing robusto con validaciones defensivas.
+        - Los valores de tipo deben coincidir exactamente con TipoNotificacion enum
+        - Se valida que workflow.responsable exista antes de acceder
+        - Se elimina duplicados al final
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
         destinatarios = []
         workflow = notif.workflow
 
-        # Si ya tiene destinatarios en JSON, usarlos
-        if notif.destinatarios and isinstance(notif.destinatarios, list):
+        # Validación defensiva: Si workflow no existe, retornar vacío
+        if not workflow:
+            logger.warning(f"NotificacionWorkflow {notif.id}: workflow es None")
+            return []
+
+        # Si ya tiene destinatarios en JSON, usarlos (bypass automático)
+        if notif.destinatarios and isinstance(notif.destinatarios, list) and len(notif.destinatarios) > 0:
+            logger.debug(f"Usando destinatarios predefinidos para notificación {notif.id}")
             return notif.destinatarios
 
+        # Log del tipo de notificación para debugging
+        logger.debug(f"Procesando notificación {notif.id}: tipo={notif.tipo.value}")
+
         # Según el tipo de notificación, agregar destinatarios
-        if notif.tipo.value in ['FACTURA_RECIBIDA', 'PENDIENTE_REVISION', 'RECORDATORIO']:
-            # Enviar al responsable
-            if workflow.responsable:
-                if hasattr(workflow.responsable, 'email') and workflow.responsable.email:
-                    destinatarios.append(workflow.responsable.email)
+        # ⚠️ CRÍTICO: Usar valores EXACTOS del enum (minúsculas)
+        if notif.tipo.value in ['factura_recibida', 'pendiente_revision', 'recordatorio']:
+            # Enviar al responsable asignado
+            if workflow.responsable and hasattr(workflow.responsable, 'email') and workflow.responsable.email:
+                destinatarios.append(workflow.responsable.email)
+                logger.debug(f"Agregado responsable: {workflow.responsable.email}")
 
-        if notif.tipo.value in ['FACTURA_APROBADA', 'FACTURA_RECHAZADA']:
-            # Enviar a contabilidad + responsable
-            if workflow.responsable:
-                if hasattr(workflow.responsable, 'email') and workflow.responsable.email:
-                    destinatarios.append(workflow.responsable.email)
+        # Notificaciones de aprobación/rechazo: ir a responsable + contabilidad
+        if notif.tipo.value in ['factura_aprobada', 'factura_rechazada']:
+            # 1. Enviar al responsable que actuó
+            if workflow.responsable and hasattr(workflow.responsable, 'email') and workflow.responsable.email:
+                destinatarios.append(workflow.responsable.email)
+                logger.debug(f"Agregado responsable para {notif.tipo.value}: {workflow.responsable.email}")
 
-            # Agregar email de contabilidad (configurar en settings)
+            # 2. Agregar email de contabilidad (equipo que procesará el pago)
             email_contabilidad = getattr(settings, 'EMAIL_CONTABILIDAD', None)
             if email_contabilidad:
                 destinatarios.append(email_contabilidad)
+                logger.debug(f"Agregado email contabilidad: {email_contabilidad}")
 
         # Buscar emails adicionales de la asignación NIT
         from app.models.workflow_aprobacion import AsignacionNitResponsable

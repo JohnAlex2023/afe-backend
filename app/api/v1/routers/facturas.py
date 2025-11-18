@@ -803,7 +803,7 @@ def rechazar_factura(
                             motivo_rechazo=request.motivo,
                             fecha_rechazo=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             url_factura=url_factura,
-                            observaciones=request.observaciones
+                            observaciones=request.detalle  # RechazoRequest usa 'detalle' no 'observaciones'
                         )
 
                         if resultado.get('success'):

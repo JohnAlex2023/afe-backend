@@ -18,14 +18,14 @@
             background-color: #ffffff;
             border-radius: 8px;
             padding: 30px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #e0e0e0;
         }
         .header {
             text-align: center;
             border-bottom: 3px solid #28a745;
             padding-bottom: 20px;
             margin-bottom: 30px;
-            background: linear-gradient(135deg, #f0fff4 0%, #c6f6d5 100%);
+            background-color: #f0fff4;
             margin: -30px -30px 30px -30px;
             padding: 30px;
             border-radius: 8px 8px 0 0;
@@ -39,12 +39,12 @@
         .status-badge {
             display: inline-block;
             padding: 10px 20px;
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            background-color: #28a745;
             color: white;
             border-radius: 25px;
             font-weight: bold;
             margin-top: 12px;
-            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+            border: 2px solid #28a745;
         }
         .greeting {
             font-size: 16px;
@@ -83,12 +83,12 @@
             font-size: 18px;
         }
         .highlight-box {
-            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            background-color: #d4edda;
             border-left: 4px solid #28a745;
+            border: 1px solid #c3e6cb;
             padding: 20px;
             margin: 25px 0;
             border-radius: 6px;
-            box-shadow: 0 1px 4px rgba(40, 167, 69, 0.2);
         }
         .highlight-title {
             font-weight: bold;
@@ -220,7 +220,7 @@
 
         {# Mostrar observaciones si existen #}
         {% if observaciones %}
-        <div style="background: linear-gradient(135deg, #e8f4f8 0%, #d4e8f0 100%); border-left: 4px solid #17a2b8; padding: 20px; margin: 25px 0; border-radius: 6px; box-shadow: 0 1px 4px rgba(23, 162, 184, 0.2);">
+        <div style="background-color: #e8f4f8; border-left: 4px solid #17a2b8; border: 1px solid #d4e8f0; padding: 20px; margin: 25px 0; border-radius: 6px;">
             <div style="font-weight: bold; color: #005a6f; margin-bottom: 12px; font-size: 16px;">
                 📝 Observaciones Adicionales
             </div>
@@ -249,7 +249,7 @@
         {# Botón para ir a la factura en el dashboard #}
         {% if url_factura %}
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{{ url_factura }}" style="display: inline-block; padding: 14px 36px; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3); transition: transform 0.2s;">
+            <a href="{{ url_factura }}" style="display: inline-block; padding: 14px 36px; background-color: #28a745; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; border: 2px solid #28a745;">
                 📊 Ver Factura en el Dashboard
             </a>
         </div>

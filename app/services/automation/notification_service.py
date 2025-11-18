@@ -172,7 +172,7 @@ Sistema Automático de Facturas
         config: Optional[ConfiguracionNotificacion] = None
     ) -> Dict[str, Any]:
         """
-        Envía notificación cuando una factura requiere revisión manual.
+        Envía notificación cuando una factura requiere revisión manual con template profesional.
         """
         config = config or self.config_default
 
@@ -180,23 +180,52 @@ Sistema Automático de Facturas
             # Obtener responsables de la factura
             responsables = self._obtener_responsables_factura(db, factura)
 
+            # Preparar análisis de ítems desde contexto_historico
+            analisis_items = {}
+            motivos_revision = [motivo] if motivo else []
+
+            if contexto_historico:
+                # Extraer datos de análisis de comparación
+                analisis_items = {
+                    'total_items': contexto_historico.get('items_analizados', 0),
+                    'items_sin_cambios': contexto_historico.get('items_ok', 0),
+                    'items_con_alertas': contexto_historico.get('items_con_alertas', 0),
+                    'items_nuevos': contexto_historico.get('nuevos_items_count', 0)
+                }
+
+                # Convertir alertas a lista de motivos si existen
+                if contexto_historico.get('alertas'):
+                    motivos_revision = contexto_historico.get('alertas', [motivo])
+
+            # Obtener monto numérico
+            monto_numerico = float(factura.total_a_pagar or 0)
+
+            # Formatear fecha
+            fecha_formateada = factura.fecha_emision.strftime('%d/%m/%Y') if factura.fecha_emision else 'N/A'
+
+            # Obtener configuración de URLs base desde el environment
+            import os
+            url_base = os.getenv('FRONTEND_URL', 'https://afe.zentria.com.co')
+            api_base = os.getenv('API_BASE_URL', url_base)
+
             # Preparar datos para la plantilla HTML
             datos_plantilla = {
                 'numero_factura': factura.numero_factura,
                 'proveedor_nombre': factura.proveedor.razon_social if factura.proveedor else 'N/A',
-                'monto': float(factura.total_a_pagar or 0),
-                'fecha_emision': factura.fecha_emision,
+                'monto': monto_numerico,
+                'fecha_emision': fecha_formateada,
                 'concepto': factura.concepto_principal or factura.concepto_normalizado or 'Sin concepto',
                 'motivo_revision': motivo,
+                'motivos_revision': motivos_revision,
                 'alertas': alertas or [],
+                'analisis_items': analisis_items if analisis_items else None,
                 'contexto_historico': contexto_historico,
                 'confianza': confianza,
-                'confianza_pct': confianza * 100,
+                'confianza_pct': round(confianza * 100, 1),
+                'umbral_minimo_pct': 70,
                 'patron_detectado': patron_detectado,
                 'es_recurrente': 'Sí' if confianza > 0.7 else 'No',
-                'url_aprobar': f"/api/v1/facturas/{factura.id}/aprobar",
-                'url_ver_factura': f"/facturas/{factura.id}",
-                'url_rechazar': f"/api/v1/facturas/{factura.id}/rechazar"
+                'link_sistema': f"{url_base}/facturas?id={factura.id}"
             }
 
             resultados_envio = []
@@ -253,11 +282,15 @@ Sistema Automático de Facturas
             responsables = self._obtener_responsables_factura(db, factura)
 
             # Preparar datos para la plantilla HTML
+            fecha_formateada = (
+                factura.fecha_emision.strftime('%d/%m/%Y')
+                if factura.fecha_emision else 'N/A'
+            )
             datos_plantilla = {
                 'numero_factura': factura.numero_factura,
                 'proveedor_nombre': factura.proveedor.razon_social if factura.proveedor else 'N/A',
                 'monto': float(factura.total_a_pagar or 0),
-                'fecha_emision': factura.fecha_emision,
+                'fecha_emision': fecha_formateada,
                 'concepto': factura.concepto_principal or factura.concepto_normalizado or 'Sin concepto',
                 'confianza': confianza,
                 'confianza_pct': confianza * 100,
@@ -359,7 +392,7 @@ Sistema Automático de Facturas
 
             # Preparar datos para la plantilla HTML
             datos_plantilla = {
-                'fecha': datetime.now(),
+                'fecha': datetime.now().strftime('%d/%m/%Y'),
                 'stats': stats,
                 'facturas_atencion': facturas_atencion_list,
                 'facturas_aprobadas': facturas_aprobadas_list,
@@ -417,7 +450,7 @@ Sistema Automático de Facturas
                 'numero_factura': factura.numero_factura,
                 'proveedor_nombre': factura.proveedor.razon_social if factura.proveedor else 'N/A',
                 'error_descripcion': error_descripcion,
-                'fecha_error': datetime.now(),
+                'fecha_error': datetime.now().strftime('%d/%m/%Y %H:%M:%S'),
                 'stack_trace': stack_trace,
                 'url_ver_factura': f"/facturas/{factura.id}",
                 'url_soporte': "/soporte"

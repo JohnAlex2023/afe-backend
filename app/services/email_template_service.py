@@ -27,7 +27,7 @@ class EmailTemplateService:
 
     def __init__(self):
         # Directorio de templates (app/templates/emails/)
-        self.template_dir = Path(__file__).parent / 'templates' / 'emails'
+        self.template_dir = Path(__file__).parent.parent / 'templates' / 'emails'
 
         # Crear directorio si no existe
         self.template_dir.mkdir(parents=True, exist_ok=True)
