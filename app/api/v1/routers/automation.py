@@ -1008,7 +1008,7 @@ async def obtener_metricas_dashboard(
             {
                 'id': f.id,
                 'numero_factura': f.numero_factura,
-                'proveedor': f.proveedor.nombre if f.proveedor else 'N/A',
+                'proveedor': f.proveedor.razon_social if f.proveedor else 'N/A',
                 'total': float(f.total_a_pagar) if f.total_a_pagar else 0,
                 'estado': f.estado.value if f.estado else 'pendiente',
                 'confianza': float(f.confianza_automatica) if f.confianza_automatica else 0,
