@@ -1,0 +1,415 @@
+================================================================================
+                    AFE BACKEND - ARQUITECTURA COMPLETA
+================================================================================
+
+VISTA GENERAL DEL SISTEMA
+─────────────────────────────────────────────────────────────────────────────
+
+                           FLUJO DE FACTURA (Actual)
+
+    ┌─────────────┐      ┌──────────────┐      ┌──────────────┐
+    │   FACTURA   │ ────>│  REVISIÓN    │ ────>│  APROBADA    │
+    │    LLEGA    │      │   MANUAL     │      │   / AUTO     │
+    └─────────────┘      └──────────────┘      └──────────────┘
+                              ▲                      │
+                              │                      ▼
+                              │                 ┌──────────────┐
+                              │                 │  RECHAZADA   │
+                              │                 │   (Devuelta) │
+                              │                 └──────────────┘
+                              │
+                         Workflow
+                         Aprobación
+
+
+                    ❌ FALTA: ¿QUÉ PASA DESPUÉS?
+
+    ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
+    │  APROBADA    │      │    PAGADA    │ ────>│  COMPLETADO  │
+    │     /AUTO    │ ────>│   (NUEVA)    │      │  (CICLO 100%)│
+    └──────────────┘      └──────────────┘      └──────────────┘
+                          [PagoFactura]
+
+
+================================================================================
+                       ESTRUCTURA DE DATOS (Propuesta)
+================================================================================
+
+TABLA: facturas (EXISTE)
+┌──────────────────────────────────────────────────────────────────────┐
+│ id | numero_factura | proveedor_id | estado | total_a_pagar | ...  │
+└──────────────────────────────────────────────────────────────────────┘
+     ▲                                  ▲
+     │                                  │
+     └──────────────┬──────────────────┘
+                    │ (Foreign Key)
+                    │
+┌──────────────────────────────────────────────────────────────────────┐
+│ TABLA: pagos_facturas (NUEVA)                          ← AQUÍ FALTA │
+├──────────────────────────────────────────────────────────────────────┤
+│ id | factura_id | numero_pago | monto_pagado | metodo_pago         │
+│ estado_pago | fecha_pago | procesado_por | referencia_externa ...   │
+└──────────────────────────────────────────────────────────────────────┘
+
+
+TABLA: workflow_aprobacion (EXISTE)
+┌──────────────────────────────────────────────────────────────────────┐
+│ id | factura_id | aprobada_por | fecha_aprobacion | ...              │
+└──────────────────────────────────────────────────────────────────────┘
+
+
+TABLA: historial_pagos (EXISTE - para análisis estadístico)
+┌──────────────────────────────────────────────────────────────────────┐
+│ id | proveedor_id | concepto_normalizado | tipo_patron              │
+│ monto_promedio | desviacion_estandar | ...                           │
+└──────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+                          ENDPOINTS (Propuesta)
+================================================================================
+
+ACTUALES (✅ FUNCIONAN):
+─────────────────────
+GET    /api/v1/facturas                           - Listar facturas
+GET    /api/v1/facturas/{id}                      - Detalle factura
+POST   /api/v1/facturas/{id}/aprobar              - Aprobar manual
+POST   /api/v1/facturas/{id}/rechazar             - Rechazar
+POST   /api/v1/accounting/facturas/{id}/devolver  - Devolver (nuevo)
+GET    /api/v1/accounting/facturas/pendientes     - Pendientes (nuevo)
+
+
+NUEVOS (❌ FALTA AGREGAR):
+──────────────────────
+POST   /api/v1/accounting/facturas/{id}/pagar                ← CRÍTICA
+GET    /api/v1/accounting/facturas/{id}/historial-pagos     ← INFORMACIÓN
+POST   /api/v1/accounting/pagos/{id}/revertir               ← REVERSIÓN
+
+
+PROPUESTOS (Para fase 2):
+────────────────────
+GET    /api/v1/reports/tesoreria/resumen          - Dinero en circulación
+GET    /api/v1/reports/tesoreria/vencidas         - Facturas vencidas
+GET    /api/v1/reports/cash-flow/prediccion       - Forecast 90 días
+GET    /api/v1/reports/kpi/pagos                  - KPIs de pago
+
+
+================================================================================
+                        FLUJO DE PAGO (Propuesto)
+================================================================================
+
+CONTADOR VE DASHBOARD:
+
+    ┌────────────────────────────────┐
+    │  Factura #F001 - $1,000,000    │
+    │  Estado: APROBADA              │
+    │  Proveedor: ACME Corp          │
+    │                                │
+    │  [Botón: Marcar como Pagado]  │ ← NUEVO
+    └────────────────────────────────┘
+                   │
+                   ▼ (Click)
+    ┌────────────────────────────────┐
+    │ MODAL: REGISTRAR PAGO          │
+    ├────────────────────────────────┤
+    │ Monto: [1000000]               │
+    │ Método: [Transferencia ▼]      │
+    │ Referencia: [TRF001234]        │
+    │ Fecha: [19/11/2025] [14:30]    │
+    │                                │
+    │ [Cancelar] [Guardar]           │
+    └────────────────────────────────┘
+                   │
+                   ▼ (Guardar)
+    ┌────────────────────────────────┐
+    │ POST /accounting/facturas/1    │
+    │      /pagar                    │
+    │                                │
+    │ Validar:                       │
+    │ ✓ Factura aprobada            │
+    │ ✓ Monto ≤ pendiente           │
+    │ ✓ Referencia única            │
+    └────────────────────────────────┘
+                   │
+                   ▼ (OK)
+    ┌────────────────────────────────┐
+    │ GUARDAR PAGO:                  │
+    │ - PagoFactura record          │
+    │ - Factura.estado = PAGADA     │
+    │ - Auditoría: quién, cuándo    │
+    └────────────────────────────────┘
+                   │
+                   ▼
+    ┌────────────────────────────────┐
+    │ EMAIL AL PROVEEDOR:            │
+    │ "Pago recibido - $1M"         │
+    │ "Referencia: TRF001234"       │
+    │ "Fecha: 19/11/2025 14:30"     │
+    └────────────────────────────────┘
+                   │
+                   ▼
+    ┌────────────────────────────────┐
+    │  Factura #F001 - PAGADA ✓      │
+    │  Total Pagado: $1,000,000      │
+    │  Pendiente: $0                 │
+    │  Fecha Pago: 19/11/2025        │
+    │                                │
+    │  [Ver Historial de Pagos]      │
+    └────────────────────────────────┘
+
+
+================================================================================
+                      PROPIEDADES CALCULADAS (Factura)
+================================================================================
+
+@property total_pagado
+    → Suma de todos los PagoFactura con estado COMPLETADO
+    → Ejemplo: $600,000
+
+@property pendiente_pagar
+    → total_a_pagar - total_pagado
+    → Ejemplo: $1,000,000 - $600,000 = $400,000
+
+@property esta_completamente_pagada
+    → pendiente_pagar ≤ 0.01 (tolerancia 1 centavo)
+    → Si TRUE → estado = PAGADA
+
+@property dias_sin_pagar
+    → AHORA - fecha_aprobacion
+    → Ejemplo: 5 días
+    → Usado para alertas: "Vencida en X días"
+
+@property requiere_atencion_pago
+    → Si estado APROBADA y dias_sin_pagar > 5
+    → Alerta para contador
+
+
+================================================================================
+                          AUDITORÍA Y SEGURIDAD
+================================================================================
+
+QUIÉN PUEDE HACER QUÉ:
+
+╔════════════════════════════════════════════════════════════════════╗
+║ ROL: RESPONSABLE (Aprobador)                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║ ✓ Ver facturas asignadas                                          ║
+║ ✓ Aprobar/Rechazar                                                ║
+║ ✗ NO ver pagos                                                    ║
+║ ✗ NO marcar como pagado                                           ║
+╚════════════════════════════════════════════════════════════════════╝
+
+╔════════════════════════════════════════════════════════════════════╗
+║ ROL: CONTADOR (Contabilidad)                                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║ ✓ Ver todas facturas aprobadas                                    ║
+║ ✓ Marcar como PAGADA    ← NUEVO                                   ║
+║ ✓ Revertir pago         ← NUEVO                                   ║
+║ ✓ Ver historial pagos   ← NUEVO                                   ║
+║ ✓ Devolver factura (info faltante)                               ║
+║ ✗ NO aprobar/rechazar (solo marcado manual)                       ║
+║ ✗ NO editar monto de factura                                     ║
+╚════════════════════════════════════════════════════════════════════╝
+
+╔════════════════════════════════════════════════════════════════════╗
+║ ROL: ADMIN                                                        ║
+╠════════════════════════════════════════════════════════════════════╣
+║ ✓ TODO (gestión sistema)                                          ║
+╚════════════════════════════════════════════════════════════════════╝
+
+
+AUDITORÍA (Lo que se registra):
+
+Cuando se MARCA COMO PAGADA:
+  ✓ PagoFactura.procesado_por   = usuario.usuario
+  ✓ PagoFactura.fecha_procesamiento = NOW()
+  ✓ PagoFactura.numero_pago     = PAG-{id}-{timestamp}
+  ✓ PagoFactura.referencia_externa = referencia_banco
+  ✓ Log: "Contador X pagó factura Y - $Z - ref ABC"
+
+Cuando se REVIERTE:
+  ✓ PagoFactura.revertido_por = usuario.usuario
+  ✓ PagoFactura.fecha_reversion = NOW()
+  ✓ PagoFactura.motivo_reversion = motivo
+  ✓ Factura.estado vuelve a APROBADA
+  ✓ Log: "Pago revertido por contador X - motivo: Y"
+
+
+================================================================================
+                         MÉTRICAS Y REPORTES
+================================================================================
+
+DASHBOARD CONTADOR - KPIs:
+
+╔══════════════════════════════════════════════════════════════╗
+║ TESORERÍA (Real-time)                                       ║
+╠══════════════════════════════════════════════════════════════╣
+║ Total en circulación:        $45,500,000                    ║
+║   - Aprobadas sin pagar:     $30,000,000                    ║
+║   - En pago parcial:         $15,500,000                    ║
+║                                                             ║
+║ Facturas vencidas:           5  (requieren atención)       ║
+║ Próximas a vencer (7 días):  12                            ║
+║                                                             ║
+║ Promedio días pago:          8.5 días                       ║
+║ % Pagadas a tiempo:          92%                            ║
+╚══════════════════════════════════════════════════════════════╝
+
+REPORTES DISPONIBLES:
+
+1. CASH FLOW PREDICCIÓN (90 días)
+   - Dinero esperado por ingresar
+   - Por fecha
+   - Por proveedor
+
+2. FACTURAS VENCIDAS
+   - Listado de facturas sin pagar
+   - Días de retraso
+   - Contacto proveedor
+
+3. PERFORMANCE CONTADOR
+   - Facturas procesadas/día
+   - % devoluciones
+   - Tiempo promedio procesamiento
+
+4. PROVEEDORES TOP 10
+   - Montos mayores
+   - Días promedio pago
+   - Historial de devoluciones
+
+
+================================================================================
+                      TABLA DE TRANSFORMACIÓN
+================================================================================
+
+ANTES                          │ DESPUÉS
+───────────────────────────────┼─────────────────────────────
+Factura en "aprobada"          │ Factura en "aprobada"
+    ↓                          │     ↓
+¿Quién la pagó?              │ Contador marca PAGAR
+    ↓                          │     ↓
+NO HAY FORMA                  │ Modal: monto, fecha, ref
+    ↓                          │     ↓
+Proveedor no sabe            │ Email automático
+    ↓                          │     ↓
+No hay visibilidad           │ Factura en "pagada"
+    ↓                          │     ↓
+No hay reportes              │ Dashboard: pagadas/pendientes
+                             │     ↓
+                             │ Reportes: tesorería, KPIs
+
+
+================================================================================
+                           TIMELINE (Propuesto)
+================================================================================
+
+LUNES:
+  09:00 - Crear modelo PagoFactura
+  11:00 - Crear schemas de validación
+  13:00 - BREAK
+  14:00 - Crear endpoints POST /pagar, GET /historial
+  16:00 - Endpoint DELETE /revertir
+  17:00 - Testing básico
+
+MARTES:
+  09:00 - Crear template email pago
+  10:00 - Integración con UnifiedEmailService
+  12:00 - Testing emails
+  13:00 - BREAK
+  14:00 - Frontend: Modal de pago
+  16:00 - Frontend: Filtro pagadas/pendientes
+  17:00 - Testing frontend
+
+MIÉRCOLES:
+  09:00 - Tests unitarios (validaciones)
+  11:00 - Tests integración (endpoints)
+  13:00 - BREAK
+  14:00 - Bugfixes encontrados
+  16:00 - Code review
+  17:00 - Documentación
+
+JUEVES:
+  09:00 - Deploy staging
+  11:00 - Testing en vivo
+  13:00 - BREAK
+  14:00 - Deploy producción
+  16:00 - Monitoreo
+  17:00 - Cierre
+
+
+VIERNES:
+  09:00 - Documentación final
+  11:00 - Meeting con stakeholders
+  13:00 - Pausa
+  14:00 - Preparar roadmap fase 2
+  16:00 - Retrospective
+
+
+RESULTADO FINAL: Sistema de pagos 100% funcional ✅
+
+
+================================================================================
+                         VALIDACIONES (Código)
+================================================================================
+
+ANTES DE GUARDAR PAGO:
+
+if not factura:
+    ❌ Factura no existe
+
+if factura.estado not in [APROBADA, APROBADA_AUTO]:
+    ❌ Solo se pueden pagar facturas aprobadas
+
+if request.monto_pagado > factura.pendiente_pagar:
+    ❌ No puedes pagar más de lo pendiente
+
+if request.monto_pagado <= 0:
+    ❌ El monto debe ser positivo
+
+if existe_referencia(request.referencia_externa):
+    ❌ Esa referencia ya existe (evita duplicados)
+
+if request.fecha_pago > NOW():
+    ❌ No puedes pagar en el futuro
+
+
+================================================================================
+                      ANÁLISIS DE IMPACTO
+================================================================================
+
+ROI (Retorno de Inversión):
+───────────────────────────
+Esfuerzo:        5-6 horas
+Costo:          ~$500-600 (1 dev * 5-6 horas)
+Beneficios:
+  - Visibilidad de $$$
+  - Auditoría completa
+  - Reportes de tesorería
+  - Control de pagos
+  - Menos errores
+
+Payback:         < 1 semana (por eficiencia mejorada)
+
+Riesgo:          BAJO
+  - Código simple
+  - Patrón establecido en sistema
+  - Auditoría integrada
+
+
+================================================================================
+                      CONCLUSIÓN
+================================================================================
+
+Tu sistema tiene las piezas 1-4 del 5 piezas puzzle:
+  1. ✅ Autenticación
+  2. ✅ Aprobación
+  3. ✅ Automatización
+  4. ✅ Devoluciones
+  5. ❌ PAGOS ← Aquí estamos
+
+Implementar esto es como poner el último ladrillo en la casa.
+5-6 horas de trabajo. Muy alto impacto.
+
+¡Adelante! 🚀
+
+================================================================================
