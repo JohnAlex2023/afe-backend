@@ -181,10 +181,10 @@ async def devolver_factura(
                 context
             )
 
-            email_service.send_html_email(
-                to=email_proveedor,
+            email_service.send_email(
+                to_email=email_proveedor,
                 subject=f"⚠️ Factura {numero_factura} - Información adicional requerida",
-                html_content=html_content
+                body_html=html_content
             )
 
             destinatarios_notificados.append(email_proveedor)
@@ -222,10 +222,10 @@ async def devolver_factura(
                 context
             )
 
-            email_service.send_html_email(
-                to=email_responsable,
+            email_service.send_email(
+                to_email=email_responsable,
                 subject=f"🔄 Factura {numero_factura} devuelta por contabilidad",
-                html_content=html_content
+                body_html=html_content
             )
 
             destinatarios_notificados.append(email_responsable)
@@ -329,7 +329,7 @@ async def get_facturas_pendientes(
             {
                 "id": f.id,
                 "numero_factura": f.numero_factura,
-                "proveedor": f.proveedor.nombre if f.proveedor else None,
+                "proveedor": f.proveedor.razon_social if f.proveedor else None,
                 "monto": float(f.total_a_pagar or f.total_calculado or 0),
                 "fecha_emision": f.fecha_emision.isoformat() if f.fecha_emision else None,
                 "estado": f.estado.value
