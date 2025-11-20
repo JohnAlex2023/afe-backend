@@ -6,7 +6,7 @@ Análisis completo del sistema AFE Backend con recomendaciones arquitectónicas 
 
 ---
 
-## 🚀 INICIO RÁPIDO (Lee esto primero)
+## 🚀 INICIO RÁPIDO 
 
 ### 1. **RESUMEN_EJECUTIVO.md** (5-10 minutos)
    - Veredicto: "Sistema tiene excelente arquitectura base"
@@ -15,7 +15,6 @@ Análisis completo del sistema AFE Backend con recomendaciones arquitectónicas 
    - Roadmap de fases
    - **Decisiones clave que debes tomar**
 
-   → **Lee esto primero para entender el panorama completo**
 
 ### 2. **QUICK_START_PAYMENT_SYSTEM.md** (15 minutos)
    - TL;DR: Qué falta y por qué
@@ -24,7 +23,7 @@ Análisis completo del sistema AFE Backend con recomendaciones arquitectónicas 
    - FAQ: respuestas a preguntas comunes
    - Common mistakes to avoid
 
-   → **Si quieres implementar AHORA, lee esto**
+
 
 ---
 

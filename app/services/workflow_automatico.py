@@ -635,6 +635,40 @@ class WorkflowAutomaticoService:
                     exc_info=True
                 )
 
+        # ========================================================================
+        # NOTIFICAR A CONTABILIDAD (Enterprise - NUEVO 2025-11-18)
+        # ========================================================================
+        try:
+            from app.services.accounting_notification_service import AccountingNotificationService
+
+            accounting_service = AccountingNotificationService(self.db)
+            resultado_contador = accounting_service.notificar_aprobacion_automatica_a_contabilidad(
+                factura=factura,
+                confianza=float(workflow.porcentaje_similitud or 0) / 100.0,
+                factura_referencia_id=workflow.factura_referencia_id
+            )
+
+            if resultado_contador.get('success'):
+                logger.info(
+                    f"✅ Notificación a contabilidad enviada: {resultado_contador.get('emails_enviados')} contadores",
+                    extra={
+                        "factura_id": factura.id,
+                        "contadores_notificados": resultado_contador.get('contadores_notificados')
+                    }
+                )
+            else:
+                logger.warning(
+                    f"⚠️ No se pudo notificar a contabilidad: {resultado_contador.get('error', 'Sin contadores activos')}"
+                )
+
+        except Exception as e:
+            logger.error(
+                f"❌ Error notificando a contabilidad: {str(e)}",
+                exc_info=True,
+                extra={"factura_id": factura.id}
+            )
+            # No fallar el flujo si falla la notificación a contabilidad
+
         # También crear registro en tabla notificacion_workflow (para auditoría)
         self._crear_notificacion(
             workflow=workflow,
@@ -955,6 +989,35 @@ Razón: La factura no alcanzó el umbral de confianza requerido para aprobación
             motivo=None
         )
 
+        # ========================================================================
+        # NOTIFICAR A CONTABILIDAD (Enterprise - NUEVO 2025-11-18)
+        # ========================================================================
+        try:
+            from app.services.accounting_notification_service import AccountingNotificationService
+
+            accounting_service = AccountingNotificationService(self.db)
+            resultado_contador = accounting_service.notificar_aprobacion_manual_a_contabilidad(
+                factura=workflow.factura,
+                aprobada_por=aprobado_por,
+                observaciones=observaciones
+            )
+
+            if resultado_contador.get('success'):
+                logger.info(
+                    f"✅ Notificación de aprobación manual a contabilidad enviada: {resultado_contador.get('emails_enviados')} contadores",
+                    extra={
+                        "factura_id": workflow.factura_id,
+                        "workflow_id": workflow.id,
+                        "contadores_notificados": resultado_contador.get('contadores_notificados')
+                    }
+                )
+        except Exception as e:
+            logger.error(
+                f"❌ Error notificando aprobación manual a contabilidad: {str(e)}",
+                exc_info=True,
+                extra={"workflow_id": workflow.id}
+            )
+
         return {
             "exito": True,
             "workflow_id": workflow.id,
@@ -1010,6 +1073,36 @@ Razón: La factura no alcanzó el umbral de confianza requerido para aprobación
             quien_actuo=rechazado_por,
             motivo=motivo
         )
+
+        # ========================================================================
+        # NOTIFICAR A CONTABILIDAD (Enterprise - NUEVO 2025-11-18)
+        # ========================================================================
+        try:
+            from app.services.accounting_notification_service import AccountingNotificationService
+
+            accounting_service = AccountingNotificationService(self.db)
+            resultado_contador = accounting_service.notificar_rechazo_a_contabilidad(
+                factura=workflow.factura,
+                rechazada_por=rechazado_por,
+                motivo=motivo,
+                detalle=detalle
+            )
+
+            if resultado_contador.get('success'):
+                logger.info(
+                    f"✅ Notificación de rechazo a contabilidad enviada: {resultado_contador.get('emails_enviados')} contadores",
+                    extra={
+                        "factura_id": workflow.factura_id,
+                        "workflow_id": workflow.id,
+                        "contadores_notificados": resultado_contador.get('contadores_notificados')
+                    }
+                )
+        except Exception as e:
+            logger.error(
+                f"❌ Error notificando rechazo a contabilidad: {str(e)}",
+                exc_info=True,
+                extra={"workflow_id": workflow.id}
+            )
 
         return {
             "exito": True,

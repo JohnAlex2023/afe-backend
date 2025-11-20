@@ -134,6 +134,14 @@ class Factura(Base):
         viewonly=True   # No modifica desde Factura
     )
 
+    # RELACIÓN: Pagos registrados para esta factura
+    pagos = relationship(
+        "PagoFactura",
+        back_populates="factura",
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+
     __table_args__ = (UniqueConstraint("numero_factura", "proveedor_id", name="uix_num_prov"),)
 
     # ==================== COMPUTED PROPERTIES (FASE 1 - PROFESIONAL) ====================
@@ -288,3 +296,42 @@ class Factura(Base):
             self.estado_asignacion = nuevo_estado
             return True
         return False
+
+    # ==================== PROPIEDADES DE PAGO ====================
+
+    @property
+    def total_pagado(self) -> Numeric:
+        """
+        Suma de todos los pagos completados.
+        Se calcula dinámicamente desde la relación pagos.
+        """
+        from decimal import Decimal
+        from app.models.pago_factura import EstadoPago
+
+        if not self.pagos:
+            return Decimal('0.00')
+
+        return sum(
+            (p.monto_pagado or Decimal('0.00'))
+            for p in self.pagos
+            if p.estado_pago == EstadoPago.completado
+        ) or Decimal('0.00')
+
+    @property
+    def pendiente_pagar(self) -> Numeric:
+        """
+        Monto que aún falta pagar.
+        = total_calculado - total_pagado
+        """
+        from decimal import Decimal
+
+        total = self.total_calculado or Decimal('0.00')
+        pagado = self.total_pagado
+        return total - pagado
+
+    @property
+    def esta_completamente_pagada(self) -> bool:
+        """
+        ¿El monto total pagado >= monto de factura?
+        """
+        return self.total_pagado >= (self.total_calculado or Decimal('0.00'))

@@ -15,6 +15,7 @@ from app.api.v1.routers import (
     email_config,
     email_health,  # Health check para servicios de email
     admin_sync,  # Admin: Sincronización de facturas
+    accounting,  # Operaciones de contabilidad (NUEVO 2025-11-18)
 )
 
 # Router principal con prefijo global
@@ -39,3 +40,4 @@ api_router.include_router(flujo_automatizacion.router, tags=["Flujo de Automatiz
 api_router.include_router(email_config.router, tags=["Email Configuration"])
 api_router.include_router(email_health.router, tags=["Email Health"])
 api_router.include_router(admin_sync.router, tags=["Admin Sync"])  # Admin: Sincronización
+api_router.include_router(accounting.router, prefix="/accounting", tags=["Contabilidad"])  # NUEVO 2025-11-18

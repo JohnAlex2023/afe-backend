@@ -6,9 +6,23 @@ from typing import List
 
 # Roles del sistema
 class Roles:
-    """Constantes para roles de usuario."""
+    """
+    Constantes para roles de usuario.
+
+    NOTA TÉCNICA: Históricamente llamamos 'responsables' a todos los usuarios
+    del sistema (stored en tabla 'responsables'). El término correcto sería
+    'usuarios', pero para mantener compatibilidad con el código existente
+    mantenemos la tabla 'responsables'.
+
+    Roles disponibles:
+    - ADMIN: Acceso completo, gestiona usuarios y configuración
+    - RESPONSABLE: Aprueba/rechaza facturas (el nombre real del rol de aprobador)
+    - CONTADOR: Procesa pagos de facturas aprobadas, puede devolver facturas
+    - VIEWER: Solo lectura, no puede aprobar/rechazar
+    """
     ADMIN = "admin"
-    RESPONSABLE = "responsable"
+    RESPONSABLE = "responsable"  # Aprobador de facturas
+    CONTADOR = "contador"  # Procesamiento contable (NUEVO 2025-11-18)
     VIEWER = "viewer"  # Solo lectura
 
 

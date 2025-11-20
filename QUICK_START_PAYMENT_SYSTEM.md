@@ -1,4 +1,4 @@
-# ⚡ QUICK START: SISTEMA DE PAGOS (15 minutos de lectura)
+# ⚡ QUICK START: SISTEMA DE PAGOS
 
 ## 🎯 TL;DR
 
@@ -271,13 +271,11 @@ Si necesitas ayuda:
 2. Revisa `RECOMENDACIONES_SENIOR_2025.md` (contexto)
 3. Pregunta cualquier duda
 
-**Estoy aquí para ayudarte a implementarlo.**
 
 ---
 
-**¿Listo para empezar?**
 
-Da el primer paso:
+## 🚀 COMANDOS RÁPIDOS
 ```bash
 # 1. Crea el modelo
 touch app/models/pago_factura.py
@@ -293,6 +291,4 @@ alembic upgrade head
 # 5. Commit
 git add . && git commit -m "feat: Add payment processing system"
 ```
-
-¡Adelante! 🚀
 

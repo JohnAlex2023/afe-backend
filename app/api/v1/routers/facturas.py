@@ -8,6 +8,7 @@ from datetime import datetime
 from app.db.session import get_db
 from app.core.config import settings
 from app.schemas.factura import FacturaCreate, FacturaRead, AprobacionRequest, RechazoRequest
+from fastapi.responses import Response
 from app.schemas.common import (
     ErrorResponse,
     PaginatedResponse,
@@ -1460,3 +1461,257 @@ def trigger_automation_manually(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error executing automation: {str(e)}"
         )
+
+
+# ============================================================================
+# ENDPOINTS DE DOCUMENTOS (PDF/XML) - Enterprise Document Management
+# ============================================================================
+# Agregado: 2025-11-18
+# Propósito: Servir PDFs y XMLs almacenados por invoice_extractor
+# Seguridad: Requiere autenticación, logging de accesos, prevención path traversal
+# ============================================================================
+
+@router.get(
+    "/{factura_id}/pdf",
+    summary="Obtener PDF de factura",
+    description="""
+    Obtiene el PDF original de una factura electrónica.
+
+    El PDF se sirve desde el storage de invoice_extractor (../invoice_extractor/adjuntos/).
+
+    **Comportamiento:**
+    - Por defecto: Abre PDF en el navegador (inline)
+    - Con download=true: Fuerza descarga del archivo
+
+    **Permisos:** Todos los roles autenticados pueden acceder
+
+    **Ejemplos:**
+    - GET /facturas/123/pdf → Se abre en navegador
+    - GET /facturas/123/pdf?download=true → Se descarga
+    """,
+    responses={
+        200: {
+            "description": "PDF de la factura",
+            "content": {"application/pdf": {}}
+        },
+        404: {
+            "model": ErrorResponse,
+            "description": "Factura o PDF no encontrado"
+        }
+    }
+)
+async def get_factura_pdf(
+    factura_id: int,
+    download: bool = Query(
+        False,
+        description="Si es true, fuerza descarga. Si es false, muestra en navegador (inline)"
+    ),
+    current_user=Depends(require_role("admin", "responsable", "contador", "viewer")),
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint profesional para servir PDFs de facturas.
+
+    Features:
+    - Seguridad: Autenticación requerida
+    - Auditoría: Log de todos los accesos
+    - Performance: Cache headers
+    - UX: Inline viewing por defecto
+    """
+    from app.services.invoice_pdf_service import InvoicePDFService
+    from app.models.factura import Factura
+
+    # Obtener factura
+    factura = db.query(Factura).filter(Factura.id == factura_id).first()
+
+    if not factura:
+        logger.warning(
+            f"Intento de acceso a PDF de factura inexistente: {factura_id}",
+            extra={"factura_id": factura_id, "usuario": current_user.usuario}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Factura con ID {factura_id} no encontrada"
+        )
+
+    # Obtener PDF usando el servicio
+    pdf_service = InvoicePDFService()
+    pdf_content = pdf_service.get_pdf_content(factura)
+
+    if not pdf_content:
+        logger.error(
+            f"PDF no disponible para factura {factura_id}",
+            extra={
+                "factura_id": factura_id,
+                "numero_factura": factura.numero_factura,
+                "nit": factura.proveedor.nit if factura.proveedor else None,
+                "cufe": factura.cufe
+            }
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="PDF no disponible para esta factura. Contacte al administrador."
+        )
+
+    # Determinar comportamiento según parámetro
+    disposition_type = "attachment" if download else "inline"
+
+    # Log de auditoría (importante para compliance)
+    logger.info(
+        f"PDF {'descargado' if download else 'visualizado'}",
+        extra={
+            "factura_id": factura_id,
+            "numero_factura": factura.numero_factura,
+            "usuario": current_user.usuario,
+            "usuario_nombre": current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario,
+            "action": "download" if download else "view",
+            "file_size_mb": round(len(pdf_content) / (1024 * 1024), 2)
+        }
+    )
+
+    # Retornar PDF
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'{disposition_type}; filename="Factura_{factura.numero_factura}.pdf"',
+            "Cache-Control": "private, max-age=3600",  # Cache 1 hora
+            "X-Content-Type-Options": "nosniff",  # Seguridad: prevenir MIME sniffing
+            "X-Frame-Options": "SAMEORIGIN",  # Seguridad: prevenir clickjacking
+        }
+    )
+
+
+@router.get(
+    "/{factura_id}/xml",
+    summary="Obtener XML de factura electrónica",
+    description="""
+    Obtiene el XML de una factura electrónica (documento oficial DIAN).
+
+    El XML es útil para:
+    - Verificación de firma electrónica
+    - Validación ante la DIAN
+    - Auditorías y compliance
+
+    **Permisos:** Solo admin y contador pueden acceder
+
+    **Importante:** El XML contiene la firma electrónica oficial de la DIAN.
+    """,
+    responses={
+        200: {
+            "description": "XML de la factura electrónica",
+            "content": {"application/xml": {}}
+        },
+        404: {
+            "model": ErrorResponse,
+            "description": "Factura o XML no encontrado"
+        },
+        403: {
+            "model": ErrorResponse,
+            "description": "Sin permisos para acceder a XML"
+        }
+    }
+)
+async def get_factura_xml(
+    factura_id: int,
+    current_user=Depends(require_role("admin", "contador")),  # Solo admin y contador
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint para servir XMLs de facturas electrónicas.
+
+    Restricción: Solo admin y contador pueden acceder (contiene info sensible).
+    """
+    from app.services.invoice_pdf_service import InvoicePDFService
+    from app.models.factura import Factura
+
+    # Obtener factura
+    factura = db.query(Factura).filter(Factura.id == factura_id).first()
+
+    if not factura:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Factura con ID {factura_id} no encontrada"
+        )
+
+    # Obtener XML usando el servicio
+    pdf_service = InvoicePDFService()
+    xml_content = pdf_service.get_xml_content(factura)
+
+    if not xml_content:
+        logger.error(
+            f"XML no disponible para factura {factura_id}",
+            extra={
+                "factura_id": factura_id,
+                "numero_factura": factura.numero_factura,
+                "usuario": current_user.usuario
+            }
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="XML no disponible para esta factura."
+        )
+
+    # Log de auditoría
+    logger.info(
+        f"XML descargado",
+        extra={
+            "factura_id": factura_id,
+            "numero_factura": factura.numero_factura,
+            "usuario": current_user.usuario,
+            "file_size_kb": round(len(xml_content) / 1024, 2)
+        }
+    )
+
+    # Retornar XML
+    return Response(
+        content=xml_content,
+        media_type="application/xml",
+        headers={
+            "Content-Disposition": f'attachment; filename="Factura_{factura.numero_factura}.xml"',
+            "Cache-Control": "private, max-age=3600",
+            "X-Content-Type-Options": "nosniff",
+        }
+    )
+
+
+@router.get(
+    "/{factura_id}/documentos/info",
+    summary="Obtener información de documentos",
+    description="""
+    Obtiene metadata de los documentos (PDF/XML) sin descargarlos.
+
+    Útil para:
+    - Mostrar en UI si hay PDF disponible
+    - Mostrar tamaño de archivos
+    - Verificar disponibilidad antes de descargar
+    """,
+    response_model=dict
+)
+async def get_factura_documentos_info(
+    factura_id: int,
+    current_user=Depends(require_role("admin", "responsable", "contador", "viewer")),
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint para obtener metadata de documentos sin descargarlos.
+    """
+    from app.services.invoice_pdf_service import InvoicePDFService
+    from app.models.factura import Factura
+
+    factura = db.query(Factura).filter(Factura.id == factura_id).first()
+
+    if not factura:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Factura con ID {factura_id} no encontrada"
+        )
+
+    pdf_service = InvoicePDFService()
+    doc_info = pdf_service.get_document_info(factura)
+
+    return {
+        "factura_id": factura_id,
+        "numero_factura": factura.numero_factura,
+        "documentos": doc_info
+    }

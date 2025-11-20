@@ -163,6 +163,38 @@ class EmailTemplateService:
             logger.error(f"Error renderizando template error_critico: {str(e)}")
             return self._fallback_error_html(data), self._fallback_error_text(data)
 
+    def render_template(self, template_name: str, context: Dict[str, Any]) -> str:
+        """
+        Renderiza un template genérico de email.
+
+        Método genérico que funciona con cualquier template HTML existente.
+        Se usa principalmente para notificaciones a contabilidad.
+
+        Args:
+            template_name: Nombre del template (ej: 'factura_aprobada.html')
+            context: Diccionario con variables para el template
+
+        Returns:
+            HTML renderizado
+        """
+        try:
+            template = self.env.get_template(template_name)
+            return template.render(**context)
+        except Exception as e:
+            logger.error(f"Error renderizando template {template_name}: {str(e)}")
+            # Fallback: devolver HTML simple con la información
+            return f"""
+            <html>
+            <body style="font-family: Arial, sans-serif;">
+                <h2>Notificación</h2>
+                <p>Factura: {context.get('numero_factura', 'N/A')}</p>
+                <p>Proveedor: {context.get('nombre_proveedor', 'N/A')}</p>
+                <p>Monto: {context.get('monto_factura', 'N/A')}</p>
+                <p>Estado: {context.get('estado', 'N/A')}</p>
+            </body>
+            </html>
+            """
+
     def render_resumen_diario(self, data: Dict[str, Any]) -> tuple[str, str]:
         """
         Renderiza email de resumen diario.

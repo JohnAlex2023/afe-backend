@@ -23,6 +23,7 @@ from app.models.responsable import Responsable
 from app.services.email_notifications import (
     enviar_notificacion_factura_pendiente
 )
+from app.services.url_builder_service import URLBuilderService
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,9 @@ class NotificacionesProgramadasService:
         # Enviar notificación
         from app.services.email_notifications import enviar_notificacion_factura_pendiente
 
+        # Construir URL usando URLBuilderService (centralizado)
+        url_factura = URLBuilderService.get_factura_detail_url(factura.id)
+
         resultado = enviar_notificacion_factura_pendiente(
             email_responsable=email_responsable,
             nombre_responsable=nombre_responsable,
@@ -93,7 +97,7 @@ class NotificacionesProgramadasService:
             fecha_recepcion=factura.fecha_emision.strftime("%Y-%m-%d") if factura.fecha_emision else "N/A",
             centro_costos="N/A",  # TODO: Agregar centro de costos si existe
             dias_pendiente=dias_desde_recepcion,
-            link_sistema=f"{settings.frontend_url}/facturas/{factura.id}"
+            link_sistema=url_factura
         )
 
         if resultado.get('success'):

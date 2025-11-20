@@ -16,8 +16,10 @@ from datetime import datetime
 from app.db.session import get_db
 from app.core.security import require_role
 from app.schemas.devolucion import DevolucionRequest, DevolucionResponse
+from app.schemas.pago import PagoRequest, FacturaConPagosResponse
 from app.schemas.common import ErrorResponse
 from app.models.factura import Factura, EstadoFactura
+from app.models.pago_factura import PagoFactura, EstadoPago
 from app.models.workflow_aprobacion import WorkflowAprobacionFactura
 from app.services.unified_email_service import UnifiedEmailService
 from app.services.email_template_service import EmailTemplateService
@@ -337,3 +339,203 @@ async def get_facturas_pendientes(
             for f in facturas
         ]
     }
+
+
+@router.post(
+    "/facturas/{factura_id}/marcar-pagada",
+    response_model=FacturaConPagosResponse,
+    summary="Registrar pago de factura",
+    description="""
+    Registra un pago para una factura aprobada y sincroniza su estado.
+
+    **Permisos:** Solo usuarios con rol 'contador' pueden ejecutar esta acción.
+
+    **Validaciones:**
+    - Factura debe existir
+    - Factura debe estar en estado aprobada o aprobada_auto
+    - Monto no puede exceder el pendiente
+    - Referencia de pago debe ser única
+
+    **Auditoría:**
+    - Registra email del contador
+    - Registra fecha y hora del pago
+    - Crea registro en tabla pagos_facturas
+
+    **Sincronización:**
+    - Si monto_pagado >= total_factura → estado cambia a 'pagada'
+    - Si monto_pagado < total_factura → estado permanece 'aprobada'
+    """,
+    responses={
+        200: {"description": "Pago registrado exitosamente"},
+        400: {"model": ErrorResponse, "description": "Validación fallida"},
+        403: {"model": ErrorResponse, "description": "Sin permisos (solo contador)"},
+        404: {"model": ErrorResponse, "description": "Factura no encontrada"},
+        409: {"model": ErrorResponse, "description": "Referencia de pago duplicada"}
+    }
+)
+async def marcar_factura_pagada(
+    factura_id: int,
+    request: PagoRequest,
+    current_user=Depends(require_role("contador")),
+    db: Session = Depends(get_db)
+):
+    """
+    Registra un pago para una factura y sincroniza su estado.
+
+    FLUJO:
+    1. Obtener factura
+    2. Validar que existe y está aprobada
+    3. Validar monto válido (no supera pendiente)
+    4. Validar que referencia es única
+    5. Crear registro PagoFactura
+    6. Sincronizar estado de factura
+    7. Enviar email al proveedor
+    8. Retornar factura actualizada
+    """
+
+    # ========================================================================
+    # 1. OBTENER FACTURA
+    # ========================================================================
+    factura = db.query(Factura).filter(Factura.id == factura_id).first()
+
+    if not factura:
+        logger.warning(
+            f"Intento de pagar factura inexistente: {factura_id}",
+            extra={"factura_id": factura_id, "contador": current_user.usuario}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Factura con ID {factura_id} no encontrada"
+        )
+
+    # ========================================================================
+    # 2. VALIDAR ESTADO
+    # ========================================================================
+    if factura.estado not in [EstadoFactura.aprobada, EstadoFactura.aprobada_auto]:
+        logger.warning(
+            f"Intento de pagar factura no aprobada. Estado: {factura.estado.value}",
+            extra={"factura_id": factura_id, "contador": current_user.usuario}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Factura no está aprobada. Estado actual: {factura.estado.value}"
+        )
+
+    # ========================================================================
+    # 3. VALIDAR MONTO
+    # ========================================================================
+    pendiente = factura.pendiente_pagar
+
+    if request.monto_pagado > pendiente:
+        logger.warning(
+            f"Monto de pago excede pendiente. Monto: {request.monto_pagado}, Pendiente: {pendiente}",
+            extra={"factura_id": factura_id, "contador": current_user.usuario}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Monto excede pendiente ({pendiente})"
+        )
+
+    # ========================================================================
+    # 4. VALIDAR REFERENCIA ÚNICA
+    # ========================================================================
+    existe_referencia = db.query(PagoFactura).filter(
+        PagoFactura.referencia_pago == request.referencia_pago
+    ).first()
+
+    if existe_referencia:
+        logger.warning(
+            f"Referencia de pago duplicada: {request.referencia_pago}",
+            extra={"factura_id": factura_id, "contador": current_user.usuario}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Referencia '{request.referencia_pago}' ya existe"
+        )
+
+    # ========================================================================
+    # 5. CREAR PAGO
+    # ========================================================================
+    pago = PagoFactura(
+        factura_id=factura_id,
+        monto_pagado=request.monto_pagado,
+        referencia_pago=request.referencia_pago,
+        metodo_pago=request.metodo_pago,
+        estado_pago=EstadoPago.completado,
+        procesado_por=current_user.email,
+        fecha_pago=datetime.utcnow()
+    )
+
+    db.add(pago)
+    db.flush()  # Obtener ID del pago
+
+    logger.info(
+        f"Pago creado exitosamente",
+        extra={
+            "pago_id": pago.id,
+            "factura_id": factura_id,
+            "monto": float(request.monto_pagado),
+            "referencia": request.referencia_pago,
+            "contador": current_user.usuario
+        }
+    )
+
+    # ========================================================================
+    # 6. SINCRONIZAR ESTADO
+    # ========================================================================
+    if factura.esta_completamente_pagada:
+        factura.estado = EstadoFactura.pagada
+        logger.info(
+            f"Factura marcada como pagada",
+            extra={"factura_id": factura_id, "contador": current_user.usuario}
+        )
+
+    db.commit()
+
+    # ========================================================================
+    # 7. ENVIAR EMAIL
+    # ========================================================================
+    try:
+        email_service = UnifiedEmailService()
+        template_service = EmailTemplateService()
+
+        # Preparar contexto
+        contexto = {
+            "proveedor_nombre": factura.proveedor.razon_social if factura.proveedor else "Estimado Proveedor",
+            "numero_factura": factura.numero_factura,
+            "monto_pagado": str(request.monto_pagado),
+            "referencia_pago": request.referencia_pago,
+            "fecha_pago": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+            "total_pagado": str(factura.total_pagado),
+            "pendiente": str(factura.pendiente_pagar) if factura.pendiente_pagar > 0 else "0.00"
+        }
+
+        # Renderizar template
+        html_content = template_service.render_template(
+            "pago_factura_proveedor.html",
+            contexto
+        )
+
+        # Enviar email
+        await email_service.send_email(
+            to=factura.proveedor.email if factura.proveedor else settings.SOPORTE_EMAIL,
+            subject=f"Pago recibido - Factura {factura.numero_factura}",
+            html_content=html_content
+        )
+
+        logger.info(
+            f"Email de pago enviado al proveedor",
+            extra={"factura_id": factura_id, "proveedor_email": factura.proveedor.email if factura.proveedor else None}
+        )
+
+    except Exception as e:
+        logger.error(
+            f"Error al enviar email de pago: {str(e)}",
+            extra={"factura_id": factura_id, "error": str(e)}
+        )
+        # No falla la operación si el email falla, solo registra
+
+    # ========================================================================
+    # 8. RETORNAR RESPUESTA
+    # ========================================================================
+    return factura
