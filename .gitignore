@@ -43,6 +43,9 @@ fix_*.py
 test_*.py
 diagnosticar_*.py
 
+# EXCEPCIONES: Tests legítimos en tests/ directory
+!tests/test_*.py
+
 # Documentación temporal
 FASE*.md
 IMPLEMENTACION*.md
