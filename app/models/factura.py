@@ -151,16 +151,21 @@ class Factura(Base):
         """
         Total calculado dinámicamente desde subtotal + IVA.
 
-         DEPRECATION NOTICE:
-        El campo 'total_a_pagar' almacenado en DB está marcado para eliminación.
-        Usar esta propiedad garantiza siempre el valor correcto.
+        FALLBACK: Si subtotal e iva están nulos (datos legacy), usa total_a_pagar
+        como fuente de verdad para garantizar que pendiente_pagar se calcula correctamente.
 
         Nivel: Fortune 500 Data Integrity
         """
         from decimal import Decimal
         subtotal = self.subtotal or Decimal('0.00')
         iva = self.iva or Decimal('0.00')
-        return subtotal + iva
+        calculado = subtotal + iva
+
+        # Fallback: Si está vacío y tenemos total_a_pagar, usarlo
+        if calculado == Decimal('0.00') and self.total_a_pagar:
+            return self.total_a_pagar
+
+        return calculado
 
     @property
     def total_desde_items(self):
