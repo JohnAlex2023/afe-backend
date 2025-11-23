@@ -334,7 +334,10 @@ async def get_facturas_pendientes(
                 "proveedor": f.proveedor.razon_social if f.proveedor else None,
                 "monto": float(f.total_a_pagar or f.total_calculado or 0),
                 "fecha_emision": f.fecha_emision.isoformat() if f.fecha_emision else None,
-                "estado": f.estado.value
+                "estado": f.estado.value,
+                "total_pagado": float(f.total_pagado),
+                "pendiente_pagar": float(f.pendiente_pagar),
+                "esta_completamente_pagada": f.esta_completamente_pagada
             }
             for f in facturas
         ]
