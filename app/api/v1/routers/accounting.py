@@ -475,18 +475,42 @@ async def marcar_factura_pagada(
         )
 
     # ========================================================================
-    # 3. VALIDAR MONTO
+    # 3. VALIDAR MONTO - CRÍTICO: Validaciones defensivas a prueba de fallos
     # ========================================================================
     pendiente = factura.pendiente_pagar
+    monto_pagado = request.monto_pagado
 
-    if request.monto_pagado > pendiente:
+    # Validar que el monto es válido (número positivo)
+    if monto_pagado is None or monto_pagado <= 0:
         logger.warning(
-            f"Monto de pago excede pendiente. Monto: {request.monto_pagado}, Pendiente: {pendiente}",
+            f"Monto inválido. Monto: {monto_pagado}",
             extra={"factura_id": factura_id, "contador": current_user.usuario}
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Monto excede pendiente ({pendiente})"
+            detail="El monto debe ser mayor a cero"
+        )
+
+    # Validar que el pendiente es válido
+    if pendiente is None or pendiente < 0:
+        logger.critical(
+            f"Pendiente inválido. Estado de factura inconsistente. Pendiente: {pendiente}",
+            extra={"factura_id": factura_id, "contador": current_user.usuario}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Error crítico al calcular monto pendiente. Contacte al administrador."
+        )
+
+    # Validar que el monto no exceda el pendiente
+    if monto_pagado > pendiente:
+        logger.warning(
+            f"Monto de pago excede pendiente. Monto: {monto_pagado}, Pendiente: {pendiente}",
+            extra={"factura_id": factura_id, "monto": float(monto_pagado), "pendiente": float(pendiente), "contador": current_user.usuario}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Monto de ${float(monto_pagado):,.2f} excede pendiente de ${float(pendiente):,.2f}"
         )
 
     # ========================================================================
