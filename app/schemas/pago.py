@@ -63,11 +63,15 @@ class FacturaConPagosResponse(BaseModel):
     Response: Factura con datos de pagos sincronizados.
 
     Incluye información de la factura y detalles de pagos completados.
+
+    CRÍTICO (2025-11-23): Usa total_a_pagar (extraído del XML),
+    no total_calculado. El pendiente_pagar y esta_completamente_pagada
+    se calculan desde total_a_pagar.
     """
     id: int
     numero_factura: str
     estado: str
-    total_calculado: Decimal
+    total_a_pagar: Decimal
     total_pagado: Decimal
     pendiente_pagar: Decimal
     esta_completamente_pagada: bool

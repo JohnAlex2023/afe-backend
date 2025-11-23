@@ -326,11 +326,16 @@ class Factura(Base):
     def pendiente_pagar(self) -> Numeric:
         """
         Monto que aún falta pagar.
-        = total_calculado - total_pagado
+        = total_a_pagar - total_pagado
+
+        CRÍTICO (2025-11-23): SIEMPRE usa total_a_pagar (extraído del XML),
+        NUNCA usa total_calculado. El total_a_pagar es la fuente de verdad
+        para los cálculos de pago en el negocio colombiano.
         """
         from decimal import Decimal
 
-        total = self.total_calculado or Decimal('0.00')
+        # REGLA DE ORO: total_a_pagar es la FUENTE DE VERDAD para pagos
+        total = self.total_a_pagar or Decimal('0.00')
         pagado = self.total_pagado
         return total - pagado
 
@@ -338,5 +343,8 @@ class Factura(Base):
     def esta_completamente_pagada(self) -> bool:
         """
         ¿El monto total pagado >= monto de factura?
+
+        CRÍTICO (2025-11-23): Usa total_a_pagar (fuente de verdad XML),
+        nunca total_calculado.
         """
-        return self.total_pagado >= (self.total_calculado or Decimal('0.00'))
+        return self.total_pagado >= (self.total_a_pagar or Decimal('0.00'))
