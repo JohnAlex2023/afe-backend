@@ -341,6 +341,50 @@ async def get_facturas_pendientes(
     }
 
 
+@router.get(
+    "/historial-pagos",
+    summary="Obtener historial completo de pagos",
+    description="""
+    Lista todos los pagos registrados en el sistema con detalles completos.
+
+    **Permisos:** Solo usuarios con rol 'contador'
+    """
+)
+async def get_historial_pagos(
+    current_user=Depends(require_role("contador")),
+    db: Session = Depends(get_db)
+):
+    """
+    Retorna el historial completo de pagos registrados, ordenados por fecha descendente.
+    """
+    pagos = (
+        db.query(PagoFactura)
+        .join(Factura)
+        .order_by(PagoFactura.fecha_pago.desc())
+        .all()
+    )
+
+    return {
+        "total": len(pagos),
+        "pagos": [
+            {
+                "id": p.id,
+                "factura_id": p.factura_id,
+                "numero_factura": p.factura.numero_factura,
+                "proveedor": p.factura.proveedor.razon_social if p.factura.proveedor else None,
+                "monto_pagado": float(p.monto_pagado),
+                "referencia_pago": p.referencia_pago,
+                "metodo_pago": p.metodo_pago,
+                "estado_pago": p.estado_pago.value,
+                "procesado_por": p.procesado_por,
+                "fecha_pago": p.fecha_pago.isoformat() if p.fecha_pago else None,
+                "creado_en": p.creado_en.isoformat() if p.creado_en else None
+            }
+            for p in pagos
+        ]
+    }
+
+
 @router.post(
     "/facturas/{factura_id}/marcar-pagada",
     response_model=FacturaConPagosResponse,
