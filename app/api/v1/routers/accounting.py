@@ -315,8 +315,11 @@ async def get_facturas_pendientes(
 ):
     """
     Endpoint para que contadores vean facturas pendientes de procesar.
+
+    Retorna solo facturas aprobadas que aún NO han sido pagadas completamente.
     """
-    facturas = (
+    # Obtener todas las facturas aprobadas
+    todas_las_facturas = (
         db.query(Factura)
         .filter(
             Factura.estado.in_([EstadoFactura.aprobada, EstadoFactura.aprobada_auto])
@@ -324,6 +327,9 @@ async def get_facturas_pendientes(
         .order_by(Factura.fecha_emision.desc())
         .all()
     )
+
+    # Filtrar solo las que NO están completamente pagadas
+    facturas = [f for f in todas_las_facturas if not f.esta_completamente_pagada]
 
     return {
         "total": len(facturas),
