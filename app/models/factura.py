@@ -149,23 +149,33 @@ class Factura(Base):
     @property
     def total_calculado(self):
         """
-        Total calculado dinámicamente desde subtotal + IVA.
+        FUENTE DE VERDAD PARA PAGOS: total_a_pagar es el monto real que debe pagarse.
 
-        FALLBACK: Si subtotal e iva están nulos (datos legacy), usa total_a_pagar
-        como fuente de verdad para garantizar que pendiente_pagar se calcula correctamente.
+        Esta propiedad SIEMPRE retorna total_a_pagar cuando está disponible.
 
-        Nivel: Fortune 500 Data Integrity
+        Razón: En facturas con retenciones, subtotal + iva = total BRUTO (antes de restar
+        retenciones). Pero total_a_pagar = total NETO (después de restar retenciones).
+        El usuario siempre debe pagar el monto NETO, no el BRUTO.
+
+        Ejemplo:
+        - Subtotal: $748,812
+        - IVA: $142,274
+        - Subtotal + IVA = $891,086 (BRUTO - incorrecto para pagos)
+        - Retenciones: $26,208
+        - total_a_pagar = $864,878 (NETO - CORRECTO para pagos)
+
+        NIVEL: Enterprise Financial Accuracy
         """
         from decimal import Decimal
-        subtotal = self.subtotal or Decimal('0.00')
-        iva = self.iva or Decimal('0.00')
-        calculado = subtotal + iva
 
-        # Fallback: Si está vacío y tenemos total_a_pagar, usarlo
-        if calculado == Decimal('0.00') and self.total_a_pagar:
+        # REGLA 1: Si tenemos total_a_pagar, SIEMPRE lo usamos (es la fuente de verdad)
+        if self.total_a_pagar:
             return self.total_a_pagar
 
-        return calculado
+        # REGLA 2: Si no tenemos total_a_pagar, calcular desde subtotal + iva (legacy)
+        subtotal = self.subtotal or Decimal('0.00')
+        iva = self.iva or Decimal('0.00')
+        return subtotal + iva
 
     @property
     def total_desde_items(self):
@@ -327,6 +337,16 @@ class Factura(Base):
         """
         Monto que aún falta pagar.
         = total_calculado - total_pagado
+
+        IMPORTANTE: total_calculado SIEMPRE es total_a_pagar (monto neto a pagar),
+        NO es subtotal + iva (que sería el bruto con retenciones).
+
+        Ejemplo:
+        - total_calculado = 864,878 (neto después de retenciones)
+        - total_pagado = 864,878
+        - pendiente_pagar = 0 (completamente pagada)
+
+        NIVEL: Enterprise Financial Accuracy
         """
         from decimal import Decimal
 
@@ -338,5 +358,7 @@ class Factura(Base):
     def esta_completamente_pagada(self) -> bool:
         """
         ¿El monto total pagado >= monto de factura?
+
+        IMPORTANTE: Compara contra total_calculado que es SIEMPRE total_a_pagar.
         """
         return self.total_pagado >= (self.total_calculado or Decimal('0.00'))
