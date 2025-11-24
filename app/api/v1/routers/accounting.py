@@ -37,7 +37,8 @@ router = APIRouter(tags=["Contabilidad"])
     description="""
     Devuelve una factura al proveedor solicitando información adicional.
 
-    **Permisos:** Solo usuarios con rol 'contador' pueden ejecutar esta acción.
+    **Permisos:** SOLO usuarios con rol 'contador' pueden ejecutar esta acción.
+    Admin tiene acceso de lectura (historial, pendientes) pero NO puede devolver facturas.
 
     **Flujo:**
     1. Contador encuentra que una factura aprobada necesita información adicional
@@ -60,7 +61,7 @@ router = APIRouter(tags=["Contabilidad"])
         },
         403: {
             "model": ErrorResponse,
-            "description": "Sin permisos (solo contador)"
+            "description": "Sin permisos (solo contador puede devolver facturas)"
         },
         404: {
             "model": ErrorResponse,
@@ -306,11 +307,11 @@ async def devolver_factura(
     description="""
     Lista todas las facturas aprobadas pendientes de procesar por contabilidad.
 
-    **Permisos:** Solo usuarios con rol 'contador'
+    **Permisos:** Usuarios con rol 'contador' o 'admin' (solo lectura para admin)
     """
 )
 async def get_facturas_pendientes(
-    current_user=Depends(require_role("contador")),
+    current_user=Depends(require_role("contador", "admin")),
     db: Session = Depends(get_db)
 ):
     """
@@ -356,11 +357,11 @@ async def get_facturas_pendientes(
     description="""
     Lista todos los pagos registrados en el sistema con detalles completos.
 
-    **Permisos:** Solo usuarios con rol 'contador'
+    **Permisos:** Usuarios con rol 'contador' o 'admin' (solo lectura para admin)
     """
 )
 async def get_historial_pagos(
-    current_user=Depends(require_role("contador")),
+    current_user=Depends(require_role("contador", "admin")),
     db: Session = Depends(get_db)
 ):
     """
@@ -401,7 +402,8 @@ async def get_historial_pagos(
     description="""
     Registra un pago para una factura aprobada y sincroniza su estado.
 
-    **Permisos:** Solo usuarios con rol 'contador' pueden ejecutar esta acción.
+    **Permisos:** SOLO usuarios con rol 'contador' pueden ejecutar esta acción.
+    Admin tiene acceso de lectura (historial, pendientes) pero NO puede registrar pagos.
 
     **Validaciones:**
     - Factura debe existir
@@ -421,7 +423,7 @@ async def get_historial_pagos(
     responses={
         200: {"description": "Pago registrado exitosamente"},
         400: {"model": ErrorResponse, "description": "Validación fallida"},
-        403: {"model": ErrorResponse, "description": "Sin permisos (solo contador)"},
+        403: {"model": ErrorResponse, "description": "Sin permisos (solo contador puede registrar pagos)"},
         404: {"model": ErrorResponse, "description": "Factura no encontrada"},
         409: {"model": ErrorResponse, "description": "Referencia de pago duplicada"}
     }
