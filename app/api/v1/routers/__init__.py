@@ -8,14 +8,13 @@ from app.api.v1.routers import (
     roles,
     facturas,
     automation,
-    historial_pagos,
     workflow,
     asignacion_nit,  #   NUEVO: Reemplazo de responsable_proveedor
     flujo_automatizacion,
     email_config,
     email_health,  # Health check para servicios de email
     admin_sync,  # Admin: Sincronización de facturas
-    accounting,  # Operaciones de contabilidad (NUEVO 2025-11-18)
+    accounting,  # Recepción y registro de facturas por contabilidad
 )
 
 # Router principal con prefijo global
@@ -33,11 +32,10 @@ api_router.include_router(proveedores.router, prefix="/proveedores", tags=["Prov
 api_router.include_router(roles.router, prefix="/roles", tags=["Roles"])
 api_router.include_router(facturas.router, prefix="/facturas", tags=["Facturas"])
 api_router.include_router(automation.router, prefix="/automation", tags=["Automatización"])
-api_router.include_router(historial_pagos.router, tags=["Historial de Pagos"])
 api_router.include_router(workflow.router, tags=["Workflow Aprobación"])
 api_router.include_router(asignacion_nit.router, tags=["Asignación NIT"])  #   NUEVO
 api_router.include_router(flujo_automatizacion.router, tags=["Flujo de Automatización"])
 api_router.include_router(email_config.router, tags=["Email Configuration"])
 api_router.include_router(email_health.router, tags=["Email Health"])
 api_router.include_router(admin_sync.router, tags=["Admin Sync"])  # Admin: Sincronización
-api_router.include_router(accounting.router, prefix="/accounting", tags=["Contabilidad"])  # NUEVO 2025-11-18
+api_router.include_router(accounting.router, prefix="/accounting", tags=["Contabilidad"])

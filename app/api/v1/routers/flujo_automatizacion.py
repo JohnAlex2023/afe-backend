@@ -1,13 +1,10 @@
 """
-API REST para el Flujo Completo de Automatización de Facturas.
+API REST para el Flujo de Automatización de Facturas.
 
 Endpoints principales:
 - POST /ejecutar-flujo-completo: Ejecuta todo el flujo de automatización
-- POST /marcar-facturas-pagadas: Marca facturas específicas como pagadas
-- POST /comparar-aprobar: Solo ejecuta comparación y aprobación
+- POST /comparar-aprobar: Ejecuta comparación y aprobación de facturas
 - GET /estadisticas-flujo: Obtiene estadísticas del último flujo ejecutado
-
-
 """
 
 from typing import Optional, List
@@ -36,30 +33,6 @@ class EjecutarFlujoRequest(BaseModel):
     solo_proveedores: Optional[List[int]] = Field(
         None,
         description="IDs de proveedores específicos a procesar. Si no se especifica, procesa todos"
-    )
-
-
-class MarcarFacturasPagadasRequest(BaseModel):
-    """Request para marcar facturas como pagadas."""
-    facturas_ids: List[int] = Field(
-        ...,
-        description="Lista de IDs de facturas a marcar como pagadas"
-    )
-    fecha_pago: Optional[str] = Field(
-        None,
-        description="Fecha de pago en formato ISO (YYYY-MM-DD). Si no se especifica, usa fecha actual"
-    )
-
-
-class MarcarPeriodoPagadasRequest(BaseModel):
-    """Request para marcar todas las facturas de un período como pagadas."""
-    periodo: str = Field(
-        ...,
-        description="Período en formato YYYY-MM"
-    )
-    solo_proveedores: Optional[List[int]] = Field(
-        None,
-        description="IDs de proveedores específicos (opcional)"
     )
 
 
@@ -132,114 +105,6 @@ def ejecutar_flujo_completo(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error ejecutando flujo de automatización: {str(e)}"
-        ) from e
-
-
-@router.post(
-    "/marcar-facturas-pagadas",
-    response_model=dict,
-    status_code=status.HTTP_200_OK,
-    summary="Marcar facturas específicas como pagadas",
-    description="""
-    Marca facturas específicas como pagadas en la BD.
-
-    **Proceso:**
-    1. Recibe lista de IDs de facturas
-    2. Marca cada factura con estado "pagada"
-    3. Opcionalmente registra fecha de pago
-    4. Retorna resumen de facturas procesadas
-    """
-)
-def marcar_facturas_pagadas(
-    request: MarcarFacturasPagadasRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Marca facturas específicas como pagadas.
-    """
-    try:
-        flujo = FlujoAutomatizacionFacturas(db)
-
-        # Parsear fecha de pago si se proporciona
-        fecha_pago = None
-        if request.fecha_pago:
-            fecha_pago = datetime.fromisoformat(request.fecha_pago)
-
-        # Marcar facturas
-        resultado = flujo.marcar_facturas_como_pagadas(
-            facturas_ids=request.facturas_ids,
-            fecha_pago=fecha_pago
-        )
-
-        if not resultado['exito']:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=resultado.get('mensaje', 'Error marcando facturas')
-            )
-
-        return {
-            "success": True,
-            "message": "Facturas marcadas como pagadas exitosamente",
-            "data": resultado
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error marcando facturas como pagadas: {str(e)}"
-        ) from e
-
-
-@router.post(
-    "/marcar-periodo-pagadas",
-    response_model=dict,
-    status_code=status.HTTP_200_OK,
-    summary="Marcar todas las facturas de un período como pagadas",
-    description="""
-    Marca todas las facturas de un período específico como pagadas.
-
-    **Proceso:**
-    1. Busca todas las facturas pendientes del período
-    2. Opcionalmente filtra por proveedores específicos
-    3. Marca todas como pagadas
-    4. Retorna resumen de facturas procesadas
-    """
-)
-def marcar_periodo_pagadas(
-    request: MarcarPeriodoPagadasRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Marca todas las facturas de un período como pagadas.
-    """
-    try:
-        flujo = FlujoAutomatizacionFacturas(db)
-
-        resultado = flujo.marcar_facturas_periodo_como_pagadas(
-            periodo=request.periodo,
-            solo_proveedores=request.solo_proveedores
-        )
-
-        if not resultado['exito']:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=resultado.get('mensaje', 'Error marcando facturas')
-            )
-
-        return {
-            "success": True,
-            "message": f"Facturas del período {request.periodo} marcadas como pagadas",
-            "data": resultado
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error marcando facturas del período: {str(e)}"
         ) from e
 
 
