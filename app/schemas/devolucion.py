@@ -37,7 +37,7 @@ class DevolucionRequest(BaseModel):
 
     notificar_responsable: bool = Field(
         True,
-        description="Enviar email al responsable que aprobó (default: true)"
+        description="Enviar email al usuario que aprobó (default: true)"
     )
 
     class Config:
@@ -113,7 +113,7 @@ class DevolucionResponse(BaseModel):
                     "proveedor@empresa.com",
                     "responsable@empresa.com"
                 ],
-                "mensaje": "Factura devuelta exitosamente. Se notificó al proveedor y al responsable.",
+                "mensaje": "Factura devuelta exitosamente. Se notificó al proveedor y al usuario.",
                 "timestamp": "2025-11-18T10:30:00"
             }
         }

@@ -6,7 +6,7 @@ from app.db.session import get_db
 from app.schemas.proveedor import ProveedorBase, ProveedorRead
 from app.schemas.common import ErrorResponse
 from app.crud.proveedor import create_proveedor, list_proveedores, get_proveedor, update_proveedor, delete_proveedor
-from app.core.security import get_current_responsable, require_role
+from app.core.security import get_current_usuario, require_role
 from app.utils.logger import logger
 
 router = APIRouter(tags=["Proveedores"])
@@ -22,7 +22,7 @@ def list_all(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     return list_proveedores(db, skip=skip, limit=limit)
 
@@ -55,7 +55,7 @@ def create(
 def get_one(
     proveedor_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     p = get_proveedor(db, proveedor_id)
     if not p:

@@ -4,7 +4,7 @@ from app.db.base import Base
 from .proveedor import Proveedor
 from .factura import Factura
 from .factura_item import FacturaItem
-from .responsable import Responsable
+from .usuario import Usuario
 #  ELIMINADO: ResponsableProveedor (migrado a AsignacionNitResponsable)
 from .role import Role
 from .audit_log import AuditLog
@@ -13,21 +13,21 @@ from .workflow_aprobacion import (
     AsignacionNitResponsable,
     NotificacionWorkflow
 )
-from .historial_pagos import HistorialPagos, TipoPatron
+from .patrones_facturas import PatronesFacturas, TipoPatron
 from .email_config import CuentaCorreo, NitConfiguracion, HistorialExtraccion
 
 __all__ = [
     "Proveedor",
     "Factura",
     "FacturaItem",
-    "Responsable",
+    "Usuario",
     #  ELIMINADO: "ResponsableProveedor",
     "Role",
     "AuditLog",
     "WorkflowAprobacionFactura",
     "AsignacionNitResponsable",
     "NotificacionWorkflow",
-    "HistorialPagos",
+    "PatronesFacturas",
     "TipoPatron",
     "CuentaCorreo",
     "NitConfiguracion",

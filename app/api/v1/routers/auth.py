@@ -18,7 +18,7 @@ from app.core.security import (
     create_access_token,
     hash_password
 )
-from app.models.responsable import Responsable
+from app.models.usuario import Usuario
 from app.schemas.auth import LoginRequest, TokenResponse, UsuarioResponse
 from app.services.microsoft_oauth_service import microsoft_oauth_service
 
@@ -66,8 +66,8 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     """
     print(f" Login attempt for user: {credentials.usuario}")
 
-    # Buscar usuario en tabla responsables
-    usuario = db.query(Responsable).filter(Responsable.usuario == credentials.usuario).first()
+    # Buscar usuario en tabla usuarios
+    usuario = db.query(Usuario).filter(Usuario.usuario == credentials.usuario).first()
 
     print(f"   Usuario encontrado: {usuario is not None}")
     if usuario:

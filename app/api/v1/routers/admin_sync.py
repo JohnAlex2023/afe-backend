@@ -7,7 +7,7 @@ from sqlalchemy import func, distinct
 
 from app.db.session import get_db
 from app.core.security import require_role
-from app.models.responsable import Responsable
+from app.models.usuario import Usuario
 from app.models.workflow_aprobacion import AsignacionNitResponsable
 from app.models.factura import Factura
 from app.models.proveedor import Proveedor
@@ -28,7 +28,7 @@ def sincronizar_facturas(
     """
     Sincroniza las facturas con las asignaciones de NITs.
 
-    Cada factura será asignada al responsable cuyo NIT coincida
+    Cada factura será asignada al usuario cuyo NIT coincida
     con el proveedor de la factura en AsignacionNitResponsable.
 
     Retorna:
@@ -37,13 +37,13 @@ def sincronizar_facturas(
     - Detalles por responsable
     """
     try:
-        responsables = db.query(Responsable).all()
+        usuarios = db.query(Usuario).all()
 
         total_actualizadas = 0
         total_ignoradas = 0
         detalles = []
 
-        for resp in responsables:
+        for resp in usuarios:
             # Obtener NITs asignados
             asignaciones = db.query(AsignacionNitResponsable.nit).filter(
                 AsignacionNitResponsable.responsable_id == resp.id,
@@ -141,12 +141,12 @@ def ver_distribucion_facturas(
     Retorna la distribución actual de facturas por responsable.
     """
     try:
-        responsables = db.query(Responsable).all()
+        usuarios = db.query(Usuario).all()
 
         distribucion = []
         total_global = 0
 
-        for resp in responsables:
+        for resp in usuarios:
             total = db.query(func.count(Factura.id)).filter(
                 Factura.responsable_id == resp.id
             ).scalar()
@@ -168,7 +168,7 @@ def ver_distribucion_facturas(
 
         return {
             "total_facturas": total_global,
-            "responsables": distribucion
+            "usuarios": distribucion
         }
 
     except Exception as e:

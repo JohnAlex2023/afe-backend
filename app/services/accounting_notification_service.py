@@ -27,7 +27,7 @@ Nivel: Enterprise-Grade
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.models.factura import Factura
-from app.models.responsable import Responsable
+from app.models.usuario import Usuario
 from app.models.role import Role
 from app.services.unified_email_service import UnifiedEmailService
 from app.services.email_template_service import EmailTemplateService
@@ -58,7 +58,7 @@ class AccountingNotificationService:
         self.email_service = UnifiedEmailService()
         self.template_service = EmailTemplateService()
 
-    def _get_contadores_activos(self) -> List[Responsable]:
+    def _get_contadores_activos(self) -> List[Usuario]:
         """
         Obtiene todos los usuarios con rol 'contador' que están activos.
 
@@ -68,11 +68,11 @@ class AccountingNotificationService:
         try:
             # Obtener contadores usando join con tabla roles
             contadores = (
-                self.db.query(Responsable)
-                .join(Role, Responsable.role_id == Role.id)
+                self.db.query(Usuario)
+                .join(Role, Usuario.role_id == Role.id)
                 .filter(
                     Role.nombre == Roles.CONTADOR,
-                    Responsable.activo == True
+                    Usuario.activo == True
                 )
                 .all()
             )
@@ -211,7 +211,7 @@ class AccountingNotificationService:
 
         Args:
             factura: Factura aprobada manualmente
-            aprobada_por: Nombre del responsable que aprobó
+            aprobada_por: Nombre del usuario que aprobó
             observaciones: Observaciones de la aprobación
 
         Returns:
@@ -315,7 +315,7 @@ class AccountingNotificationService:
 
         Args:
             factura: Factura rechazada
-            rechazada_por: Nombre del responsable que rechazó
+            rechazada_por: Nombre del usuario que rechazó
             motivo: Motivo del rechazo
             detalle: Detalles adicionales
 

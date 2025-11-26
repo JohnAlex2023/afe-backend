@@ -6,7 +6,7 @@ Este es el punto de entrada principal para todo el sistema de automatización.
 Orquesta todos los componentes (detector de patrones, generador de fingerprints,
 motor de decisiones) para procesar facturas pendientes de forma inteligente.
 
-INTEGRACIÓN CON HISTORIAL_PAGOS:
+INTEGRACIÓN CON PATRONES_FACTURAS:
 - Consulta patrones históricos antes de tomar decisiones
 - Ajusta scores de confianza según tipo de patrón (TIPO_A/B/C)
 - Prioriza auto-aprobación para patrones TIPO_A (fijos)
@@ -18,7 +18,7 @@ from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 
 from app.models.factura import Factura, EstadoFactura
-from app.models.historial_pagos import HistorialPagos, TipoPatron
+from app.models.patrones_facturas import PatronesFacturas, TipoPatron
 from app.crud import factura as crud_factura
 from app.crud import audit as crud_audit
 

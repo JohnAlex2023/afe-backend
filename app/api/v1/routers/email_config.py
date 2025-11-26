@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.db.session import get_db
-from app.core.security import get_current_responsable, require_role
+from app.core.security import get_current_usuario, require_role
 from app.schemas.email_config import (
     CuentaCorreoCreate,
     CuentaCorreoUpdate,

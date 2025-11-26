@@ -43,7 +43,7 @@ router = APIRouter(tags=["Contabilidad"])
     2. Usa este endpoint especificando qué información falta
     3. Sistema envía emails a:
        - Proveedor (solicitando la información)
-       - Responsable que aprobó (notificación informativa)
+       - Usuario que aprobó (notificación informativa)
     4. Cambia el estado de la factura a 'devuelta'
 
     **Nota:** La factura debe estar en estado 'aprobada' o 'aprobada_auto' para poder devolverla.
@@ -147,9 +147,9 @@ async def devolver_factura(
     # Email del proveedor (si existe)
     email_proveedor = factura.proveedor.contacto_email if factura.proveedor else None
 
-    # Email del responsable que aprobó
+    # Email del usuario que aprobó
     email_responsable = None
-    nombre_responsable = "Responsable"
+    nombre_responsable = "Usuario"
     if workflow and workflow.responsable:
         email_responsable = workflow.responsable.email
         nombre_responsable = workflow.responsable.nombre or workflow.responsable.usuario
@@ -204,7 +204,7 @@ async def devolver_factura(
             )
             # Continuar aunque falle el email al proveedor
 
-    # Enviar email al responsable (si usuario lo solicita)
+    # Enviar email al usuario (si usuario lo solicita)
     if request.notificar_responsable and email_responsable:
         try:
             context = {

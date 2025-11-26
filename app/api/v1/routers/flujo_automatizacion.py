@@ -64,7 +64,7 @@ class CompararAprobarRequest(BaseModel):
     1. Análisis de patrones históricos
     2. Comparación de facturas pendientes con patrones
     3. Aprobación automática o marcado para revisión
-    4. Envío de notificaciones a responsables
+    4. Envío de notificaciones a usuarios
 
     **Uso recomendado:**
     - Ejecutar mensualmente después de marcar las facturas como pagadas

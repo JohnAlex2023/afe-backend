@@ -2,7 +2,7 @@
 ENTERPRISE-GRADE TESTS: Sistema de Asignaciones NIT con Soft Delete
 
 Tests de integración completos para verificar el comportamiento correcto
-del patrón soft delete en asignaciones NIT-Responsable.
+del patrón soft delete en asignaciones NIT-Usuario.
 
 Cubre:
 - Soft delete pattern (DELETE → marca activo=False)
@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from app.main import app
 from app.db.session import get_db
 from app.models.workflow_aprobacion import AsignacionNitResponsable
-from app.models.responsable import Responsable
+from app.models.usuario import Usuario
 from app.core.security import create_access_token
 
 
@@ -49,8 +49,8 @@ def db_session():
 def auth_headers(db_session: Session):
     """Headers de autenticación para pruebas."""
     # Buscar o crear responsable de prueba
-    responsable = db_session.query(Responsable).filter(
-        Responsable.usuario == "test_user"
+    responsable = db_session.query(Usuario).filter(
+        Usuario.usuario == "test_user"
     ).first()
 
     if not responsable:

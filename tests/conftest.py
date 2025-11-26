@@ -15,7 +15,7 @@ from app.main import app
 from app.db.session import get_db, SessionLocal
 from app.core.security import create_access_token
 from app.models.usuario import Usuario, Rol
-from app.models.responsable import Responsable
+from app.models.usuario import Usuario
 
 
 # ==================== FIXTURES GLOBALES ====================
@@ -103,7 +103,7 @@ def auth_token_responsable(db: Session):
         usuario = Usuario(
             usuario="responsable.test",
             email="responsable.test@empresa.com",
-            nombre="Responsable Test",
+            nombre="Usuario Test",
             password_hash="hash"
         )
         db.add(usuario)

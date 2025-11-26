@@ -30,7 +30,7 @@ class EstadoFacturaWorkflow(enum.Enum):
     EN_ANALISIS = "en_analisis"  # Analizando si es idéntica
     APROBADA_AUTO = "aprobada_auto"  # Aprobada automáticamente
     PENDIENTE_REVISION = "pendiente_revision"  # Requiere revisión manual
-    EN_REVISION = "en_revision"  # Responsable está revisando
+    EN_REVISION = "en_revision"  # Usuario está revisando
     APROBADA_MANUAL = "aprobada_manual"  # Aprobada manualmente
     RECHAZADA = "rechazada"  # Rechazada
     OBSERVADA = "observada"  # Tiene observaciones
@@ -199,9 +199,9 @@ class WorkflowAprobacionFactura(Base):
 
     # Asignación automática
     nit_proveedor = Column(String(20), nullable=True, index=True, comment="NIT identificado automáticamente")
-    responsable_id = Column(BigInteger, ForeignKey("responsables.id"), nullable=True, index=True)
-    area_responsable = Column(String(100), nullable=True, comment="Área del responsable")
-    fecha_asignacion = Column(DateTime, nullable=True, comment="Cuándo se asignó al responsable")
+    responsable_id = Column(BigInteger, ForeignKey("usuarios.id"), nullable=True, index=True)
+    area_responsable = Column(String(100), nullable=True, comment="Área del usuario")
+    fecha_asignacion = Column(DateTime, nullable=True, comment="Cuándo se asignó al usuario")
 
     # Análisis de identidad (comparación con mes anterior)
     factura_mes_anterior_id = Column(BigInteger, ForeignKey("facturas.id"), nullable=True, comment="ID factura del mes anterior")
@@ -258,7 +258,7 @@ class WorkflowAprobacionFactura(Base):
     # Relaciones
     factura = relationship("Factura", foreign_keys=[factura_id])
     factura_anterior = relationship("Factura", foreign_keys=[factura_mes_anterior_id])
-    responsable = relationship("Responsable", foreign_keys=[responsable_id])
+    usuario = relationship("Usuario", foreign_keys=[responsable_id])
 
     # Índices compuestos para consultas frecuentes
     __table_args__ = (
@@ -270,10 +270,10 @@ class WorkflowAprobacionFactura(Base):
 
 class AsignacionNitResponsable(Base):
     """
-    Tabla de configuración: NIT → Responsable.
+    Tabla de configuración: NIT → Usuario.
 
     Define qué responsable debe aprobar las facturas de cada proveedor.
-    IMPORTANTE: Un NIT puede estar asignado a MÚLTIPLES responsables,
+    IMPORTANTE: Un NIT puede estar asignado a MÚLTIPLES usuarios,
     pero NO puede haber duplicados de la misma combinación NIT + responsable_id.
     """
     __tablename__ = "asignacion_nit_responsable"
@@ -282,7 +282,7 @@ class AsignacionNitResponsable(Base):
     nit = Column(String(20), nullable=False, index=True, comment="NIT del proveedor")
     nombre_proveedor = Column(String(255), nullable=True, comment="Nombre comercial del proveedor")
 
-    responsable_id = Column(BigInteger, ForeignKey("responsables.id"), nullable=False, index=True)
+    responsable_id = Column(BigInteger, ForeignKey("usuarios.id"), nullable=False, index=True)
     area = Column(String(100), nullable=True, comment="Área responsable (TI, Operaciones, etc.)")
 
     # Configuración de aprobación automática
@@ -347,7 +347,7 @@ class AsignacionNitResponsable(Base):
     actualizado_por = Column(String(255), nullable=True)
 
     # Relaciones
-    responsable = relationship("Responsable", foreign_keys=[responsable_id])
+    usuario = relationship("Usuario", foreign_keys=[responsable_id])
 
     # Constraints
     __table_args__ = (

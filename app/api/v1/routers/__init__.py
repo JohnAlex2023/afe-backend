@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from app.api.v1.routers import (
     auth,
     proveedores,
-    responsables,
+    usuarios,
     roles,
     facturas,
     automation,
@@ -27,7 +27,7 @@ def read_root():
 
 # Registro de módulos de rutas
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
-api_router.include_router(responsables.router, prefix="/responsables", tags=["Responsables"])
+api_router.include_router(usuarios.router, prefix="/usuarios", tags=["Usuarios"])
 api_router.include_router(proveedores.router, prefix="/proveedores", tags=["Proveedores"])
 api_router.include_router(roles.router, prefix="/roles", tags=["Roles"])
 api_router.include_router(facturas.router, prefix="/facturas", tags=["Facturas"])

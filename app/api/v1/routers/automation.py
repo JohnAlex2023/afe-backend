@@ -51,7 +51,7 @@ def inicializar_sistema_completo(
     1.   **Verificación de Estado**: Analiza el estado actual
     2.   **Validación de Pre-requisitos**: Valida datos y configuraciones
     3.   **Importación de Presupuesto**: Importa desde Excel (si se proporciona)
-    4.   **Auto-configuración NIT-Responsable**: Crea asignaciones automáticamente
+    4.   **Auto-configuración NIT-Usuario**: Crea asignaciones automáticamente
     5.   **Vinculación de Facturas**: Vincula facturas existentes con presupuesto
     6.   **Activación de Workflow**: Activa workflow de aprobación
     7.   **Reporte Ejecutivo**: Genera reporte completo
@@ -66,7 +66,7 @@ def inicializar_sistema_completo(
     **Parámetros:**
     - `archivo_presupuesto`: Ruta al Excel de presupuesto (opcional)
     - `año_fiscal`: Año a procesar (default: 2025)
-    - `responsable_default_id`: ID del responsable por defecto
+    - `responsable_default_id`: ID del usuario por defecto
     - `ejecutar_vinculacion`: Si debe vincular facturas (default: true)
     - `ejecutar_workflow`: Si debe activar workflow (default: true)
     - `dry_run`: Si true, solo simula sin hacer cambios (default: false)
@@ -891,11 +891,11 @@ async def analizar_patrones_proveedor(
 @router.post("/notificar-resumen")
 async def enviar_notificacion_resumen_manual(
     dias_atras: int = Query(default=1, ge=1, le=7),
-    responsables_ids: Optional[List[int]] = None,
+    usuarios_ids: Optional[List[int]] = None,
     db: Session = Depends(get_db)
 ):
     """
-    Envía manualmente un resumen de procesamiento a los responsables.
+    Envía manualmente un resumen de procesamiento a los usuarios.
     """
     try:
         # Obtener estadísticas del período
@@ -929,7 +929,7 @@ async def enviar_notificacion_resumen_manual(
             db=db,
             estadisticas_procesamiento=estadisticas,
             facturas_pendientes=facturas_pendientes,
-            responsables_notificar=responsables_ids
+            usuarios_notificar=usuarios_ids
         )
         
         return ResponseBase(
@@ -1311,7 +1311,7 @@ def analizar_workflows_por_factura(db: Session = Depends(get_db)):
             "facturas_todos_workflows_pendientes": facturas_todas_pendientes
         },
         "explicacion": {
-            "porque_solo_44_aprobadas": f"De {total_facturas} facturas con workflows, solo {facturas_todos_aprobados} tienen TODOS sus workflows aprobados. Las {facturas_mixtas} facturas con workflows mixtos permanecen en 'en_revision' hasta que TODOS los responsables aprueben.",
+            "porque_solo_44_aprobadas": f"De {total_facturas} facturas con workflows, solo {facturas_todos_aprobados} tienen TODOS sus workflows aprobados. Las {facturas_mixtas} facturas con workflows mixtos permanecen en 'en_revision' hasta que TODOS los usuarios aprueben.",
             "ejemplo_factura_mixta": ejemplos_mixtas[0] if ejemplos_mixtas else None
         },
         "ejemplos_facturas_mixtas": ejemplos_mixtas
@@ -1325,7 +1325,7 @@ def notificar_aprobaciones_retroactivas(
 ):
     """
     Envía notificaciones retroactivas para facturas que fueron aprobadas automáticamente
-    pero nunca se notificó al responsable (antes de implementar las notificaciones).
+    pero nunca se notificó al usuario (antes de implementar las notificaciones).
 
     Busca workflows en estado APROBADA_AUTO que no tengan notificación de tipo
     APROBACION_AUTOMATICA y les envía la notificación correspondiente.

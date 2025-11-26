@@ -85,8 +85,8 @@ def enviar_notificacion_factura_aprobada(
     Envía notificación de factura aprobada.
 
     Args:
-        email_responsable: Email del responsable
-        nombre_responsable: Nombre del responsable
+        email_responsable: Email del usuario
+        nombre_responsable: Nombre del usuario
         numero_factura: Número de la factura
         nombre_proveedor: Nombre del proveedor
         nit_proveedor: NIT del proveedor
@@ -144,8 +144,8 @@ def enviar_notificacion_factura_rechazada(
     Envía notificación de factura rechazada.
 
     Args:
-        email_responsable: Email del responsable
-        nombre_responsable: Nombre del responsable
+        email_responsable: Email del usuario
+        nombre_responsable: Nombre del usuario
         numero_factura: Número de la factura
         nombre_proveedor: Nombre del proveedor
         nit_proveedor: NIT del proveedor
@@ -202,8 +202,8 @@ def enviar_notificacion_factura_pendiente(
     Envía notificación de factura pendiente de aprobación.
 
     Args:
-        email_responsable: Email del responsable
-        nombre_responsable: Nombre del responsable
+        email_responsable: Email del usuario
+        nombre_responsable: Nombre del usuario
         numero_factura: Número de la factura
         nombre_proveedor: Nombre del proveedor
         nit_proveedor: NIT del proveedor

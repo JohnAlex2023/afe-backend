@@ -6,7 +6,7 @@ Endpoints para:
 - Aprobar/Rechazar facturas
 - Consultar estado de workflow
 - Dashboard de seguimiento
-- Gestión de asignaciones NIT-Responsable
+- Gestión de asignaciones NIT-Usuario
 """
 
 from typing import List, Optional
@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.db.session import get_db
-from app.core.security import get_current_responsable
+from app.core.security import get_current_usuario
 from app.services.workflow_automatico import WorkflowAutomaticoService
 from app.services.notificaciones import NotificacionService
 from app.models.workflow_aprobacion import (
@@ -61,7 +61,7 @@ def procesar_factura_nueva(
 
     **Flujo automático:**
     1. Identifica NIT del proveedor
-    2. Asigna al responsable correspondiente
+    2. Asigna al usuario correspondiente
     3. Compara con factura del mes anterior
     4. Aprueba automáticamente si es idéntica
     5. Envía a revisión manual si hay diferencias
@@ -420,7 +420,7 @@ def listar_workflows(
 def obtener_dashboard_workflow(
     responsable_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_responsable)
+    current_user = Depends(get_current_usuario)
 ):
     """
     Dashboard de seguimiento del workflow de facturas.
@@ -432,7 +432,7 @@ def obtener_dashboard_workflow(
     - Tiempo promedio de aprobación
     - Facturas rechazadas
 
-    ENTERPRISE: Soporte para múltiples responsables por NIT.
+    ENTERPRISE: Soporte para múltiples usuarios por NIT.
     - Si es RESPONSABLE: Automáticamente filtra por sus NITs asignados
     - Si es ADMIN sin responsable_id: Muestra TODAS las facturas
     - Si es ADMIN con responsable_id: Filtra por ese responsable
@@ -446,11 +446,11 @@ def obtener_dashboard_workflow(
         responsable_id = current_user.id
 
     # ENTERPRISE: Usar tabla Factura en lugar de WorkflowAprobacionFactura
-    # para soporte de múltiples responsables por NIT
+    # para soporte de múltiples usuarios por NIT
     query = db.query(Factura)
 
     if responsable_id:
-        # Obtener proveedores asignados al responsable (con normalización de NITs)
+        # Obtener proveedores asignados al usuario (con normalización de NITs)
         proveedor_ids = _obtener_proveedor_ids_de_responsable(db, responsable_id)
 
         if not proveedor_ids:
@@ -552,7 +552,7 @@ def crear_asignacion_nit(
     db: Session = Depends(get_db)
 ):
     """
-    Crea una asignación de NIT a Responsable.
+    Crea una asignación de NIT a Usuario.
 
     Configura qué responsable debe aprobar las facturas de un proveedor específico.
     """
@@ -604,7 +604,7 @@ def listar_asignaciones(
     db: Session = Depends(get_db)
 ):
     """
-    Lista todas las asignaciones NIT-Responsable.
+    Lista todas las asignaciones NIT-Usuario.
     """
     query = db.query(AsignacionNitResponsable)
 
@@ -638,7 +638,7 @@ def actualizar_asignacion(
     db: Session = Depends(get_db)
 ):
     """
-    Actualiza una asignación NIT-Responsable.
+    Actualiza una asignación NIT-Usuario.
     """
     asignacion_db = db.query(AsignacionNitResponsable).filter(
         AsignacionNitResponsable.id == asignacion_id
@@ -702,17 +702,17 @@ def enviar_recordatorios(
 
 @router.get("/mis-facturas-pendientes")
 def obtener_mis_facturas_pendientes(
-    responsable_id: int = Query(..., description="ID del responsable"),
+    responsable_id: int = Query(..., description="ID del usuario"),
     limite: int = Query(default=50, description="Límite de resultados"),
     db: Session = Depends(get_db)
 ):
     """
-    Obtiene todas las facturas pendientes de aprobación de un responsable específico.
+    Obtiene todas las facturas pendientes de aprobación de un usuario específico.
 
     Retorna workflows en estados: PENDIENTE_REVISION, EN_ANALISIS, REQUIERE_APROBACION_MANUAL
     """
     from app.models.factura import Factura
-    from app.models.responsable import Responsable
+    from app.models.usuario import Usuario
     from sqlalchemy.orm import joinedload
 
     workflows = db.query(WorkflowAprobacionFactura).join(
@@ -733,7 +733,7 @@ def obtener_mis_facturas_pendientes(
         factura = wf.factura
         proveedor_nombre = factura.proveedor.razon_social if factura.proveedor else "Sin proveedor"
 
-        # 🔥 Obtener nombre del responsable asignado
+        # 🔥 Obtener nombre del usuario asignado
         nombre_responsable = None
         if factura.responsable:
             nombre_responsable = factura.responsable.nombre
@@ -964,17 +964,17 @@ def regenerar_todos_patrones(
         analizador.regenerar_todos_patrones(limit=limit)
 
         # Contar patrones generados
-        from app.models.historial_pagos import HistorialPagos, TipoPatron
+        from app.models.patrones_facturas import PatronesFacturas, TipoPatron
 
-        total = db.query(HistorialPagos).count()
-        tipo_a = db.query(HistorialPagos).filter(
-            HistorialPagos.tipo_patron == TipoPatron.TIPO_A
+        total = db.query(PatronesFacturas).count()
+        tipo_a = db.query(PatronesFacturas).filter(
+            PatronesFacturas.tipo_patron == TipoPatron.TIPO_A
         ).count()
-        tipo_b = db.query(HistorialPagos).filter(
-            HistorialPagos.tipo_patron == TipoPatron.TIPO_B
+        tipo_b = db.query(PatronesFacturas).filter(
+            PatronesFacturas.tipo_patron == TipoPatron.TIPO_B
         ).count()
-        tipo_c = db.query(HistorialPagos).filter(
-            HistorialPagos.tipo_patron == TipoPatron.TIPO_C
+        tipo_c = db.query(PatronesFacturas).filter(
+            PatronesFacturas.tipo_patron == TipoPatron.TIPO_C
         ).count()
 
         return {

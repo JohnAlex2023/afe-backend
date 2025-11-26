@@ -9,10 +9,10 @@ class Roles:
     """
     Constantes para roles de usuario.
 
-    NOTA TÉCNICA: Históricamente llamamos 'responsables' a todos los usuarios
-    del sistema (stored en tabla 'responsables'). El término correcto sería
+    NOTA TÉCNICA: Históricamente llamamos 'usuarios' a todos los usuarios
+    del sistema (stored en tabla 'usuarios'). El término correcto sería
     'usuarios', pero para mantener compatibilidad con el código existente
-    mantenemos la tabla 'responsables'.
+    mantenemos la tabla 'usuarios'.
 
     Roles disponibles:
     - ADMIN: Acceso completo, gestiona usuarios y configuración

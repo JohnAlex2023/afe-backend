@@ -4,20 +4,20 @@ from datetime import datetime
 from app.schemas.role import RoleRead
 
 
-class ResponsableBase(BaseModel):
+class UsuarioBase(BaseModel):
     usuario: str = Field(..., example="juan.perez@empresa.com")
     email: EmailStr
     nombre: Optional[str]
     role_id: Optional[int]
 
 
-class ResponsableCreate(ResponsableBase):
+class UsuarioCreate(UsuarioBase):
     password: str = Field(..., min_length=8)
     area: Optional[str] = None
     telefono: Optional[str] = None
 
 
-class ResponsableRead(ResponsableBase):
+class UsuarioRead(UsuarioBase):
     id: int
     activo: bool
     must_change_password: bool
@@ -31,12 +31,12 @@ class ResponsableRead(ResponsableBase):
         from_attributes = True
 
 
-class ResponsableLogin(BaseModel):
+class UsuarioLogin(BaseModel):
     usuario: str
     password: str
 
 
-class ResponsableUpdate(BaseModel):
+class UsuarioUpdate(BaseModel):
     usuario: Optional[str] = None
     email: Optional[EmailStr] = None
     nombre: Optional[str] = None

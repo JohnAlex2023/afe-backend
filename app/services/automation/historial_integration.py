@@ -1,8 +1,8 @@
 """
-Módulo de integración entre automation_service y historial_pagos.
+Módulo de integración entre automation_service y patrones_facturas.
 
 Proporciona funciones helper para:
-- Buscar patrones históricos en historial_pagos
+- Buscar patrones históricos en patrones_facturas
 - Enriquecer decisiones con datos históricos
 - Ajustar scores de confianza según tipo de patrón (TIPO_A/B/C)
 - Validar montos contra rangos históricos
@@ -18,24 +18,24 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.models.factura import Factura
-from app.models.historial_pagos import HistorialPagos, TipoPatron
+from app.models.patrones_facturas import PatronesFacturas, TipoPatron
 
 
 logger = logging.getLogger(__name__)
 
 
-class HistorialIntegrationHelper:
+class PatronesIntegrationHelper:
     """
-    Helper class para integrar historial_pagos con el sistema de automatización.
+    Helper class para integrar patrones_facturas con el sistema de automatización.
     """
 
     @staticmethod
     def buscar_patron_historico(
         db: Session,
         factura: Factura
-    ) -> Optional[HistorialPagos]:
+    ) -> Optional[PatronesFacturas]:
         """
-        Busca un patrón histórico en historial_pagos que coincida con la factura.
+        Busca un patrón histórico en patrones_facturas que coincida con la factura.
 
         Estrategia de búsqueda (en orden de prioridad):
         1. Por proveedor_id + concepto_hash (si existe)
@@ -47,21 +47,22 @@ class HistorialIntegrationHelper:
             factura: Factura a buscar
 
         Returns:
-            HistorialPagos si encuentra match, None si no
+            PatronesFacturas si encuentra match, None si no
         """
         if not factura.proveedor_id:
             return None
 
         # Prioridad 1: Buscar por concepto_hash existente
         if factura.concepto_hash:
-            patron = db.query(HistorialPagos).filter(
-                HistorialPagos.proveedor_id == factura.proveedor_id,
-                HistorialPagos.concepto_hash == factura.concepto_hash
+            patron = db.query(PatronesFacturas).filter(
+                PatronesFacturas.proveedor_id == factura.proveedor_id,
+                PatronesFacturas.concepto_hash == factura.concepto_hash
             ).first()
 
             if patron:
                 logger.info(
-                    f"Patrón histórico encontrado por hash para factura {factura.id}"
+                    "Patrón histórico encontrado por hash para factura %d",
+                    factura.id
                 )
                 return patron
 
@@ -71,40 +72,42 @@ class HistorialIntegrationHelper:
                 factura.concepto_normalizado.encode('utf-8')
             ).hexdigest()
 
-            patron = db.query(HistorialPagos).filter(
-                HistorialPagos.proveedor_id == factura.proveedor_id,
-                HistorialPagos.concepto_hash == concepto_hash
+            patron = db.query(PatronesFacturas).filter(
+                PatronesFacturas.proveedor_id == factura.proveedor_id,
+                PatronesFacturas.concepto_hash == concepto_hash
             ).first()
 
             if patron:
                 logger.info(
-                    f"Patrón histórico encontrado por concepto normalizado "
-                    f"para factura {factura.id}"
+                    "Patrón histórico encontrado por concepto normalizado "
+                    "para factura %d",
+                    factura.id
                 )
                 return patron
 
         # Prioridad 3: Generar hash del concepto_principal
         if factura.concepto_principal:
-            concepto_normalizado = HistorialIntegrationHelper._normalizar_concepto(
+            concepto_normalizado = PatronesIntegrationHelper._normalizar_concepto(
                 factura.concepto_principal
             )
             concepto_hash = hashlib.md5(
                 concepto_normalizado.encode('utf-8')
             ).hexdigest()
 
-            patron = db.query(HistorialPagos).filter(
-                HistorialPagos.proveedor_id == factura.proveedor_id,
-                HistorialPagos.concepto_hash == concepto_hash
+            patron = db.query(PatronesFacturas).filter(
+                PatronesFacturas.proveedor_id == factura.proveedor_id,
+                PatronesFacturas.concepto_hash == concepto_hash
             ).first()
 
             if patron:
                 logger.info(
-                    f"Patrón histórico encontrado por concepto principal "
-                    f"para factura {factura.id}"
+                    "Patrón histórico encontrado por concepto principal "
+                    "para factura %d",
+                    factura.id
                 )
                 return patron
 
-        logger.debug(f"No se encontró patrón histórico para factura {factura.id}")
+        logger.debug("No se encontró patrón histórico para factura %d", factura.id)
         return None
 
     @staticmethod
@@ -117,7 +120,7 @@ class HistorialIntegrationHelper:
 
     @staticmethod
     def calcular_ajuste_confianza(
-        patron_historico: Optional[HistorialPagos],
+        patron_historico: Optional[PatronesFacturas],
         monto_factura: Decimal
     ) -> Dict[str, Any]:
         """
@@ -226,7 +229,7 @@ class HistorialIntegrationHelper:
 
     @staticmethod
     def generar_metadata_patron(
-        patron_historico: Optional[HistorialPagos]
+        patron_historico: Optional[PatronesFacturas]
     ) -> Dict[str, Any]:
         """
         Genera metadata descriptiva del patrón histórico.
@@ -261,7 +264,7 @@ class HistorialIntegrationHelper:
 
     @staticmethod
     def validar_monto_contra_historial(
-        patron_historico: Optional[HistorialPagos],
+        patron_historico: Optional[PatronesFacturas],
         monto_factura: Decimal,
         umbral_alerta_pct: Optional[float] = None
     ) -> Dict[str, Any]:

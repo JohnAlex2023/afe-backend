@@ -6,7 +6,7 @@ Este servicio orquesta todo el flujo de automatización mensual de facturas:
 2. Análisis de patrones históricos
 3. Comparación con mes anterior
 4. Aprobación automática o marcado para revisión
-5. Notificaciones a responsables
+5. Notificaciones a usuarios
 
 
 Fecha: 2025-10-09
@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.models.factura import Factura, EstadoFactura
-from app.models.historial_pagos import HistorialPagos, TipoPatron
+from app.models.patrones_facturas import PatronesFacturas, TipoPatron
 from app.models.proveedor import Proveedor
 from app.services.analisis_patrones_service import AnalizadorPatronesService
 from app.services.notificaciones import NotificacionService
@@ -379,9 +379,9 @@ class FlujoAutomatizacionFacturas:
         concepto_hash = hashlib.md5(concepto_normalizado.encode('utf-8')).hexdigest()
 
         # Buscar patrón histórico
-        patron = self.db.query(HistorialPagos).filter(
-            HistorialPagos.proveedor_id == factura.proveedor_id,
-            HistorialPagos.concepto_hash == concepto_hash
+        patron = self.db.query(PatronesFacturas).filter(
+            PatronesFacturas.proveedor_id == factura.proveedor_id,
+            PatronesFacturas.concepto_hash == concepto_hash
         ).first()
 
         decision = {
@@ -486,7 +486,7 @@ class FlujoAutomatizacionFacturas:
         resultado_comparacion: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Envía notificaciones a los responsables sobre facturas procesadas.
+        Envía notificaciones a los usuarios sobre facturas procesadas.
 
         Args:
             resultado_comparacion: Resultado del paso de comparación
@@ -494,7 +494,7 @@ class FlujoAutomatizacionFacturas:
         Returns:
             Dict con resultado del envío de notificaciones
         """
-        logger.info("📧 Enviando notificaciones a responsables...")
+        logger.info("📧 Enviando notificaciones a usuarios...")
 
         # Agrupar facturas por responsable
         facturas_por_responsable = self._agrupar_facturas_por_responsable(
@@ -572,7 +572,7 @@ class FlujoAutomatizacionFacturas:
 
     def _preparar_mensaje_notificacion(self, datos: Dict[str, Any]) -> str:
         """
-        Prepara el mensaje de notificación para el responsable.
+        Prepara el mensaje de notificación para el usuario.
         """
         mensaje = f"""
 Hola {datos['nombre']},

@@ -3,7 +3,7 @@ Servicio de Workflow Automático de Aprobación de Facturas.
 
 Este servicio analiza facturas nuevas y:
 1. Identifica el NIT del proveedor
-2. Asigna automáticamente al responsable
+2. Asigna automáticamente al usuario
 3. Compara ITEM POR ITEM con facturas del mes anterior (usando ComparadorItemsService)
 4. Aprueba automáticamente si cumple criterios de confianza
 5. Envía a revisión manual si hay diferencias
@@ -191,15 +191,15 @@ class WorkflowAutomaticoService:
         # 3. Extraer NIT del proveedor
         nit = self._extraer_nit(factura)
 
-        # 4. Buscar TODAS las asignaciones de responsables para este NIT
-        # ENTERPRISE: Un NIT puede estar asignado a múltiples responsables
+        # 4. Buscar TODAS las asignaciones de usuarios para este NIT
+        # ENTERPRISE: Un NIT puede estar asignado a múltiples usuarios
         asignaciones = self._buscar_todas_asignaciones_responsable(nit)
 
         if not asignaciones:
             return self._crear_workflow_sin_asignacion(factura, nit)
 
         # 5. CREAR WORKFLOWS PARA CADA RESPONSABLE ASIGNADO AL NIT
-        # Patrón: Cuando múltiples responsables tienen el NIT asignado,
+        # Patrón: Cuando múltiples usuarios tienen el NIT asignado,
         # todos reciben la misma factura. Cambios de estado se sincronizan entre todos.
 
         workflows_creados = []  # Lista de objetos WorkflowAprobacionFactura reales
@@ -247,7 +247,7 @@ class WorkflowAutomaticoService:
             asignaciones[0]
         )
 
-        # 7. Enviar notificaciones a TODOS los responsables
+        # 7. Enviar notificaciones a TODOS los usuarios
         for i, asignacion in enumerate(asignaciones):
             self._enviar_notificacion_inicial(workflows_creados[i], factura, asignacion)
 
@@ -316,10 +316,10 @@ class WorkflowAutomaticoService:
         self, nit: Optional[str]
     ) -> list:
         """
-        Busca TODAS las asignaciones de responsables para un NIT.
+        Busca TODAS las asignaciones de usuarios para un NIT.
 
         ENTERPRISE PATTERN - MÚLTIPLES RESPONSABLES POR NIT:
-        Un NIT puede estar asignado a múltiples responsables simultáneamente.
+        Un NIT puede estar asignado a múltiples usuarios simultáneamente.
         Retorna TODAS las asignaciones activas para ese NIT.
 
         Args:
@@ -386,7 +386,7 @@ class WorkflowAutomaticoService:
         Args:
             factura: Factura a analizar
             workflow: Workflow asociado
-            asignacion: Configuración del responsable
+            asignacion: Configuración del usuario
 
         Returns:
             Dict con resultado del análisis y decisión de aprobación
@@ -486,7 +486,7 @@ class WorkflowAutomaticoService:
 
         Args:
             workflow: Workflow actual
-            asignacion: Configuración del responsable
+            asignacion: Configuración del usuario
             factura: Factura a evaluar
             resultado_comparacion: Resultado del ComparadorItemsService
 
@@ -494,7 +494,7 @@ class WorkflowAutomaticoService:
             True si cumple TODAS las reglas de aprobación automática
         """
         # ============================================================================
-        # REGLA 1: Configuración del Responsable
+        # REGLA 1: Configuración del Usuario
         # ============================================================================
 
         # 1.1 - Debe estar habilitada la aprobación automática
@@ -844,7 +844,7 @@ Razón: La factura no alcanzó el umbral de confianza requerido para aprobación
         motivo: str = None
     ) -> None:
         """
-        Notifica a TODOS los responsables sobre cambio de estado.
+        Notifica a TODOS los usuarios sobre cambio de estado.
 
         Eventos soportados:
         - "APROBADA": Factura fue aprobada por quien_actuo
@@ -920,7 +920,7 @@ Razón: La factura no alcanzó el umbral de confianza requerido para aprobación
             )
 
         except Exception as e:
-            logger.error(f"Error notificando a responsables: {str(e)}")
+            logger.error(f"Error notificando a usuarios: {str(e)}")
 
     def _enviar_notificacion_inicial(
         self,
@@ -936,7 +936,7 @@ Razón: La factura no alcanzó el umbral de confianza requerido para aprobación
         self._crear_notificacion(
             workflow=workflow,
             tipo=TipoNotificacion.FACTURA_RECIBIDA,
-            destinatarios=[],  # Email del responsable
+            destinatarios=[],  # Email del usuario
             asunto=f" Nueva Factura Recibida - {factura.numero_factura}",
             cuerpo=f"""
             Se ha recibido una nueva factura asignada a su área.
@@ -957,7 +957,7 @@ Razón: La factura no alcanzó el umbral de confianza requerido para aprobación
     ) -> Dict[str, Any]:
         """
         Aprueba manualmente una factura.
-        Sincroniza estado y notifica a otros responsables.
+        Sincroniza estado y notifica a otros usuarios.
         """
         workflow = self.db.query(WorkflowAprobacionFactura).filter(
             WorkflowAprobacionFactura.id == workflow_id
@@ -1132,7 +1132,7 @@ Razón: La factura no alcanzó el umbral de confianza requerido para aprobación
         Esta función garantiza que NUNCA se auto-apruebe un proveedor sin clasificar.
 
         Args:
-            asignacion: Asignación NIT-Responsable del proveedor
+            asignacion: Asignación NIT-Usuario del proveedor
 
         Nivel: Fortune 500 Risk Management
         """

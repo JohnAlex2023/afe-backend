@@ -3,8 +3,8 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
-class Responsable(Base):
-    __tablename__ = "responsables"
+class Usuario(Base):
+    __tablename__ = "usuarios"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     usuario = Column(String(100), nullable=False, unique=True)  # login
@@ -26,5 +26,5 @@ class Responsable(Base):
     creado_en = Column(DateTime(timezone=True), server_default=func.now(), nullable=False) # fecha de creación
 
     # Relaciones
-    role = relationship("Role", back_populates="responsables", lazy="joined")
-    facturas = relationship("Factura", back_populates="responsable", lazy="selectin")
+    role = relationship("Role", back_populates="usuarios", lazy="joined")
+    facturas = relationship("Factura", back_populates="usuario", lazy="selectin")

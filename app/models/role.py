@@ -10,4 +10,4 @@ class Role(Base):
     nombre = Column(String(50), unique=True, nullable=False)
 
     # Relación inversa
-    responsables = relationship("Responsable", back_populates="role", lazy="selectin")
+    usuarios = relationship("Usuario", back_populates="role", lazy="selectin")

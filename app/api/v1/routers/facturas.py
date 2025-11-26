@@ -17,7 +17,7 @@ from app.schemas.common import (
     CursorPaginationMetadata
 )
 from app.services.invoice_service import process_and_persist_invoice
-from app.core.security import get_current_responsable, require_role
+from app.core.security import get_current_usuario, require_role
 from app.crud.factura import (
     list_facturas,
     list_facturas_cursor,
@@ -59,7 +59,7 @@ def list_with_cursor(
     numero_factura: Optional[str] = None,
     solo_asignadas: bool = False,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     **Endpoint empresarial para scroll infinito con performance constante.**
@@ -125,7 +125,7 @@ def list_with_cursor(
     if hasattr(current_user, 'role') and current_user.role.nombre == 'responsable':
         responsable_id = current_user.id
         logger.info(
-            f"Responsable {current_user.usuario} (ID: {current_user.id}) usando cursor pagination"
+            f"Usuario {current_user.usuario} (ID: {current_user.id}) usando cursor pagination"
         )
     elif solo_asignadas:
         responsable_id = current_user.id
@@ -199,7 +199,7 @@ def list_with_cursor(
 def list_all_for_dashboard(
     solo_asignadas: bool = False,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     ** ENDPOINT EMPRESARIAL PARA DASHBOARD COMPLETO**
@@ -217,7 +217,7 @@ def list_all_for_dashboard(
     **Control de acceso:**
     - Admin sin `solo_asignadas`: Ve TODAS las facturas del sistema
     - Admin con `solo_asignadas=true`: Ve solo sus facturas asignadas
-    - Responsable: Automáticamente ve solo sus proveedores asignados
+    - Usuario: Automáticamente ve solo sus proveedores asignados
 
     **Performance:**
     - Usa índice `idx_facturas_orden_cronologico` para queries optimizadas
@@ -257,7 +257,7 @@ def list_all_for_dashboard(
         # Responsables SIEMPRE ven solo sus proveedores asignados
         responsable_id = current_user.id
         logger.info(
-            f"[DASHBOARD COMPLETO] Responsable {current_user.usuario} (ID: {current_user.id}) "
+            f"[DASHBOARD COMPLETO] Usuario {current_user.usuario} (ID: {current_user.id}) "
             f"cargando todas sus facturas asignadas"
         )
     elif solo_asignadas:
@@ -292,7 +292,7 @@ def list_all_for_dashboard(
     "/",
     response_model=PaginatedResponse[FacturaRead],
     summary="Listar facturas con paginación",
-    description="Obtiene facturas con metadata de paginación empresarial. Admin puede ver todas o solo asignadas, Responsable solo sus proveedores."
+    description="Obtiene facturas con metadata de paginación empresarial. Admin puede ver todas o solo asignadas, Usuario solo sus proveedores."
 )
 def list_all(
     page: int = 1,
@@ -301,12 +301,12 @@ def list_all(
     numero_factura: Optional[str] = None,
     solo_asignadas: bool = False,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     Lista facturas con control de acceso basado en roles y paginación empresarial:
     - Admin: Ve TODAS las facturas (o solo asignadas si solo_asignadas=true)
-    - Responsable: Solo ve facturas de proveedores (NITs) que tiene asignados
+    - Usuario: Solo ve facturas de proveedores (NITs) que tiene asignados
 
     **Parámetros de paginación:**
     - page: Página actual (base 1, default: 1)
@@ -346,7 +346,7 @@ def list_all(
         # Si es responsable, SIEMPRE filtrar solo sus proveedores asignados
         responsable_id = current_user.id
         logger.info(
-            f"Responsable {current_user.usuario} (ID: {current_user.id}) accediendo a sus facturas asignadas"
+            f"Usuario {current_user.usuario} (ID: {current_user.id}) accediendo a sus facturas asignadas"
         )
     elif solo_asignadas:
         # Si es admin y solicita solo asignadas, filtrar por sus proveedores
@@ -441,7 +441,7 @@ def create_invoice(
 def get_one(
     factura_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     f = get_factura(db, factura_id)
     if not f:
@@ -466,7 +466,7 @@ def get_by_nit(
     page: int = 1,
     per_page: int = 500,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     Obtiene facturas de un proveedor específico con paginación empresarial.
@@ -524,7 +524,7 @@ def get_by_nit(
 def get_by_cufe(
     cufe: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     f = find_by_cufe(db, cufe)
     if not f:
@@ -548,7 +548,7 @@ def get_by_cufe(
 def get_by_numero(
     numero_factura: str,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     f = get_factura_by_numero(db, numero_factura)
     if not f:
@@ -638,24 +638,24 @@ def aprobar_factura(
         extra={"factura_id": factura_id, "usuario": current_user.usuario, "con_workflow": workflow is not None}
     )
 
-    # ENTERPRISE: Enviar notificación a TODOS los responsables del NIT
+    # ENTERPRISE: Enviar notificación a TODOS los usuarios del NIT
     try:
         from app.services.email_notifications import enviar_notificacion_factura_aprobada
-        from app.crud.factura import obtener_responsables_de_nit
+        from app.crud.factura import obtener_usuarios_de_nit
 
-        # Obtener TODOS los responsables del NIT (soporte para múltiples responsables)
-        responsables = []
+        # Obtener TODOS los usuarios del NIT (soporte para múltiples usuarios)
+        usuarios = []
 
         if factura.proveedor and factura.proveedor.nit:
-            responsables = obtener_responsables_de_nit(db, factura.proveedor.nit)
-            logger.info(f"Encontrados {len(responsables)} responsables para NIT {factura.proveedor.nit}")
+            usuarios = obtener_usuarios_de_nit(db, factura.proveedor.nit)
+            logger.info(f"Encontrados {len(usuarios)} usuarios para NIT {factura.proveedor.nit}")
 
         # Enviar notificación a cada responsable
-        if responsables:
+        if usuarios:
             monto_formateado = f"${factura.total_calculado:,.2f} COP" if factura.total_calculado else "N/A"
             aprobado_por_nombre = current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario
 
-            for responsable in responsables:
+            for responsable in usuarios:
                 if responsable.email:
                     try:
                         # Construir URL absoluta de la factura para el email
@@ -681,7 +681,7 @@ def aprobar_factura(
                     except Exception as e_responsable:
                         logger.error(f"Error enviando a {responsable.email}: {str(e_responsable)}")
         else:
-            logger.warning(f"No se encontraron responsables para factura {factura.numero_factura}")
+            logger.warning(f"No se encontraron usuarios para factura {factura.numero_factura}")
 
     except Exception as e:
         logger.error(f"Error en sistema de notificaciones: {str(e)}", exc_info=True)
@@ -770,24 +770,24 @@ def rechazar_factura(
         extra={"factura_id": factura_id, "usuario": current_user.usuario, "con_workflow": workflow is not None}
     )
 
-    # ENTERPRISE: Enviar notificación a TODOS los responsables del NIT
+    # ENTERPRISE: Enviar notificación a TODOS los usuarios del NIT
     try:
         from app.services.email_notifications import enviar_notificacion_factura_rechazada
-        from app.crud.factura import obtener_responsables_de_nit
+        from app.crud.factura import obtener_usuarios_de_nit
 
-        # Obtener TODOS los responsables del NIT (soporte para múltiples responsables)
-        responsables = []
+        # Obtener TODOS los usuarios del NIT (soporte para múltiples usuarios)
+        usuarios = []
 
         if factura.proveedor and factura.proveedor.nit:
-            responsables = obtener_responsables_de_nit(db, factura.proveedor.nit)
-            logger.info(f"Encontrados {len(responsables)} responsables para NIT {factura.proveedor.nit}")
+            usuarios = obtener_usuarios_de_nit(db, factura.proveedor.nit)
+            logger.info(f"Encontrados {len(usuarios)} usuarios para NIT {factura.proveedor.nit}")
 
         # Enviar notificación a cada responsable
-        if responsables:
+        if usuarios:
             monto_formateado = f"${factura.total_calculado:,.2f} COP" if factura.total_calculado else "N/A"
             rechazado_por_nombre = current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario
 
-            for responsable in responsables:
+            for responsable in usuarios:
                 if responsable.email:
                     try:
                         # Construir URL absoluta de la factura para el email
@@ -814,7 +814,7 @@ def rechazar_factura(
                     except Exception as e_responsable:
                         logger.error(f"Error enviando a {responsable.email}: {str(e_responsable)}")
         else:
-            logger.warning(f"No se encontraron responsables para factura {factura.numero_factura}")
+            logger.warning(f"No se encontraron usuarios para factura {factura.numero_factura}")
 
     except Exception as e:
         logger.error(f"Error en sistema de notificaciones: {str(e)}", exc_info=True)
@@ -839,7 +839,7 @@ def get_resumen_por_mes(
     proveedor_id: Optional[int] = None,
     estado: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     Retorna facturas agrupadas por período (mes/año) con:
@@ -882,7 +882,7 @@ def get_resumen_detallado_por_mes(
     año: Optional[int] = None,
     proveedor_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     Retorna facturas agrupadas por período (mes/año) CON DESGLOSE DETALLADO POR ESTADO.
@@ -931,7 +931,7 @@ def get_facturas_periodo(
     proveedor_id: Optional[int] = None,
     estado: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     Obtiene facturas de un período específico con paginación empresarial.
@@ -1018,7 +1018,7 @@ def get_stats_periodo(
     periodo: str,
     proveedor_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     Retorna estadísticas completas de un período:
@@ -1068,7 +1068,7 @@ def count_periodo(
     proveedor_id: Optional[int] = None,
     estado: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     Cuenta facturas de un período específico.
@@ -1101,7 +1101,7 @@ def count_periodo(
 )
 def get_años(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     Retorna años disponibles en orden descendente.
@@ -1129,7 +1129,7 @@ def get_jerarquia(
     estado: Optional[str] = None,
     limit_por_mes: int = 100,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     **Vista Jerárquica Empresarial** para organización cronológica de facturas.
@@ -1198,7 +1198,7 @@ def export_to_csv(
     estado: Optional[str] = None,
     solo_asignadas: bool = False,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     **Exportación empresarial de facturas a CSV.**
@@ -1227,7 +1227,7 @@ def export_to_csv(
     responsable_id = None
     if hasattr(current_user, 'role') and current_user.role.nombre == 'responsable':
         responsable_id = current_user.id
-        logger.info(f"Responsable {current_user.usuario} exportando facturas asignadas")
+        logger.info(f"Usuario {current_user.usuario} exportando facturas asignadas")
     elif solo_asignadas:
         responsable_id = current_user.id
         logger.info(f"Admin {current_user.usuario} exportando facturas asignadas")
@@ -1281,7 +1281,7 @@ def get_export_info(
     fecha_hasta: Optional[datetime] = Query(None, description="Fecha final (YYYY-MM-DD)"),
     solo_asignadas: bool = False,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     Obtiene información sobre el dataset a exportar antes de generar el archivo.

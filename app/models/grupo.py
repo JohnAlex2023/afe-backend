@@ -1,10 +1,10 @@
 """
 Modelo de Grupo (Sede/Empresa) para clasificación de facturas por grupos.
 
-Permite aislar datos por grupos de responsables:
+Permite aislar datos por grupos de usuarios:
 - Cada grupo es una sede u empresa
 - Un responsable puede estar en múltiples grupos
-- Un NIT puede estar en múltiples grupos con diferentes responsables
+- Un NIT puede estar en múltiples grupos con diferentes usuarios
 - Las facturas pertenecen a un grupo específico
 
 Nivel: Enterprise Multi-Tenant Architecture
@@ -22,7 +22,7 @@ class Grupo(Base):
     Grupo o Sede empresarial.
 
     Representa una unidad de negocio separada (Avidanti, Soacha, etc.).
-    Las facturas pertenecen a un grupo, los responsables pueden estar en múltiples grupos.
+    Las facturas pertenecen a un grupo, los usuarios pueden estar en múltiples grupos.
 
     Campos:
     - id: Identificador único
@@ -97,8 +97,8 @@ class Grupo(Base):
     )
 
     # ==================== RELACIONES ====================
-    # Relación M:N con Responsable
-    responsables = relationship(
+    # Relación M:N con Usuario
+    usuarios = relationship(
         "ResponsableGrupo",
         back_populates="grupo",
         cascade="all, delete-orphan",
@@ -131,15 +131,15 @@ class Grupo(Base):
 
 class ResponsableGrupo(Base):
     """
-    Tabla relacional M:N entre Responsable y Grupo.
+    Tabla relacional M:N entre Usuario y Grupo.
 
-    Define la relación entre responsables y grupos:
+    Define la relación entre usuarios y grupos:
     - Un responsable puede estar en múltiples grupos
-    - Un grupo puede tener múltiples responsables
+    - Un grupo puede tener múltiples usuarios
     - Cada responsable tiene un rol específico en cada grupo
 
     Campos:
-    - responsable_id: FK a responsables
+    - responsable_id: FK a usuarios
     - grupo_id: FK a grupos
     - activo: Flag de estado (soft delete)
     - creado_en: Timestamp de creación
@@ -160,7 +160,7 @@ class ResponsableGrupo(Base):
         BigInteger,
         nullable=False,
         index=True,
-        comment="FK a responsables"
+        comment="FK a usuarios"
     )
 
     grupo_id = Column(
@@ -188,8 +188,8 @@ class ResponsableGrupo(Base):
     )
 
     # ==================== RELACIONES ====================
-    grupo = relationship("Grupo", back_populates="responsables", foreign_keys=[grupo_id])
-    responsable = relationship("Responsable", back_populates="grupos", foreign_keys=[responsable_id])
+    grupo = relationship("Grupo", back_populates="usuarios", foreign_keys=[grupo_id])
+    usuario = relationship("Usuario", back_populates="grupos", foreign_keys=[responsable_id])
 
     # ==================== CONSTRAINTS ====================
     __table_args__ = (

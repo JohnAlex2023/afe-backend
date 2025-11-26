@@ -3,7 +3,7 @@
 Servicio de notificaciones para el sistema de automatización de facturas.
 
 Maneja el envío de notificaciones cuando las facturas requieren revisión manual
-o cuando se necesita comunicar decisiones automáticas a los responsables.
+o cuando se necesita comunicar decisiones automáticas a los usuarios.
 """
 
 import logging
@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 from dataclasses import dataclass
 
 from app.models.factura import Factura, EstadoFactura
-from app.models.responsable import Responsable
-from app.crud import responsable as crud_responsable
+from app.models.usuario import Usuario
+from app.crud import usuario as crud_usuario
 from app.crud import audit as crud_audit
 from app.services.unified_email_service import UnifiedEmailService
 from app.services.email_template_service import get_template_service
@@ -177,8 +177,8 @@ Sistema Automático de Facturas
         config = config or self.config_default
 
         try:
-            # Obtener responsables de la factura
-            responsables = self._obtener_responsables_factura(db, factura)
+            # Obtener usuarios de la factura
+            usuarios = self._obtener_responsables_factura(db, factura)
 
             # Preparar análisis de ítems desde contexto_historico
             analisis_items = {}
@@ -230,7 +230,7 @@ Sistema Automático de Facturas
 
             resultados_envio = []
 
-            for responsable in responsables:
+            for responsable in usuarios:
                 datos_plantilla['responsable_nombre'] = responsable.nombre
 
                 resultado = self._enviar_notificacion_individual(
@@ -243,13 +243,13 @@ Sistema Automático de Facturas
 
             # Registrar en auditoría
             self._registrar_notificacion_auditoria(
-                db, factura, 'revision_requerida', responsables, motivo
+                db, factura, 'revision_requerida', usuarios, motivo
             )
 
             return {
                 'exito': True,
                 'notificaciones_enviadas': len([r for r in resultados_envio if r['exito']]),
-                'total_responsables': len(responsables),
+                'total_responsables': len(usuarios),
                 'detalles': resultados_envio
             }
 
@@ -278,8 +278,8 @@ Sistema Automático de Facturas
             if not config.activar_sistema:
                 return {'exito': True, 'mensaje': 'Notificaciones desactivadas'}
 
-            # Obtener responsables de la factura
-            responsables = self._obtener_responsables_factura(db, factura)
+            # Obtener usuarios de la factura
+            usuarios = self._obtener_responsables_factura(db, factura)
 
             # Preparar datos para la plantilla HTML
             fecha_formateada = (
@@ -303,7 +303,7 @@ Sistema Automático de Facturas
 
             resultados_envio = []
 
-            for responsable in responsables:
+            for responsable in usuarios:
                 datos_plantilla['responsable_nombre'] = responsable.nombre
 
                 resultado = self._enviar_notificacion_individual(
@@ -316,13 +316,13 @@ Sistema Automático de Facturas
 
             # Registrar en auditoría
             self._registrar_notificacion_auditoria(
-                db, factura, 'aprobacion_automatica', responsables
+                db, factura, 'aprobacion_automatica', usuarios
             )
 
             return {
                 'exito': True,
                 'notificaciones_enviadas': len([r for r in resultados_envio if r['exito']]),
-                'total_responsables': len(responsables),
+                'total_responsables': len(usuarios),
                 'detalles': resultados_envio
             }
 
@@ -337,23 +337,23 @@ Sistema Automático de Facturas
         facturas_pendientes: List[Factura],
         facturas_aprobadas: Optional[List[Factura]] = None,
         tendencias: Optional[Dict[str, Any]] = None,
-        responsables_notificar: Optional[List[int]] = None,
+        usuarios_notificar: Optional[List[int]] = None,
         config: Optional[ConfiguracionNotificacion] = None
     ) -> Dict[str, Any]:
         """
-        Envía resumen del procesamiento automático a los responsables.
+        Envía resumen del procesamiento automático a los usuarios.
         """
         config = config or self.config_default
 
         try:
-            # Obtener responsables a notificar
-            if responsables_notificar:
-                responsables = [crud_responsable.get_responsable(db, id_resp)
-                             for id_resp in responsables_notificar]
-                responsables = [r for r in responsables if r is not None]
+            # Obtener usuarios a notificar
+            if usuarios_notificar:
+                usuarios = [crud_usuario.get_usuario(db, id_resp)
+                             for id_resp in usuarios_notificar]
+                usuarios = [r for r in usuarios if r is not None]
             else:
-                # Notificar a todos los responsables activos
-                responsables = crud_responsable.get_responsables_activos(db)
+                # Notificar a todos los usuarios activos
+                usuarios = crud_usuario.get_usuarios_activos(db)
 
             # Preparar estadísticas para template HTML
             resumen = estadisticas_procesamiento.get('resumen_general', {})
@@ -402,7 +402,7 @@ Sistema Automático de Facturas
 
             resultados_envio = []
 
-            for responsable in responsables:
+            for responsable in usuarios:
                 datos_plantilla['responsable_nombre'] = responsable.nombre
 
                 resultado = self._enviar_notificacion_individual(
@@ -416,7 +416,7 @@ Sistema Automático de Facturas
             return {
                 'exito': True,
                 'notificaciones_enviadas': len([r for r in resultados_envio if r['exito']]),
-                'total_responsables': len(responsables),
+                'total_responsables': len(usuarios),
                 'detalles': resultados_envio
             }
 
@@ -438,12 +438,12 @@ Sistema Automático de Facturas
         config = config or self.config_default
 
         try:
-            # Obtener administradores/responsables técnicos
-            responsables_admin = crud_responsable.get_responsables_por_rol(db, "administrador")
+            # Obtener administradores/usuarios técnicos
+            responsables_admin = crud_usuario.get_usuarios_por_rol(db, "administrador")
 
             if not responsables_admin:
-                # Si no hay administradores, notificar a todos los responsables
-                responsables_admin = crud_responsable.get_responsables_activos(db)
+                # Si no hay administradores, notificar a todos los usuarios
+                responsables_admin = crud_usuario.get_usuarios_activos(db)
 
             # Preparar datos para la plantilla HTML
             datos_plantilla = {
@@ -485,25 +485,25 @@ Sistema Automático de Facturas
             logger.error(f"Error enviando notificación de error para factura {factura.id}: {str(e)}")
             return {'exito': False, 'error': str(e)}
 
-    def _obtener_responsables_factura(self, db: Session, factura: Factura) -> List[Responsable]:
+    def _obtener_responsables_factura(self, db: Session, factura: Factura) -> List[Usuario]:
         """
-        Obtiene los responsables que deben ser notificados para una factura.
+        Obtiene los usuarios que deben ser notificados para una factura.
 
-        Enterprise Pattern: Multi-Responsable por NIT
-        - Los responsables se asignan por NIT, no por proveedor
-        - Un NIT puede tener múltiples responsables
+        Enterprise Pattern: Multi-Usuario por NIT
+        - Los usuarios se asignan por NIT, no por proveedor
+        - Un NIT puede tener múltiples usuarios
         - Se consulta la tabla asignacion_nit_responsable
         """
         from app.models.workflow_aprobacion import AsignacionNitResponsable
 
-        responsables = []
+        usuarios = []
 
         # Obtener NIT de la factura
         nit = None
         if factura.proveedor:
             nit = factura.proveedor.nit
 
-        # Buscar responsables asignados a este NIT
+        # Buscar usuarios asignados a este NIT
         if nit:
             asignaciones = db.query(AsignacionNitResponsable).filter(
                 AsignacionNitResponsable.nit == nit,
@@ -512,13 +512,13 @@ Sistema Automático de Facturas
 
             for asignacion in asignaciones:
                 if asignacion.responsable and asignacion.responsable.activo:
-                    responsables.append(asignacion.responsable)
+                    usuarios.append(asignacion.responsable)
 
-        # Si no hay responsables específicos, usar responsables generales
-        if not responsables:
-            responsables = crud_responsable.get_responsables_activos(db)
+        # Si no hay usuarios específicos, usar usuarios generales
+        if not usuarios:
+            usuarios = crud_usuario.get_usuarios_activos(db)
 
-        return responsables
+        return usuarios
 
     def _preparar_datos_factura(self, factura: Factura, datos_extra: Dict[str, Any] = None) -> Dict[str, Any]:
         """Prepara los datos básicos de la factura para las plantillas."""
@@ -538,12 +538,12 @@ Sistema Automático de Facturas
     def _enviar_notificacion_individual(
         self,
         tipo_notificacion: str,
-        responsable: Responsable,
+        responsable: Usuario,
         datos_plantilla: Dict[str, Any],
         config: ConfiguracionNotificacion
     ) -> Dict[str, Any]:
         """
-        Envía una notificación individual a un responsable.
+        Envía una notificación individual a un usuario.
 
         Usa EmailService + EmailTemplateService para enviar emails HTML profesionales.
         """
@@ -651,14 +651,14 @@ Sistema Automático de Facturas
         db: Session,
         factura: Factura,
         tipo_notificacion: str,
-        responsables: List[Responsable],
+        usuarios: List[Usuario],
         contexto_adicional: str = None
     ) -> None:
         """Registra el envío de notificación en auditoría."""
         detalles = {
             'tipo_notificacion': tipo_notificacion,
-            'responsables_notificados': [r.id for r in responsables],
-            'cantidad_responsables': len(responsables),
+            'responsables_notificados': [r.id for r in usuarios],
+            'cantidad_responsables': len(usuarios),
             'timestamp': datetime.utcnow().isoformat()
         }
         

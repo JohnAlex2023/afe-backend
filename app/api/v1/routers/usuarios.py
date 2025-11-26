@@ -1,8 +1,8 @@
-#app/api/v1/routers/responsables.py
+#app/api/v1/routers/usuarios.py
 """
-Router para gestión de Responsables.
+Router para gestión de Usuarios.
 
- IMPORTANTE: Algunos endpoints relacionados con responsable-proveedor
+ IMPORTANTE: Algunos endpoints relacionados con usuario-proveedor
 fueron movidos a /api/v1/asignacion-nit/*
 
   NUEVOS ENDPOINTS: Ver /api/v1/asignacion-nit/
@@ -12,133 +12,133 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.responsable import ResponsableCreate, ResponsableRead, ResponsableUpdate
+from app.schemas.usuario import UsuarioCreate, UsuarioRead, UsuarioUpdate
 from app.schemas.common import ErrorResponse
-from app.crud.responsable import (
-    get_responsable_by_usuario,
-    create_responsable,
-    update_responsable,
-    delete_responsable
+from app.crud.usuario import (
+    get_usuario_by_usuario,
+    create_usuario,
+    update_usuario,
+    delete_usuario
 )
-from app.core.security import get_current_responsable, require_role
+from app.core.security import get_current_usuario, require_role
 from app.utils.logger import logger
 
-router = APIRouter(tags=["Responsables"])
+router = APIRouter(tags=["Usuarios"])
 
 
-# ==================== ENDPOINTS DE RESPONSABLES ====================
+# ==================== ENDPOINTS DE USUARIOS ====================
 
 @router.post(
     "/",
-    response_model=ResponsableRead,
+    response_model=UsuarioRead,
     status_code=status.HTTP_201_CREATED,
     responses={400: {"model": ErrorResponse}},
-    summary="Crear responsable",
-    description="Crea un nuevo usuario responsable en el sistema."
+    summary="Crear usuario",
+    description="Crea un nuevo usuario en el sistema."
 )
-def create_responsable_endpoint(
-    payload: ResponsableCreate,
+def create_usuario_endpoint(
+    payload: UsuarioCreate,
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin")),
 ):
-    """Crea un nuevo responsable"""
-    if get_responsable_by_usuario(db, payload.usuario):
+    """Crea un nuevo usuario"""
+    if get_usuario_by_usuario(db, payload.usuario):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Usuario ya existe"
         )
 
-    r = create_responsable(db, payload)
-    logger.info("Responsable creado", extra={"id": r.id, "usuario": r.usuario})
-    return r
+    u = create_usuario(db, payload)
+    logger.info("Usuario creado", extra={"id": u.id, "usuario": u.usuario})
+    return u
 
 
 @router.get(
     "/",
-    response_model=List[ResponsableRead],
-    summary="Listar responsables",
-    description="Obtiene todos los responsables registrados."
+    response_model=List[UsuarioRead],
+    summary="Listar usuarios",
+    description="Obtiene todos los usuarios registrados."
 )
-def list_responsables(
+def list_usuarios(
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin", "responsable", "viewer")),
 ):
-    """Lista todos los responsables"""
-    from app.models.responsable import Responsable
-    return db.query(Responsable).all()
+    """Lista todos los usuarios"""
+    from app.models.usuario import Usuario
+    return db.query(Usuario).all()
 
 
 @router.get(
-    "/{responsable_id}",
-    response_model=ResponsableRead,
-    summary="Obtener responsable por ID",
-    description="Obtiene un responsable específico por su ID."
+    "/{usuario_id}",
+    response_model=UsuarioRead,
+    summary="Obtener usuario por ID",
+    description="Obtiene un usuario específico por su ID."
 )
-def get_responsable(
-    responsable_id: int,
+def get_usuario(
+    usuario_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin", "responsable", "viewer")),
 ):
-    """Obtiene un responsable por ID"""
-    from app.models.responsable import Responsable
+    """Obtiene un usuario por ID"""
+    from app.models.usuario import Usuario
 
-    responsable = db.query(Responsable).filter(Responsable.id == responsable_id).first()
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
 
-    if not responsable:
+    if not usuario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Responsable con ID {responsable_id} no encontrado"
+            detail=f"Usuario con ID {usuario_id} no encontrado"
         )
 
-    return responsable
+    return usuario
 
 
 @router.put(
-    "/{responsable_id}",
-    response_model=ResponsableRead,
-    summary="Actualizar responsable",
-    description="Actualiza la información de un responsable."
+    "/{usuario_id}",
+    response_model=UsuarioRead,
+    summary="Actualizar usuario",
+    description="Actualiza la información de un usuario."
 )
-def update_responsable_endpoint(
-    responsable_id: int,
-    payload: ResponsableUpdate,
+def update_usuario_endpoint(
+    usuario_id: int,
+    payload: UsuarioUpdate,
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin")),
 ):
-    """Actualiza un responsable"""
-    responsable = update_responsable(db, responsable_id, payload)
+    """Actualiza un usuario"""
+    usuario = update_usuario(db, usuario_id, payload)
 
-    if not responsable:
+    if not usuario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Responsable con ID {responsable_id} no encontrado"
+            detail=f"Usuario con ID {usuario_id} no encontrado"
         )
 
-    logger.info(f"Responsable actualizado: {responsable_id}")
-    return responsable
+    logger.info(f"Usuario actualizado: {usuario_id}")
+    return usuario
 
 
 @router.delete(
-    "/{responsable_id}",
+    "/{usuario_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Eliminar responsable",
-    description="Elimina (desactiva) un responsable del sistema."
+    summary="Eliminar usuario",
+    description="Elimina (desactiva) un usuario del sistema."
 )
-def delete_responsable_endpoint(
-    responsable_id: int,
+def delete_usuario_endpoint(
+    usuario_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(require_role("admin")),
 ):
-    """Elimina (desactiva) un responsable"""
-    success = delete_responsable(db, responsable_id)
+    """Elimina (desactiva) un usuario"""
+    success = delete_usuario(db, usuario_id)
 
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Responsable con ID {responsable_id} no encontrado"
+            detail=f"Usuario con ID {usuario_id} no encontrado"
         )
 
-    logger.info(f"Responsable eliminado: {responsable_id}")
+    logger.info(f"Usuario eliminado: {usuario_id}")
     return None
 
 
@@ -146,16 +146,16 @@ def delete_responsable_endpoint(
 
 @router.get(
     "/me/diagnostico",
-    summary="Diagnóstico del responsable actual",
-    description="Retorna información de diagnóstico sobre el responsable autenticado y sus asignaciones"
+    summary="Diagnóstico del usuario actual",
+    description="Retorna información de diagnóstico sobre el usuario autenticado y sus asignaciones"
 )
-def diagnostico_responsable(
+def diagnostico_usuario(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_responsable),
+    current_user=Depends(get_current_usuario),
 ):
     """
     Retorna:
-    - ID y nombre del responsable actual
+    - ID y nombre del usuario actual
     - Total de asignaciones en AsignacionNitResponsable
     - Total de facturas donde responsable_id = current_user.id
     - IDs de proveedores según _obtener_proveedor_ids_de_responsable()
@@ -165,8 +165,8 @@ def diagnostico_responsable(
     from app.crud.factura import _obtener_proveedor_ids_de_responsable
     from sqlalchemy import func
 
-    # Info del responsable
-    responsable_info = {
+    # Info del usuario
+    usuario_info = {
         "id": current_user.id,
         "usuario": current_user.usuario,
         "nombre": current_user.nombre,
@@ -199,7 +199,7 @@ def diagnostico_responsable(
     ).scalar() if proveedor_ids else 0
 
     return {
-        "responsable": responsable_info,
+        "usuario": usuario_info,
         "asignaciones_explicitas": asignaciones_info,
         "facturas_donde_responsable_id_es_actual": total_facturas_directas,
         "proveedor_ids_obtenidos": proveedor_ids,
@@ -209,7 +209,7 @@ def diagnostico_responsable(
 
 
 # ==================== ENDPOINTS DE ASIGNACIONES ====================
-#  NOTA: Los endpoints de asignación responsable-proveedor fueron
+#  NOTA: Los endpoints de asignación usuario-proveedor fueron
 # movidos a /api/v1/asignacion-nit/*
 #
 # - GET /asignacion-nit/ - Listar asignaciones
@@ -217,6 +217,6 @@ def diagnostico_responsable(
 # - PUT /asignacion-nit/{id} - Actualizar asignación
 # - DELETE /asignacion-nit/{id} - Eliminar asignación
 # - POST /asignacion-nit/bulk - Asignación masiva
-# - GET /asignacion-nit/por-responsable/{responsable_id} - Asignaciones por responsable
+# - GET /asignacion-nit/por-responsable/{responsable_id} - Asignaciones por usuario
 #
 # ==================== FIN DEL ARCHIVO ====================

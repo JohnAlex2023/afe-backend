@@ -53,7 +53,7 @@ class LineaPresupuestal(BaseModel):
 
     id_linea: int = Field(..., description="ID único de la línea presupuestal")
     nombre_cuenta: str = Field(..., min_length=1, max_length=500, description="Nombre de la cuenta")
-    responsable: Optional[str] = Field(None, max_length=100, description="Responsable de la línea")
+    responsable: Optional[str] = Field(None, max_length=100, description="Usuario de la línea")
     area: Optional[str] = Field(None, max_length=100, description="Área responsable")
 
     # Datos mensuales

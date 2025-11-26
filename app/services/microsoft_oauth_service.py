@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.responsable import Responsable
+from app.models.usuario import Usuario
 
 
 class MicrosoftOAuthService:
@@ -179,7 +179,7 @@ class MicrosoftOAuthService:
         db: Session,
         user_info: Dict[str, Any],
         default_role_id: int = 2
-    ) -> Responsable:
+    ) -> Usuario:
         """
         Busca o crea un usuario en base a la información de Microsoft.
 
@@ -204,8 +204,8 @@ class MicrosoftOAuthService:
             )
 
         # Buscar usuario existente por oauth_id o email
-        usuario = db.query(Responsable).filter(
-            (Responsable.oauth_id == oauth_id) | (Responsable.email == email)
+        usuario = db.query(Usuario).filter(
+            (Usuario.oauth_id == oauth_id) | (Usuario.email == email)
         ).first()
 
         if usuario:
@@ -227,8 +227,8 @@ class MicrosoftOAuthService:
         username = email.split("@")[0]
 
         # Verificar si el username ya existe
-        existing_user = db.query(Responsable).filter(
-            Responsable.usuario == username
+        existing_user = db.query(Usuario).filter(
+            Usuario.usuario == username
         ).first()
 
         if existing_user:
@@ -236,12 +236,12 @@ class MicrosoftOAuthService:
             counter = 1
             while existing_user:
                 username = f"{email.split('@')[0]}{counter}"
-                existing_user = db.query(Responsable).filter(
-                    Responsable.usuario == username
+                existing_user = db.query(Usuario).filter(
+                    Usuario.usuario == username
                 ).first()
                 counter += 1
 
-        nuevo_usuario = Responsable(
+        nuevo_usuario = Usuario(
             usuario=username,
             nombre=user_info.get("name", "Usuario Microsoft"),
             email=email,

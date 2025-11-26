@@ -3,7 +3,7 @@ Servicio de Inicialización Enterprise del Sistema Completo.
 
 Este servicio orquesta la inicialización completa del sistema:
 1. Importación de presupuesto desde Excel
-2. Auto-configuración de asignaciones NIT-Responsable
+2. Auto-configuración de asignaciones NIT-Usuario
 3. Vinculación automática de facturas existentes con presupuesto
 4. Activación de workflow de aprobación
 5. Generación de reporte ejecutivo
@@ -71,7 +71,7 @@ class InicializacionSistemaService:
 
         Args:
             año_fiscal: Año fiscal a procesar
-            responsable_default_id: ID del responsable por defecto
+            responsable_default_id: ID del usuario por defecto
             ejecutar_vinculacion: Si debe vincular facturas con presupuesto
             ejecutar_workflow: Si debe activar workflow de aprobación
             dry_run: Si True, solo simula sin hacer cambios
@@ -97,8 +97,8 @@ class InicializacionSistemaService:
                 return self._generar_reporte_error(validacion["errores"])
             self._log_paso_completado("Validación de pre-requisitos")
 
-            # PASO 3: Auto-configurar asignaciones NIT-Responsable
-            logger.info("\n PASO 3: Auto-configurando asignaciones NIT-Responsable...")
+            # PASO 3: Auto-configurar asignaciones NIT-Usuario
+            logger.info("\n PASO 3: Auto-configurando asignaciones NIT-Usuario...")
             resultado_asignaciones = self._autoconfigurar_asignaciones(
                 responsable_default_id,
                 dry_run
@@ -184,7 +184,7 @@ class InicializacionSistemaService:
         logger.info(f"    Facturas totales: {estado['total_facturas']}")
         logger.info(f"    Líneas de presupuesto: {estado['lineas_presupuesto']}")
         logger.info(f"    Ejecuciones presupuestales: {estado['ejecuciones_presupuestales']}")
-        logger.info(f"    Asignaciones NIT-Responsable: {estado['asignaciones_nit']}")
+        logger.info(f"    Asignaciones NIT-Usuario: {estado['asignaciones_nit']}")
         logger.info(f"    Workflows creados: {estado['workflows_creados']}")
 
         return estado
@@ -196,11 +196,11 @@ class InicializacionSistemaService:
         """Valida que se cumplan los pre-requisitos."""
         errores = []
 
-        # Validar que exista al menos un responsable
-        from app.models.responsable import Responsable
-        responsable = self.db.query(Responsable).filter(Responsable.id == responsable_id).first()
+        # Validar que exista al menos un usuario
+        from app.models.usuario import Usuario
+        responsable = self.db.query(Usuario).filter(Usuario.id == responsable_id).first()
         if not responsable:
-            errores.append(f"Responsable con ID {responsable_id} no existe")
+            errores.append(f"Usuario con ID {responsable_id} no existe")
 
         if errores:
             logger.error("    Pre-requisitos no cumplidos:")
@@ -216,7 +216,7 @@ class InicializacionSistemaService:
         responsable_default_id: int,
         dry_run: bool
     ) -> Dict[str, Any]:
-        """Auto-configura asignaciones NIT-Responsable basándose en proveedores existentes."""
+        """Auto-configura asignaciones NIT-Usuario basándose en proveedores existentes."""
         from app.models.proveedor import Proveedor
 
         # Obtener todos los proveedores únicos desde la tabla Proveedores

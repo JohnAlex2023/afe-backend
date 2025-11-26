@@ -6,7 +6,7 @@ NIVEL EMPRESARIAL: Garantiza que la sincronización funcione correctamente
 import pytest
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
-from app.models import Factura, AsignacionNitResponsable, Proveedor, Responsable
+from app.models import Factura, AsignacionNitResponsable, Proveedor, Usuario
 
 
 class TestAsignacionSincronizacion:
@@ -25,7 +25,7 @@ class TestAsignacionSincronizacion:
 
         Escenario:
         1. Hay facturas sin responsable para un NIT
-        2. Se crea asignación NIT → Responsable
+        2. Se crea asignación NIT → Usuario
         3. Las facturas deben asignarse automáticamente al responsable
         """
         # Arrange: Buscar un NIT con facturas sin responsable

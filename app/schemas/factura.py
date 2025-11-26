@@ -56,7 +56,7 @@ class ProveedorSimple(BaseModel):
         from_attributes = True
 
 
-# Schema simple para Responsable anidado
+# Schema simple para Usuario anidado
 class ResponsableSimple(BaseModel):
     id: int
     nombre: str
@@ -143,7 +143,7 @@ class FacturaRead(FacturaBase):
         if not self.monto_total:
             self.monto_total = self.total_a_pagar
 
-        # Poblar nombre del responsable
+        # Poblar nombre del usuario
         if self.responsable:
             self.nombre_responsable = self.responsable.nombre
 

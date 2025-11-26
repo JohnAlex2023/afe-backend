@@ -23,7 +23,7 @@ class EstadoFactura(enum.Enum):
 
 class EstadoAsignacion(enum.Enum):
     """
-    PHASE 3: Estados de asignación de responsables (enterprise tracking).
+    PHASE 3: Estados de asignación de usuarios (enterprise tracking).
 
     Estados posibles:
     - sin_asignar: Factura sin responsable (responsable_id = NULL)
@@ -48,7 +48,7 @@ class Factura(Base):
     fecha_vencimiento = Column(Date, nullable=True)
     cufe = Column(String(100), unique=True, nullable=False)
     total_a_pagar = Column(Numeric(15, 2, asdecimal=True))
-    responsable_id = Column(BigInteger, ForeignKey("responsables.id"), nullable=True)
+    responsable_id = Column(BigInteger, ForeignKey("usuarios.id"), nullable=True)
 
     # ACCION_POR: Single source of truth for "who changed the status"
     # Automatically synchronized from workflow_aprobacion_facturas.aprobada_por/rechazada_por
@@ -110,7 +110,7 @@ class Factura(Base):
                          comment="Tipo: COMPRA, VENTA, NOTA_CREDITO, NOTA_DEBITO")
 
     proveedor = relationship("Proveedor", back_populates="facturas", lazy="joined")
-    responsable = relationship("Responsable", back_populates="facturas", lazy="joined")
+    usuario = relationship("Usuario", back_populates="facturas", lazy="joined")
 
     # Relationship para factura de referencia (para automatización)
     factura_referencia = relationship("Factura", remote_side=[id], backref="facturas_relacionadas")

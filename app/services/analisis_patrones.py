@@ -15,7 +15,7 @@ import statistics
 import hashlib
 
 from app.models.factura import Factura
-from app.models.historial_pagos import HistorialPagos, TipoPatron
+from app.models.patrones_facturas import PatronesFacturas, TipoPatron
 from app.models.proveedor import Proveedor
 
 
@@ -169,9 +169,9 @@ class AnalizadorPatrones:
         proveedor_id: int,
         concepto_normalizado: str,
         guardar: bool = True
-    ) -> Optional[HistorialPagos]:
+    ) -> Optional[PatronesFacturas]:
         """
-        Analiza el historial de pagos para un proveedor y concepto específico.
+        Analiza el historial de facturas para un proveedor y concepto específico.
 
         Args:
             proveedor_id: ID del proveedor
@@ -179,7 +179,7 @@ class AnalizadorPatrones:
             guardar: Si True, guarda o actualiza el registro en BD
 
         Returns:
-            HistorialPagos con el análisis completo
+            PatronesFacturas con el análisis completo
         """
         concepto_hash = self.calcular_hash_concepto(concepto_normalizado)
 
@@ -195,7 +195,7 @@ class AnalizadorPatrones:
             if not guardar:
                 return None
 
-            historial = HistorialPagos(
+            historial = PatronesFacturas(
                 proveedor_id=proveedor_id,
                 concepto_normalizado=concepto_normalizado,
                 concepto_hash=concepto_hash,
@@ -250,10 +250,10 @@ class AnalizadorPatrones:
         ultimo = facturas[0] if facturas else None
 
         # Buscar si ya existe un análisis previo
-        historial_existente = self.db.query(HistorialPagos).filter(
+        historial_existente = self.db.query(PatronesFacturas).filter(
             and_(
-                HistorialPagos.proveedor_id == proveedor_id,
-                HistorialPagos.concepto_hash == concepto_hash
+                PatronesFacturas.proveedor_id == proveedor_id,
+                PatronesFacturas.concepto_hash == concepto_hash
             )
         ).first()
 
@@ -277,7 +277,7 @@ class AnalizadorPatrones:
             historial = historial_existente
         else:
             # Crear nuevo
-            historial = HistorialPagos(
+            historial = PatronesFacturas(
                 proveedor_id=proveedor_id,
                 concepto_normalizado=concepto_normalizado,
                 concepto_hash=concepto_hash,
@@ -307,7 +307,7 @@ class AnalizadorPatrones:
     def evaluar_factura_nueva(
         self,
         factura: Factura
-    ) -> Tuple[Optional[HistorialPagos], Dict]:
+    ) -> Tuple[Optional[PatronesFacturas], Dict]:
         """
         Evalúa una factura nueva comparándola con el historial.
 
@@ -315,7 +315,7 @@ class AnalizadorPatrones:
             factura: Factura a evaluar
 
         Returns:
-            Tuple (HistorialPagos, Dict con recomendación)
+            Tuple (PatronesFacturas, Dict con recomendación)
         """
         if not factura.concepto_normalizado or not factura.proveedor_id:
             return None, {

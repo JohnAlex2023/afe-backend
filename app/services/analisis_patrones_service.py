@@ -6,7 +6,7 @@ Este servicio enterprise:
 2. Agrupa por proveedor + concepto normalizado
 3. Calcula estadísticas actualizadas (promedio, desviación, CV)
 4. Clasifica en TIPO_A, TIPO_B, TIPO_C
-5. Actualiza/inserta en historial_pagos
+5. Actualiza/inserta en patrones_facturas
 6. Se ejecuta periódicamente (diario/semanal) o bajo demanda
 
 Este es el componente de PRODUCCIÓN que reemplaza al bootstrap inicial del Excel.
@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 
 from app.models.factura import Factura, EstadoFactura
-from app.models.historial_pagos import HistorialPagos, TipoPatron
+from app.models.patrones_facturas import PatronesFacturas, TipoPatron
 from app.models.proveedor import Proveedor
 
 
@@ -82,7 +82,7 @@ class AnalizadorPatronesService:
         forzar_recalculo: bool = False
     ) -> Dict[str, Any]:
         """
-        Analiza facturas de la BD y actualiza patrones en historial_pagos.
+        Analiza facturas de la BD y actualiza patrones en patrones_facturas.
 
         Args:
             ventana_meses: Cantidad de meses hacia atrás a analizar (default: 12)
@@ -125,7 +125,11 @@ class AnalizadorPatronesService:
 
             # 4. Persistir o actualizar patrones
             self._persistir_patrones(patrones_calculados, forzar_recalculo)
-            logger.info(f"     Patrones persistidos: {self.stats['patrones_nuevos']} nuevos, {self.stats['patrones_actualizados']} actualizados")
+            logger.info(
+                "Patrones persistidos: %d nuevos, %d actualizados",
+                self.stats['patrones_nuevos'],
+                self.stats['patrones_actualizados']
+            )
 
             # 5. Analizar cambios en patrones existentes
             cambios_detectados = self._detectar_cambios_patrones(patrones_calculados)
@@ -400,14 +404,14 @@ class AnalizadorPatronesService:
         forzar_recalculo: bool
     ) -> None:
         """
-        Persiste o actualiza patrones en historial_pagos.
+        Persiste o actualiza patrones en patrones_facturas.
         """
         for patron in patrones:
             try:
                 # Buscar patrón existente
-                patron_existente = self.db.query(HistorialPagos).filter(
-                    HistorialPagos.proveedor_id == patron['proveedor_id'],
-                    HistorialPagos.concepto_hash == patron['concepto_hash']
+                patron_existente = self.db.query(PatronesFacturas).filter(
+                    PatronesFacturas.proveedor_id == patron['proveedor_id'],
+                    PatronesFacturas.concepto_hash == patron['concepto_hash']
                 ).first()
 
                 if patron_existente:
@@ -445,7 +449,7 @@ class AnalizadorPatronesService:
 
     def _hay_cambios_significativos(
         self,
-        patron_existente: HistorialPagos,
+        patron_existente: PatronesFacturas,
         patron_nuevo: Dict[str, Any]
     ) -> bool:
         """
@@ -481,8 +485,8 @@ class AnalizadorPatronesService:
         return jerarquia[tipo_nuevo] > jerarquia[tipo_anterior]
 
     def _crear_patron(self, patron: Dict[str, Any]) -> None:
-        """Crea un nuevo registro en historial_pagos."""
-        nuevo_patron = HistorialPagos(
+        """Crea un nuevo registro en patrones_facturas."""
+        nuevo_patron = PatronesFacturas(
             proveedor_id=patron['proveedor_id'],
             concepto_normalizado=patron['concepto_normalizado'],
             concepto_hash=patron['concepto_hash'],
@@ -507,7 +511,7 @@ class AnalizadorPatronesService:
 
         self.db.add(nuevo_patron)
 
-    def _actualizar_patron(self, patron_existente: HistorialPagos, patron_nuevo: Dict[str, Any]) -> None:
+    def _actualizar_patron(self, patron_existente: PatronesFacturas, patron_nuevo: Dict[str, Any]) -> None:
         """Actualiza un patrón existente con nuevos datos."""
         patron_existente.tipo_patron = patron_nuevo['tipo_patron']
         patron_existente.pagos_analizados = patron_nuevo['pagos_analizados']
@@ -571,7 +575,7 @@ class AnalizadorPatronesService:
 
     def obtener_estadisticas_patrones(self, proveedor_id: Optional[int] = None) -> Dict[str, Any]:
         """
-        Obtiene estadísticas globales de patrones en historial_pagos.
+        Obtiene estadísticas globales de patrones en patrones_facturas.
 
         Args:
             proveedor_id: Si se especifica, filtra por proveedor
@@ -579,10 +583,10 @@ class AnalizadorPatronesService:
         Returns:
             Estadísticas de los patrones almacenados
         """
-        query = self.db.query(HistorialPagos)
+        query = self.db.query(PatronesFacturas)
 
         if proveedor_id:
-            query = query.filter(HistorialPagos.proveedor_id == proveedor_id)
+            query = query.filter(PatronesFacturas.proveedor_id == proveedor_id)
 
         patrones = query.all()
 

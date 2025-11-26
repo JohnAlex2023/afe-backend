@@ -19,7 +19,7 @@ from sqlalchemy import and_, func
 
 from app.core.config import settings
 from app.models.factura import Factura, EstadoFactura
-from app.models.responsable import Responsable
+from app.models.usuario import Usuario
 from app.services.email_notifications import (
     enviar_notificacion_factura_pendiente
 )
@@ -64,7 +64,7 @@ class NotificacionesProgramadasService:
         if not factura:
             return {'success': False, 'error': 'Factura no encontrada'}
 
-        # Buscar email del responsable
+        # Buscar email del usuario
         email_responsable = None
         nombre_responsable = None
 
@@ -74,7 +74,7 @@ class NotificacionesProgramadasService:
 
         if not email_responsable:
             logger.warning(f"No se puede notificar nueva factura {factura.numero_factura} - sin email")
-            return {'success': False, 'error': 'Responsable sin email'}
+            return {'success': False, 'error': 'Usuario sin email'}
 
         # Calcular días desde recepción
         dias_desde_recepcion = 0
@@ -122,24 +122,24 @@ class NotificacionesProgramadasService:
         """
         logger.info("Iniciando envio de resumen semanal de facturas pendientes...")
 
-        # Obtener todos los responsables con email
-        responsables = self.db.query(Responsable).filter(
-            Responsable.email.isnot(None),
-            Responsable.email != '',
-            Responsable.activo == True
+        # Obtener todos los usuarios con email
+        usuarios = self.db.query(Usuario).filter(
+            Usuario.email.isnot(None),
+            Usuario.email != '',
+            Usuario.activo == True
         ).all()
 
         resultados = {
-            'total_responsables': len(responsables),
+            'total_responsables': len(usuarios),
             'emails_enviados': 0,
             'emails_fallidos': 0,
             'responsables_sin_facturas': 0,
             'errores': []
         }
 
-        for responsable in responsables:
+        for responsable in usuarios:
             try:
-                # Obtener facturas pendientes del responsable
+                # Obtener facturas pendientes del usuario
                 facturas_pendientes = self.db.query(Factura).filter(
                     and_(
                         Factura.responsable_id == responsable.id,
@@ -247,7 +247,7 @@ class NotificacionesProgramadasService:
         resultados = {'total': len(facturas_criticas), 'enviados': 0, 'fallidos': 0}
 
         for resp_id, facturas in por_responsable.items():
-            responsable = self.db.query(Responsable).filter(Responsable.id == resp_id).first()
+            responsable = self.db.query(Usuario).filter(Usuario.id == resp_id).first()
 
             if not responsable or not responsable.email:
                 continue
@@ -279,7 +279,7 @@ class NotificacionesProgramadasService:
 
     def _enviar_email_resumen_semanal(
         self,
-        responsable: Responsable,
+        responsable: Usuario,
         urgentes: List,
         pendientes: List,
         recientes: List
@@ -340,7 +340,7 @@ class NotificacionesProgramadasService:
 
     def _enviar_email_alerta_urgente(
         self,
-        responsable: Responsable,
+        responsable: Usuario,
         facturas: List
     ) -> Dict[str, Any]:
         """Envía email de alerta urgente."""

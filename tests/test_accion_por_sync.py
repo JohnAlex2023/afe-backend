@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 
 from app.models.factura import Factura, EstadoFactura
 from app.models.proveedor import Proveedor
-from app.models.responsable import Responsable
+from app.models.usuario import Usuario
 from app.models.workflow_aprobacion import (
     WorkflowAprobacionFactura,
     EstadoFacturaWorkflow,
@@ -41,13 +41,13 @@ def test_data(db: Session):
     db.flush()
 
     # Crear responsables
-    responsable1 = Responsable(
+    responsable1 = Usuario(
         nombre="Juan Perez",
         usuario="juan.perez",
         email="juan@empresa.com",
         area="TI",
     )
-    responsable2 = Responsable(
+    responsable2 = Usuario(
         nombre="Maria Garcia",
         usuario="maria.garcia",
         email="maria@empresa.com",
@@ -310,7 +310,7 @@ class TestAccionPorSync:
         # Verificar estado inicial
         assert (
             factura.responsable_id == responsable_asignado.id
-        ), "Responsable inicial no es Juan"
+        ), "Usuario inicial no es Juan"
 
         # Maria aprueba (aunque estaba asignada a Juan)
         servicio = WorkflowAutomaticoService(db)
@@ -322,7 +322,7 @@ class TestAccionPorSync:
         # Actualizar referencias
         db.refresh(factura)
 
-        # VALIDAR: Responsable != ACCION_POR
+        # VALIDAR: Usuario != ACCION_POR
         assert (
             factura.responsable_id == responsable_asignado.id
         ), "responsable_id no debería cambiar"

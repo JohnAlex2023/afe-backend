@@ -365,7 +365,7 @@ def aprobar_ejecucion_nivel1(
     aprobador: str,
     observaciones: Optional[str] = None
 ) -> Optional[EjecucionPresupuestal]:
-    """Aprueba una ejecución presupuestal en nivel 1 (Responsable de Línea)."""
+    """Aprueba una ejecución presupuestal en nivel 1 (Usuario de Línea)."""
     ejecucion = get_ejecucion_presupuestal(db, ejecucion_id)
     if not ejecucion:
         return None

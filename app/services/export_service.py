@@ -45,7 +45,7 @@ def export_facturas_to_csv(
 
     # Aplicar filtros
     if responsable_id:
-        # Obtener NITs asignados al responsable
+        # Obtener NITs asignados al usuario
         nits_asignados = db.query(AsignacionNitResponsable.nit).filter(
             and_(
                 AsignacionNitResponsable.responsable_id == responsable_id,
@@ -149,7 +149,7 @@ def get_export_metadata(
     query = db.query(Factura).join(Proveedor)
 
     if responsable_id:
-        # Obtener NITs asignados al responsable
+        # Obtener NITs asignados al usuario
         nits_asignados = db.query(AsignacionNitResponsable.nit).filter(
             and_(
                 AsignacionNitResponsable.responsable_id == responsable_id,

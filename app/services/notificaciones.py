@@ -127,14 +127,14 @@ class NotificacionService:
         # Según el tipo de notificación, agregar destinatarios
         # ⚠️ CRÍTICO: Usar valores EXACTOS del enum (minúsculas)
         if notif.tipo.value in ['factura_recibida', 'pendiente_revision', 'recordatorio']:
-            # Enviar al responsable asignado
+            # Enviar al usuario asignado
             if workflow.responsable and hasattr(workflow.responsable, 'email') and workflow.responsable.email:
                 destinatarios.append(workflow.responsable.email)
                 logger.debug(f"Agregado responsable: {workflow.responsable.email}")
 
         # Notificaciones de aprobación/rechazo: ir a responsable + contabilidad
         if notif.tipo.value in ['factura_aprobada', 'factura_rechazada']:
-            # 1. Enviar al responsable que actuó
+            # 1. Enviar al usuario que actuó
             if workflow.responsable and hasattr(workflow.responsable, 'email') and workflow.responsable.email:
                 destinatarios.append(workflow.responsable.email)
                 logger.debug(f"Agregado responsable para {notif.tipo.value}: {workflow.responsable.email}")

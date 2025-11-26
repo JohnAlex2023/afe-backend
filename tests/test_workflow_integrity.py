@@ -16,7 +16,7 @@ from datetime import datetime
 from app.db.session import engine
 from app.models.factura import Factura, EstadoFactura
 from app.models.workflow_aprobacion import WorkflowAprobacionFactura, EstadoFacturaWorkflow
-from app.models.responsable import Responsable
+from app.models.usuario import Usuario
 from app.models.proveedor import Proveedor
 from app.crud.factura import list_facturas
 from app.schemas.factura import FacturaRead
@@ -131,7 +131,7 @@ class TestWorkflowIntegrity:
         ).all()
 
         # Obtener lista de TODOS los valores posibles (nombres + usuarios)
-        responsables = db.query(Responsable).all()
+        responsables = db.query(Usuario).all()
         valores_validos = {"SISTEMA_AUTO"}  # Sistema automático siempre válido
         for r in responsables:
             if r.nombre:

@@ -1,7 +1,7 @@
 # app/db/init_db.py
 from sqlalchemy.orm import Session
 from app.models.role import Role
-from app.models.responsable import Responsable
+from app.models.usuario import Usuario
 from app.core.security import hash_password
 from app.utils.logger import logger
 
@@ -16,13 +16,13 @@ def create_default_roles_and_admin(db: Session):
     db.commit()
 
     # === Crear usuario admin si no existe ===
-    admin = db.query(Responsable).filter(Responsable.usuario == "alex.taimal").first()
+    admin = db.query(Usuario).filter(Usuario.usuario == "admin").first()
     if not admin:
         # buscar el rol admin
         admin_role = db.query(Role).filter(Role.nombre == "admin").first()
 
-        admin = Responsable(
-            usuario="",
+        admin = Usuario(
+            usuario="admin",
             nombre="John Alex",
             email="jhontaimal@gmail.com",
             hashed_password=hash_password("87654321"),

@@ -2,7 +2,7 @@
 """
 Servicio de Procesamiento de Facturas - Enterprise Edition
 
-Responsable de:
+Usuario de:
 1. Validación de facturas
 2. Deduplicación (CUFE, número+proveedor)
 3. Auto-creación de proveedores (NUEVO)
