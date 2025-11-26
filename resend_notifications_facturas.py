@@ -43,9 +43,9 @@ def main():
         for factura in facturas:
             print(f"\nProcesando: {factura.numero_factura} (ID: {factura.id})")
             print(f"  Estado: {factura.estado_asignacion}")
-            print(f"  Responsable: {factura.responsable.nombre if factura.responsable else 'NO ASIGNADO'}")
+            print(f"  Responsable: {factura.usuario.nombre if factura.usuario else 'NO ASIGNADO'}")
 
-            if not factura.responsable:
+            if not factura.usuario:
                 print(f"  [SKIP] Sin responsable asignado")
                 continue
 

@@ -251,7 +251,7 @@ def list_facturas(
 
     query = db.query(Factura).options(
         joinedload(Factura.proveedor),
-        joinedload(Factura.responsable),
+        joinedload(Factura.usuario),
         selectinload(Factura.workflow_history)
     )
 
@@ -314,7 +314,7 @@ def list_facturas_cursor(
     # Cargar relaciones con joinedload/selectinload para poblar campos calculados en el schema
     query = db.query(Factura).options(
         joinedload(Factura.proveedor),
-        joinedload(Factura.responsable),
+        joinedload(Factura.usuario),
         selectinload(Factura.workflow_history)  # Compatible con viewonly=True
     )
 
@@ -411,7 +411,7 @@ def list_all_facturas_for_dashboard(
 
     query = db.query(Factura).options(
         joinedload(Factura.proveedor),
-        joinedload(Factura.responsable),
+        joinedload(Factura.usuario),
         selectinload(Factura.workflow_history)
     )
 

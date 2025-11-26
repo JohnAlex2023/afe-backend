@@ -68,9 +68,9 @@ class NotificacionesProgramadasService:
         email_responsable = None
         nombre_responsable = None
 
-        if factura.responsable and factura.responsable.email:
-            email_responsable = factura.responsable.email
-            nombre_responsable = factura.responsable.nombre or factura.responsable.usuario
+        if factura.usuario and factura.usuario.email:
+            email_responsable = factura.usuario.email
+            nombre_responsable = factura.usuario.nombre or factura.usuario.usuario
 
         if not email_responsable:
             logger.warning(f"No se puede notificar nueva factura {factura.numero_factura} - sin email")

@@ -718,7 +718,7 @@ def obtener_mis_facturas_pendientes(
     workflows = db.query(WorkflowAprobacionFactura).join(
         Factura, WorkflowAprobacionFactura.factura_id == Factura.id
     ).options(
-        joinedload(WorkflowAprobacionFactura.factura).joinedload(Factura.responsable)
+        joinedload(WorkflowAprobacionFactura.factura).joinedload(Factura.usuario)
     ).filter(
         WorkflowAprobacionFactura.responsable_id == responsable_id,
         WorkflowAprobacionFactura.estado.in_([
@@ -735,8 +735,8 @@ def obtener_mis_facturas_pendientes(
 
         # 🔥 Obtener nombre del usuario asignado
         nombre_responsable = None
-        if factura.responsable:
-            nombre_responsable = factura.responsable.nombre
+        if factura.usuario:
+            nombre_responsable = factura.usuario.nombre
 
         resultado.append({
             "workflow_id": wf.id,

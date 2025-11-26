@@ -548,8 +548,8 @@ class FlujoAutomatizacionFacturas:
             if factura and factura.responsable_id:
                 if factura.responsable_id not in facturas_por_responsable:
                     facturas_por_responsable[factura.responsable_id] = {
-                        'email': factura.responsable.email if factura.responsable else None,
-                        'nombre': factura.responsable.nombre if factura.responsable else None,
+                        'email': factura.usuario.email if factura.usuario else None,
+                        'nombre': factura.usuario.nombre if factura.usuario else None,
                         'aprobadas': [],
                         'revision': []
                     }
@@ -561,8 +561,8 @@ class FlujoAutomatizacionFacturas:
             if factura and factura.responsable_id:
                 if factura.responsable_id not in facturas_por_responsable:
                     facturas_por_responsable[factura.responsable_id] = {
-                        'email': factura.responsable.email if factura.responsable else None,
-                        'nombre': factura.responsable.nombre if factura.responsable else None,
+                        'email': factura.usuario.email if factura.usuario else None,
+                        'nombre': factura.usuario.nombre if factura.usuario else None,
                         'aprobadas': [],
                         'revision': []
                     }
