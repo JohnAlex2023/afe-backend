@@ -63,6 +63,13 @@ def update_usuario(db: Session, u_id: int, data: UsuarioUpdate) -> Optional[Usua
         return None
 
     update_data = data.dict(exclude_unset=True)
+
+    # Validar que el nuevo nombre de usuario no esté duplicado
+    if "usuario" in update_data and update_data["usuario"] != usuario.usuario:
+        existing = get_usuario_by_usuario(db, update_data["usuario"])
+        if existing:
+            raise ValueError(f"El usuario '{update_data['usuario']}' ya existe en el sistema")
+
     if "password" in update_data and update_data["password"]:
         usuario.hashed_password = hash_password(update_data.pop("password"))
 
