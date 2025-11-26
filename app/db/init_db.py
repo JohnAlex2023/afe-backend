@@ -18,21 +18,26 @@ def create_default_roles_and_admin(db: Session):
     # === Crear usuario admin si no existe ===
     admin = db.query(Usuario).filter(Usuario.usuario == "admin").first()
     if not admin:
-        # buscar el rol admin
-        admin_role = db.query(Role).filter(Role.nombre == "admin").first()
+        # Verificar si el email ya existe
+        email_exists = db.query(Usuario).filter(Usuario.email == "jhontaimal@gmail.com").first()
+        if email_exists:
+            logger.info("Email jhontaimal@gmail.com ya está asociado a otro usuario, saltando creación de admin")
+        else:
+            # buscar el rol admin
+            admin_role = db.query(Role).filter(Role.nombre == "admin").first()
 
-        admin = Usuario(
-            usuario="admin",
-            nombre="John Alex",
-            email="jhontaimal@gmail.com",
-            hashed_password=hash_password("87654321"),
-            activo=True,
-            role_id=admin_role.id if admin_role else None,
-            must_change_password=True  # <-- mejora para seguridad
-        )
-        db.add(admin)
-        db.commit()
-        db.refresh(admin)
-        logger.info("Admin creado: %s", admin.usuario)
+            admin = Usuario(
+                usuario="admin",
+                nombre="John Alex",
+                email="jhontaimal@gmail.com",
+                hashed_password=hash_password("87654321"),
+                activo=True,
+                role_id=admin_role.id if admin_role else None,
+                must_change_password=True  # <-- mejora para seguridad
+            )
+            db.add(admin)
+            db.commit()
+            db.refresh(admin)
+            logger.info("Admin creado: %s", admin.usuario)
     else:
         logger.info("Admin ya existe: %s", admin.usuario)
