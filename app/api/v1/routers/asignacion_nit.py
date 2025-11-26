@@ -18,6 +18,7 @@ from app.models.workflow_aprobacion import AsignacionNitResponsable
 from app.models.usuario import Usuario
 from app.models.proveedor import Proveedor
 from app.models.factura import Factura
+from app.models.email_config import NitConfiguracion
 from app.services.audit_service import AuditService
 from pydantic import BaseModel
 
@@ -890,3 +891,172 @@ def obtener_asignaciones_por_responsable(
         asignaciones=asignaciones_response,
         total=len(asignaciones_response)
     )
+
+
+# ==================== NUEVO ENDPOINT: Asignación desde nit_configuracion ====================
+
+@router.post("/bulk-nit-config", status_code=status.HTTP_201_CREATED)
+def crear_asignaciones_desde_nit_config(
+    payload: AsignacionBulkSimple,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin"))
+):
+    """
+    Asigna NITs directamente desde la tabla nit_configuracion sin requerir que existan en proveedores.
+
+    **ENTRADA:**
+    ```json
+    {
+        "responsable_id": 6,
+        "nits": "017343874-4,047425554-4,080818383-9",
+        "permitir_aprobacion_automatica": true
+    }
+    ```
+
+    **PROCESAMIENTO:**
+    1. Parsea el texto de NITs (soporta comas, saltos de línea, espacios)
+    2. Normaliza los NITs usando NitValidator
+    3. Valida que existan en nit_configuracion (no en proveedores)
+    4. Crea asignaciones sin requerir que haya facturas
+
+    **DIFERENCIA CON /bulk-simple:**
+    - /bulk-simple: Requiere que NITs existan en tabla PROVEEDORES (con facturas)
+    - /bulk-nit-config: Asigna desde tabla NIT_CONFIGURACION (sin facturas requeridas)
+
+    **RETORNA:**
+    - success: True si completó exitosamente
+    - total_procesados: NITs procesados
+    - creadas: Nuevas asignaciones
+    - errores: Lista de NITs que fallaron
+    """
+    # Verificar responsable
+    responsable = db.query(Usuario).filter(
+        Usuario.id == payload.responsable_id
+    ).first()
+    if not responsable:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Usuario con ID {payload.responsable_id} no encontrado"
+        )
+
+    # PASO 1: Parsear el texto de NITs
+    import re
+    nits_raw = re.split(r'[,\n\t\r;]', payload.nits)
+    nits_procesados_raw = [nit.strip() for nit in nits_raw if nit.strip()]
+
+    if not nits_procesados_raw:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se encontraron NITs válidos en el texto proporcionado"
+        )
+
+    # PASO 2: NORMALIZAR NITs
+    nits_procesados = []
+    nits_normalizacion_errores = []
+
+    for nit_raw in nits_procesados_raw:
+        es_valido, nit_normalizado_o_error = NitValidator.validar_nit(nit_raw)
+        if es_valido:
+            nits_procesados.append(nit_normalizado_o_error)
+        else:
+            nits_normalizacion_errores.append((nit_raw, nit_normalizado_o_error))
+
+    if nits_normalizacion_errores:
+        errores_str = "; ".join([f"{nit} ({err})" for nit, err in nits_normalizacion_errores])
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Algunos NITs no pudieron ser normalizados: {errores_str}"
+        )
+
+    # PASO 3: VALIDACIÓN - Verificar que los NITs existan en nit_configuracion
+    nits_invalidos = []
+    for nit_normalizado in nits_procesados:
+        nit_config = db.query(NitConfiguracion).filter(
+            NitConfiguracion.nit == nit_normalizado,
+            NitConfiguracion.activo == True
+        ).first()
+
+        if not nit_config:
+            nits_invalidos.append(nit_normalizado)
+
+    if nits_invalidos:
+        nits_invalidos_str = ", ".join(nits_invalidos)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Los siguientes NITs no están configurados en nit_configuracion: "
+                f"{nits_invalidos_str}. "
+                "Agregúelos a la configuración de extracción de emails primero."
+            )
+        )
+
+    # PASO 4: Procesar asignaciones
+    creadas = 0
+    omitidas = 0
+    errores = []
+
+    for nit_normalizado in nits_procesados:
+        try:
+            # Verificar si ya existe la asignación
+            asignacion_existente = db.query(AsignacionNitResponsable).filter(
+                AsignacionNitResponsable.nit == nit_normalizado,
+                AsignacionNitResponsable.responsable_id == payload.responsable_id,
+                AsignacionNitResponsable.activo == True
+            ).first()
+
+            if asignacion_existente:
+                omitidas += 1
+                continue
+
+            # Obtener nombre del NIT desde nit_configuracion si existe
+            nit_config = db.query(NitConfiguracion).filter(
+                NitConfiguracion.nit == nit_normalizado
+            ).first()
+            nombre_proveedor = nit_config.nombre_proveedor if nit_config else None
+
+            # Crear nueva asignación
+            nueva_asignacion = AsignacionNitResponsable(
+                nit=nit_normalizado,
+                responsable_id=payload.responsable_id,
+                nombre_proveedor=nombre_proveedor,
+                permitir_aprobacion_automatica=payload.permitir_aprobacion_automatica,
+                activo=True,
+                fecha_asignacion=datetime.utcnow()
+            )
+            db.add(nueva_asignacion)
+            creadas += 1
+
+        except Exception as e:
+            logger.error(f"Error asignando NIT {nit_normalizado}: {str(e)}")
+            errores.append(nit_normalizado)
+
+    db.commit()
+
+    # Log de auditoría
+    logger.info(
+        f"Asignaciones desde nit_configuracion: {creadas} creadas, {omitidas} omitidas, "
+        f"{len(errores)} errores",
+        extra={
+            "responsable_id": payload.responsable_id,
+            "total_nits": len(nits_procesados),
+            "creadas": creadas,
+            "omitidas": omitidas,
+            "errores": len(errores)
+        }
+    )
+
+    mensaje = (
+        f"Se procesaron {len(nits_procesados)} NITs. "
+        f"Creadas: {creadas}, Omitidas (ya existían): {omitidas}, "
+        f"Errores: {len(errores)}"
+    )
+
+    return {
+        "success": len(errores) == 0,
+        "total_procesados": len(nits_procesados),
+        "creadas": creadas,
+        "omitidas": omitidas,
+        "errores": errores,
+        "responsable_id": payload.responsable_id,
+        "mensaje": mensaje
+    }
