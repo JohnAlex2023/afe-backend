@@ -28,6 +28,8 @@ def read_root():
 # Registro de módulos de rutas
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
 api_router.include_router(usuarios.router, prefix="/usuarios", tags=["Usuarios"])
+# LEGACY: Alias para compatibilidad backwards con código antiguo
+api_router.include_router(usuarios.router, prefix="/responsables", tags=["Responsables (LEGACY)"])
 api_router.include_router(proveedores.router, prefix="/proveedores", tags=["Proveedores"])
 api_router.include_router(roles.router, prefix="/roles", tags=["Roles"])
 api_router.include_router(facturas.router, prefix="/facturas", tags=["Facturas"])
