@@ -78,12 +78,6 @@ class FacturaItem(Base):
         comment="Código del producto del proveedor"
     )
 
-    codigo_estandar = Column(
-        String(100),
-        nullable=True,
-        comment="Código estándar: EAN, UNSPSC, etc."
-    )
-
     # ============================================================================
     # CANTIDADES Y UNIDADES
     # ============================================================================
@@ -130,12 +124,6 @@ class FacturaItem(Base):
     )
 
     # Descuentos (opcional)
-    descuento_porcentaje = Column(
-        Numeric(5, 2),
-        nullable=True,
-        comment="Porcentaje de descuento aplicado"
-    )
-
     descuento_valor = Column(
         Numeric(15, 2),
         nullable=True,
@@ -179,12 +167,6 @@ class FacturaItem(Base):
     # ============================================================================
     # METADATA
     # ============================================================================
-    notas = Column(
-        String(1000),
-        nullable=True,
-        comment="Notas adicionales sobre el item"
-    )
-
     creado_en = Column(
         DateTime(timezone=True),
         server_default=func.now(),

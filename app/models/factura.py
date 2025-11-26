@@ -134,13 +134,6 @@ class Factura(Base):
         viewonly=True   # No modifica desde Factura
     )
 
-    # RELACIÓN: Pagos registrados para esta factura
-    pagos = relationship(
-        "PagoFactura",
-        back_populates="factura",
-        lazy="selectin",
-        cascade="all, delete-orphan"
-    )
 
     __table_args__ = (UniqueConstraint("numero_factura", "proveedor_id", name="uix_num_prov"),)
 
@@ -152,7 +145,7 @@ class Factura(Base):
         Total calculado dinámicamente desde subtotal + IVA.
 
         FALLBACK: Si subtotal e iva están nulos (datos legacy), usa total_a_pagar
-        como fuente de verdad para garantizar que pendiente_pagar se calcula correctamente.
+        como fuente de verdad.
 
         Nivel: Fortune 500 Data Integrity
         """
@@ -302,49 +295,3 @@ class Factura(Base):
             return True
         return False
 
-    # ==================== PROPIEDADES DE PAGO ====================
-
-    @property
-    def total_pagado(self) -> Numeric:
-        """
-        Suma de todos los pagos completados.
-        Se calcula dinámicamente desde la relación pagos.
-        """
-        from decimal import Decimal
-        from app.models.pago_factura import EstadoPago
-
-        if not self.pagos:
-            return Decimal('0.00')
-
-        return sum(
-            (p.monto_pagado or Decimal('0.00'))
-            for p in self.pagos
-            if p.estado_pago == EstadoPago.completado
-        ) or Decimal('0.00')
-
-    @property
-    def pendiente_pagar(self) -> Numeric:
-        """
-        Monto que aún falta pagar.
-        = total_a_pagar - total_pagado
-
-        CRÍTICO (2025-11-23): SIEMPRE usa total_a_pagar (extraído del XML),
-        NUNCA usa total_calculado. El total_a_pagar es la fuente de verdad
-        para los cálculos de pago en el negocio colombiano.
-        """
-        from decimal import Decimal
-
-        # REGLA DE ORO: total_a_pagar es la FUENTE DE VERDAD para pagos
-        total = self.total_a_pagar or Decimal('0.00')
-        pagado = self.total_pagado
-        return total - pagado
-
-    @property
-    def esta_completamente_pagada(self) -> bool:
-        """
-        ¿El monto total pagado >= monto de factura?
-
-        CRÍTICO (2025-11-23): Usa total_a_pagar (fuente de verdad XML),
-        nunca total_calculado.
-        """
-        return self.total_pagado >= (self.total_a_pagar or Decimal('0.00'))

@@ -119,30 +119,6 @@ def auth_token_responsable(db: Session):
 
 
 @pytest.fixture
-def limpiar_pagos_test(db: Session):
-    """Limpia registros de pago de prueba antes y después de cada test.
-
-    Busca y elimina todos los pagos con referencias que comienzan con "TEST_"
-    para garantizar que cada test comience con un estado limpio.
-    """
-    from app.models.pago_factura import PagoFactura
-
-    # Limpiar antes
-    db.query(PagoFactura).filter(
-        PagoFactura.referencia_pago.like("TEST_%")
-    ).delete()
-    db.commit()
-
-    yield
-
-    # Limpiar después
-    db.query(PagoFactura).filter(
-        PagoFactura.referencia_pago.like("TEST_%")
-    ).delete()
-    db.commit()
-
-
-@pytest.fixture
 def limpiar_facturas_test(db: Session):
     """Limpia facturas de prueba antes y después de cada test.
 
