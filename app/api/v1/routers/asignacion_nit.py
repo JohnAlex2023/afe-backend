@@ -472,29 +472,29 @@ def eliminar_asignacion_nit(
     current_user=Depends(get_current_usuario)
 ):
     """
-    Elimina una asignación NIT -> Usuario de la base de datos.
+    Elimina (marca como inactiva) una asignación NIT -> Usuario.
 
-    **HARD DELETE PATTERN (CORRECTO):**
-    - Elimina físicamente el registro de la tabla asignacion_nit_responsable
-    - La asignación NO se puede restaurar (fue eliminada)
-    - Se pueden crear nuevas asignaciones del mismo NIT a otro responsable
-    - DESASIGNA SOLO las facturas del NIT específico (no todas del usuario)
+    **SOFT DELETE PATTERN (ENTERPRISE-GRADE AUDIT):**
+    - Marca como inactivo (UPDATE activo=False) en lugar de eliminar físicamente
+    - Permite restaurar la asignación posteriormente
+    - Mantiene historial completo para auditoría
+    - Desasigna SOLO las facturas del NIT específico (no todas del usuario)
 
     **SINCRONIZACIÓN AUTOMÁTICA:**
-    - SOLO las facturas del NIT pierden su responsable asignado
-    - Otras facturas del usuario se mantienen (ej: si responsable tiene NIT 123 y 456)
+    - SOLO las facturas del NIT pierden su responsable asignado (por TRIGGER)
+    - Otras facturas del usuario se mantienen
     - Facturas del NIT vuelven a pool "sin asignar"
     - Si se reasigna el NIT, las facturas se vuelven a asignar automáticamente
 
-    **ARQUITECTURA CORRECTA:**
-    - Tabla limpia: solo asignaciones activas
-    - No hay "fantasmas" en la BD
-    - Queries simples sin filtros `activo = true`
-    - Usuario se puede reasignar a otro responsable
+    **VENTAJAS:**
+    - Auditoría completa: se conserva el registro con timestamp
+    - Recuperación: se puede reactivar si fue eliminada por error
+    - Historial: se sabe cuándo se asignó, desasignó y reactivó
+    - Tests y triggers: ya están implementados para este patrón
 
-    **Nivel:** Enterprise Production-Ready - Hard Delete Pattern
+    **Nivel:** Enterprise Production-Ready - Soft Delete Pattern
     """
-    # PASO 1: Obtener asignación
+    # PASO 1: Obtener asignación (activa o inactiva)
     asignacion = db.query(AsignacionNitResponsable).filter(
         AsignacionNitResponsable.id == asignacion_id
     ).first()
@@ -505,29 +505,31 @@ def eliminar_asignacion_nit(
             detail=f"Asignación con ID {asignacion_id} no encontrada"
         )
 
-    # Guardar datos antes de eliminar (para logging)
+    # Si ya está inactiva, no hacer nada
+    if not asignacion.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Asignación con ID {asignacion_id} ya está inactiva"
+        )
+
+    # Guardar datos antes de marcar como inactiva (para logging)
     nit = asignacion.nit
     responsable_id = asignacion.responsable_id
 
-    # PASO 2: DESASIGNAR FACTURAS - Sincronización específica al NIT
-    total_facturas_desasignadas = desasignar_facturas_por_nit(
-        db,
-        nit=nit,
-        responsable_id=responsable_id
-    )
+    # PASO 2: MARCAR COMO INACTIVA - Soft Delete
+    # El TRIGGER after_asignacion_soft_delete se ejecutará automáticamente
+    # y desasignará SOLO las facturas del NIT específico
+    asignacion.activo = False
+    asignacion.actualizado_por = current_user.usuario
+    asignacion.actualizado_en = datetime.utcnow()
 
-    # PASO 3: HARD DELETE - Eliminar físicamente el registro
-    db.delete(asignacion)
     db.commit()
 
     logger.info(
-        f"Asignación NIT eliminada (hard delete): NIT={nit}, "
-        f"Usuario ID={responsable_id}, ID={asignacion_id}, "
-        f"Usuario={current_user.usuario}, "
-        f"Facturas desasignadas={total_facturas_desasignadas}"
+        f"Asignación NIT marcada como inactiva (soft delete): "
+        f"NIT={nit}, Usuario ID={responsable_id}, ID={asignacion_id}, "
+        f"Marcado por={current_user.usuario}"
     )
-
-    return None
 
 
 
