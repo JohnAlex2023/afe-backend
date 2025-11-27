@@ -112,6 +112,26 @@ class AsignacionBulkSimple(BaseModel):
     activo: Optional[bool] = True
 
 
+class AsignacionBulkDirect(BaseModel):
+    """
+    PHASE 2: Asignación bulk directa sin restricciones de existencia previa.
+
+    Use case: Asignar NITs directamente a un responsable sin verificar que existan
+    en proveedores o nit_configuracion. Los NITs se normalizan y asignan directamente.
+
+    Ejemplo:
+    {
+        "responsable_id": 1,
+        "nits": "800185449,900123456,800999999",
+        "permitir_aprobacion_automatica": true
+    }
+    """
+    responsable_id: int
+    nits: str  # Texto con NITs separados por comas o líneas
+    permitir_aprobacion_automatica: Optional[bool] = True
+    activo: Optional[bool] = True
+
+
 class AsignacionesPorResponsableResponse(BaseModel):
     """Respuesta agrupada de asignaciones por responsable"""
     responsable_id: int
@@ -1081,7 +1101,8 @@ def crear_asignaciones_desde_nit_config(
                 nombre_proveedor=nombre_proveedor,
                 permitir_aprobacion_automatica=payload.permitir_aprobacion_automatica,
                 activo=True,
-                fecha_asignacion=datetime.utcnow()
+                creado_por="BULK_NIT_CONFIG",
+                creado_en=datetime.utcnow()
             )
             db.add(nueva_asignacion)
             creadas += 1
