@@ -1058,6 +1058,7 @@ def crear_asignaciones_desde_nit_config(
     creadas = 0
     reactivadas = 0
     omitidas = 0
+    nits_omitidos = []  # Rastrear cuáles NITs fueron omitidos
     errores = []
 
     for nit_normalizado in nits_procesados:
@@ -1071,6 +1072,7 @@ def crear_asignaciones_desde_nit_config(
 
             if asignacion_activa:
                 omitidas += 1
+                nits_omitidos.append(nit_normalizado)  # Registrar cuál fue omitido
                 continue
 
             # Verificar si existe una asignación INACTIVA (para reactivar)
@@ -1151,6 +1153,7 @@ def crear_asignaciones_desde_nit_config(
         "creadas": creadas,
         "reactivadas": reactivadas,
         "omitidas": omitidas,
+        "nits_omitidos": nits_omitidos,  # Lista de NITs que ya estaban asignados
         "errores": errores,
         "responsable_id": payload.responsable_id,
         "mensaje": mensaje
