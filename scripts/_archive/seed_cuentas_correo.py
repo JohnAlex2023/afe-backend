@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.models.email_config import CuentaCorreo, NitConfiguracion
+from app.utils.nit_validator import NitValidator
 from datetime import datetime
 
 # Datos a insertar
@@ -111,9 +112,15 @@ def seed_cuentas_correo(db: Session):
         # Insertar NITs asociados
         nits_insertados = 0
         for nit in cuenta_data["nits"]:
+            # Normalizar el NIT antes de guardar (agregar dígito verificador)
+            es_valido, nit_normalizado_o_error = NitValidator.validar_nit(nit)
+            if not es_valido:
+                print(f"   [!] NIT inválido: {nit} - {nit_normalizado_o_error}")
+                continue
+
             nit_config = NitConfiguracion(
                 cuenta_correo_id=nueva_cuenta.id,
-                nit=nit,
+                nit=nit_normalizado_o_error,  # Usar NIT normalizado
                 activo=True,
                 creado_por="SEED_SCRIPT",
                 creado_en=datetime.now(),

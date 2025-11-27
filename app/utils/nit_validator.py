@@ -147,10 +147,9 @@ class NitValidator:
                     f"Correcto: {dv_calculado}"
                 )
 
-        # Rellenar con ceros a la izquierda (máximo 9 dígitos)
-        nit_normalizado = nit_numero.zfill(9)
-
-        return f"{nit_normalizado}-{dv_calculado}"
+        # NO rellenar con ceros - mantener el NIT tal como viene
+        # El zfill(9) solo se usa para calcular el DV, no para almacenar
+        return f"{nit_numero}-{dv_calculado}"
 
     @staticmethod
     def validar_nit(nit: str) -> Tuple[bool, str]:
@@ -179,22 +178,24 @@ class NitValidator:
     @staticmethod
     def es_nit_normalizado(nit: str) -> bool:
         """
-        Verifica si un NIT está en formato normalizado: "XXXXXXXXX-D"
+        Verifica si un NIT está en formato normalizado: "XXXXX-D" a "XXXXXXXXX-D"
 
         Args:
             nit: String con el NIT a verificar
 
         Returns:
-            True si está en formato "XXXXXXXXX-D", False en otro caso
+            True si está en formato "NIT-DV" con DV correcto, False en otro caso
 
         Example:
             >>> NitValidator.es_nit_normalizado("800185449-9")
             True
+            >>> NitValidator.es_nit_normalizado("17343874-5")
+            True (si el DV es correcto)
             >>> NitValidator.es_nit_normalizado("800185449")
             False
         """
-        # Patrón: exactamente 9 dígitos, guión, 1 dígito
-        patron = r'^\d{9}-\d$'
+        # Patrón: 1-9 dígitos, guión, 1 dígito
+        patron = r'^\d{1,9}-\d$'
         if not re.match(patron, nit.strip()):
             return False
 

@@ -895,6 +895,48 @@ def obtener_asignaciones_por_responsable(
 
 # ==================== NUEVO ENDPOINT: Asignación desde nit_configuracion ====================
 
+@router.post("/diagnostico-nits", status_code=status.HTTP_200_OK)
+def diagnostico_nits(
+    payload: AsignacionBulkSimple,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin"))
+):
+    """
+    ENDPOINT DE DIAGNÓSTICO - Verifica qué está pasando con los NITs.
+    Retorna información detallada sobre cada NIT enviado.
+    """
+    import re
+    nits_raw = re.split(r'[,\n\t\r;]', payload.nits)
+    nits_procesados_raw = [nit.strip() for nit in nits_raw if nit.strip()]
+
+    resultado = []
+    for nit_raw in nits_procesados_raw:
+        es_valido, nit_normalizado_o_error = NitValidator.validar_nit(nit_raw)
+
+        if es_valido:
+            # Buscar en nit_configuracion
+            nit_config = db.query(NitConfiguracion).filter(
+                NitConfiguracion.nit == nit_normalizado_o_error
+            ).all()
+
+            resultado.append({
+                "nit_original": nit_raw,
+                "nit_normalizado": nit_normalizado_o_error,
+                "valido": True,
+                "en_nit_configuracion": len(nit_config) > 0,
+                "registros_en_config": len(nit_config),
+                "config_activos": len([x for x in nit_config if x.activo])
+            })
+        else:
+            resultado.append({
+                "nit_original": nit_raw,
+                "valido": False,
+                "error": nit_normalizado_o_error
+            })
+
+    return {"nits": resultado, "total": len(resultado)}
+
+
 @router.post("/bulk-nit-config", status_code=status.HTTP_201_CREATED)
 def crear_asignaciones_desde_nit_config(
     payload: AsignacionBulkSimple,
@@ -1027,10 +1069,22 @@ def crear_asignaciones_desde_nit_config(
             creadas += 1
 
         except Exception as e:
-            logger.error(f"Error asignando NIT {nit_normalizado}: {str(e)}")
-            errores.append(nit_normalizado)
+            logger.error(f"Error asignando NIT {nit_normalizado}: {str(e)}", exc_info=True)
+            errores.append({
+                "nit": nit_normalizado,
+                "error": str(e)
+            })
 
-    db.commit()
+    # Commit con manejo de errores mejorado
+    try:
+        db.commit()
+    except Exception as e:
+        logger.error(f"Error en COMMIT de asignaciones: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al guardar asignaciones: {str(e)}"
+        )
 
     # Log de auditoría
     logger.info(
