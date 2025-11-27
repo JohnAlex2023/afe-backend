@@ -262,12 +262,12 @@ def listar_asignaciones_nit(
     current_user=Depends(get_current_usuario)
 ):
     """
-    Lista todas las asignaciones NIT -> Usuario.
+    Lista todas las asignaciones NIT -> Usuario ACTIVAS.
 
-    **COMPORTAMIENTO ENTERPRISE-GRADE (HARD DELETE):**
-    - Retorna TODAS las asignaciones activas (no hay eliminadas en BD)
+    **COMPORTAMIENTO ENTERPRISE-GRADE:**
+    - Retorna SOLO asignaciones activas
     - Tabla limpia: solo registros que importan
-    - No hay filtros de inactivos (hard delete pattern)
+    - Las asignaciones inactivas se pueden reactivar en bulk
 
     **Filtros disponibles:**
     - responsable_id: Filtrar por responsable específico
@@ -275,12 +275,12 @@ def listar_asignaciones_nit(
 
     **Ejemplos:**
     - GET /asignacion-nit/ -> Todas las asignaciones activas
-    - GET /asignacion-nit/?responsable_id=1 -> Asignaciones de responsable 1
-    - GET /asignacion-nit/?nit=800185449 -> Asignaciones del NIT
+    - GET /asignacion-nit/?responsable_id=1 -> Asignaciones activas de responsable 1
+    - GET /asignacion-nit/?nit=800185449 -> Asignaciones activas del NIT
 
-    **Nivel:** Enterprise Production-Ready - Hard Delete Pattern
+    **Nivel:** Enterprise Production-Ready
     """
-    query = db.query(AsignacionNitResponsable)
+    query = db.query(AsignacionNitResponsable).filter(AsignacionNitResponsable.activo == True)
 
     if responsable_id is not None:
         query = query.filter(AsignacionNitResponsable.responsable_id == responsable_id)
@@ -1034,20 +1034,36 @@ def crear_asignaciones_desde_nit_config(
 
     # PASO 4: Procesar asignaciones
     creadas = 0
+    reactivadas = 0
     omitidas = 0
     errores = []
 
     for nit_normalizado in nits_procesados:
         try:
-            # Verificar si ya existe la asignación
-            asignacion_existente = db.query(AsignacionNitResponsable).filter(
+            # Verificar si ya existe la asignación ACTIVA
+            asignacion_activa = db.query(AsignacionNitResponsable).filter(
                 AsignacionNitResponsable.nit == nit_normalizado,
                 AsignacionNitResponsable.responsable_id == payload.responsable_id,
                 AsignacionNitResponsable.activo == True
             ).first()
 
-            if asignacion_existente:
+            if asignacion_activa:
                 omitidas += 1
+                continue
+
+            # Verificar si existe una asignación INACTIVA (para reactivar)
+            asignacion_inactiva = db.query(AsignacionNitResponsable).filter(
+                AsignacionNitResponsable.nit == nit_normalizado,
+                AsignacionNitResponsable.responsable_id == payload.responsable_id,
+                AsignacionNitResponsable.activo == False
+            ).first()
+
+            if asignacion_inactiva:
+                # REACTIVAR la asignación existente
+                asignacion_inactiva.activo = True
+                asignacion_inactiva.actualizado_por = "BULK_NIT_CONFIG"
+                asignacion_inactiva.actualizado_en = datetime.utcnow()
+                reactivadas += 1
                 continue
 
             # Obtener nombre del NIT desde nit_configuracion si existe
@@ -1088,12 +1104,13 @@ def crear_asignaciones_desde_nit_config(
 
     # Log de auditoría
     logger.info(
-        f"Asignaciones desde nit_configuracion: {creadas} creadas, {omitidas} omitidas, "
-        f"{len(errores)} errores",
+        f"Asignaciones desde nit_configuracion: {creadas} creadas, {reactivadas} reactivadas, "
+        f"{omitidas} omitidas, {len(errores)} errores",
         extra={
             "responsable_id": payload.responsable_id,
             "total_nits": len(nits_procesados),
             "creadas": creadas,
+            "reactivadas": reactivadas,
             "omitidas": omitidas,
             "errores": len(errores)
         }
@@ -1101,7 +1118,7 @@ def crear_asignaciones_desde_nit_config(
 
     mensaje = (
         f"Se procesaron {len(nits_procesados)} NITs. "
-        f"Creadas: {creadas}, Omitidas (ya existían): {omitidas}, "
+        f"Creadas: {creadas}, Reactivadas: {reactivadas}, Omitidas: {omitidas}, "
         f"Errores: {len(errores)}"
     )
 
@@ -1109,6 +1126,7 @@ def crear_asignaciones_desde_nit_config(
         "success": len(errores) == 0,
         "total_procesados": len(nits_procesados),
         "creadas": creadas,
+        "reactivadas": reactivadas,
         "omitidas": omitidas,
         "errores": errores,
         "responsable_id": payload.responsable_id,
