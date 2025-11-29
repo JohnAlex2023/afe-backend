@@ -16,17 +16,217 @@ from datetime import datetime
 from app.db.session import get_db
 from app.core.security import require_role
 from app.schemas.devolucion import DevolucionRequest, DevolucionResponse
+from app.schemas.factura import FacturaRead
 from app.schemas.common import ErrorResponse
 from app.models.factura import Factura, EstadoFactura
 from app.models.workflow_aprobacion import WorkflowAprobacionFactura
 from app.services.unified_email_service import UnifiedEmailService
 from app.services.email_template_service import EmailTemplateService
-from app.core.config import settings
 from app.utils.logger import logger
+from pydantic import BaseModel, Field
+from typing import Optional
 
 
 router = APIRouter(tags=["Contabilidad"])
 
+
+# =====================================================================
+# SCHEMAS INLINE - Validación de Facturas por Contador
+# =====================================================================
+
+class ValidacionRequest(BaseModel):
+    """Request para validar una factura por Contador"""
+    observaciones: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Observaciones opcionales sobre la validación"
+    )
+
+
+class ValidacionResponse(BaseModel):
+    """Response después de validar una factura"""
+    success: bool
+    factura_id: int
+    numero_factura: str
+    estado_anterior: str
+    estado_nuevo: str
+    validado_por: str
+    fecha_validacion: datetime
+    observaciones: Optional[str] = None
+    mensaje: str
+
+
+# =====================================================================
+# ENDPOINT: Obtener facturas por revisar (Contador)
+# =====================================================================
+
+@router.get(
+    "/facturas/por-revisar",
+    response_model=dict,
+    summary="Obtener facturas pendientes de validación",
+    description="""
+    Contador obtiene todas las facturas que necesita validar.
+
+    **Permisos:** Solo usuarios con rol 'contador' pueden ejecutar.
+
+    **Retorna:**
+    - Facturas en estado 'aprobada' o 'aprobada_auto'
+    - Información para tomar decisión de validación
+    - Estadísticas de pendientes
+    """
+)
+async def obtener_facturas_por_revisar(
+    current_user=Depends(require_role("contador")),
+    db: Session = Depends(get_db),
+    solo_pendientes: bool = True,
+    pagina: int = 1,
+    limit: int = 50
+):
+    """Obtener facturas pendientes de validación por Contador"""
+
+    # Query base: facturas aprobadas
+    query = db.query(Factura).filter(
+        Factura.estado.in_([EstadoFactura.aprobada, EstadoFactura.aprobada_auto])
+    )
+
+    # Opcional: si quiere ver SOLO las no validadas aún
+    if solo_pendientes:
+        # (en realidad esto es redundante porque la query ya filtra aprobadas)
+        pass
+
+    # Ordenar por fecha más reciente
+    query = query.order_by(Factura.creado_en.desc())
+
+    # Paginación
+    total = query.count()
+    skip = (pagina - 1) * limit
+    facturas = query.offset(skip).limit(limit).all()
+
+    # Convertir a schema
+    facturas_data = [FacturaRead.model_validate(f) for f in facturas]
+
+    # Estadísticas
+    estadisticas = {
+        "total_pendiente": total,
+        "monto_pendiente": sum(
+            float(f.total_a_pagar or 0) for f in facturas
+        ),
+        "validadas_hoy": db.query(Factura).filter(
+            Factura.estado == EstadoFactura.validada_contabilidad,
+            Factura.actualizado_en >= datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        ).count()
+    }
+
+    logger.info(
+        "Contador consultó facturas por revisar: %s facturas, página %s",
+        len(facturas),
+        pagina,
+        extra={"contador": current_user.usuario}
+    )
+
+    return {
+        "facturas": facturas_data,
+        "paginacion": {
+            "pagina": pagina,
+            "limit": limit,
+            "total": total
+        },
+        "estadisticas": estadisticas
+    }
+
+
+# =====================================================================
+# ENDPOINT: Validar factura (Contador aprueba para Tesorería)
+# =====================================================================
+
+@router.post(
+    "/facturas/{factura_id}/validar",
+    response_model=ValidacionResponse,
+    summary="Validar factura - Contador aprueba",
+    description="""
+    Contador valida que la factura sea correcta y está lista para Tesorería.
+
+    **Permisos:** Solo usuarios con rol 'contador' pueden ejecutar.
+
+    **Condiciones:**
+    - Factura debe estar en estado 'aprobada' o 'aprobada_auto'
+    - Cambiar estado a 'validada_contabilidad'
+
+    **Nota:** Tesorería es sistema aparte. Solo enviamos facturas validadas.
+    """
+)
+async def validar_factura(
+    factura_id: int,
+    request: ValidacionRequest,
+    current_user=Depends(require_role("contador")),
+    db: Session = Depends(get_db)
+):
+    """Validar factura por Contador - sin emails"""
+
+    # Obtener factura
+    factura = db.query(Factura).filter(Factura.id == factura_id).first()
+
+    if not factura:
+        logger.warning(
+            "Intento de validar factura inexistente: %s por %s",
+            factura_id,
+            current_user.usuario
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Factura con ID {factura_id} no encontrada"
+        )
+
+    # Validar que esté aprobada
+    if factura.estado not in [EstadoFactura.aprobada, EstadoFactura.aprobada_auto]:
+        logger.warning(
+            "Intento de validar factura en estado inválido: %s (factura_id: %s)",
+            factura.estado.value,
+            factura_id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Solo puedes validar facturas aprobadas. Esta está: {factura.estado.value}"
+        )
+
+    # Cambiar estado
+    estado_anterior = factura.estado.value
+    factura.estado = EstadoFactura.validada_contabilidad
+    db.commit()
+    db.refresh(factura)
+
+    # Log de auditoría
+    logger.info(
+        "Factura validada por contador: %s (ID: %s)",
+        factura.numero_factura,
+        factura_id,
+        extra={
+            "contador": current_user.usuario,
+            "estado_anterior": estado_anterior,
+            "estado_nuevo": factura.estado.value,
+            "observaciones": request.observaciones
+        }
+    )
+
+    # Retornar respuesta
+    validado_por = current_user.nombre if hasattr(current_user, 'nombre') else current_user.usuario
+
+    return ValidacionResponse(
+        success=True,
+        factura_id=factura.id,
+        numero_factura=factura.numero_factura,
+        estado_anterior=estado_anterior,
+        estado_nuevo=factura.estado.value,
+        validado_por=validado_por,
+        fecha_validacion=datetime.now(),
+        observaciones=request.observaciones,
+        mensaje="Factura validada exitosamente. Lista para Tesorería."
+    )
+
+
+# =====================================================================
+# ENDPOINT: Devolver factura (Contador requiere corrección)
+# =====================================================================
 
 @router.post(
     "/facturas/{factura_id}/devolver",
@@ -250,14 +450,8 @@ async def devolver_factura(
 
     estado_anterior = factura.estado.value
 
-    # Cambiar estado a rechazada (por ahora, luego podemos crear estado "devuelta")
-    # TODO: Agregar estado "devuelta" a enum EstadoFactura
-    factura.estado = EstadoFactura.rechazada
-
-    # Registrar información de la devolución en campos de rechazo
-    factura.rechazado_por = devuelto_por
-    factura.fecha_rechazo = datetime.now()
-    factura.motivo_rechazo = "DEVUELTA_POR_CONTABILIDAD"
+    # Cambiar estado a devuelta_contabilidad (nuevo estado para Contador)
+    factura.estado = EstadoFactura.devuelta_contabilidad
 
     db.commit()
     db.refresh(factura)

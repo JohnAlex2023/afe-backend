@@ -7,19 +7,29 @@ import enum
 
 class EstadoFactura(enum.Enum):
     """
-    Estados de factura (refactorizado - eliminado 'pendiente').
+    Estados de factura - FLUJO CONTADOR SIMPLIFICADO (sin Tesorería).
 
-    - en_revision: Factura requiere revisión manual (estado único de espera)
+    FASE 1: APROBACIÓN (Responsable revisa)
+    - en_revision: Factura requiere revisión manual
     - aprobada: Factura aprobada manualmente por usuario
     - aprobada_auto: Factura aprobada automáticamente por el sistema
     - rechazada: Factura rechazada por usuario
-    - pagada: Factura procesada para pago
+
+    FASE 2: VALIDACIÓN (Contador revisa - SIN PAGO)
+    - validada_contabilidad: Contador validó - OK para que Tesorería la procese
+    - devuelta_contabilidad: Contador devolvió - requiere corrección
+
+    NOTA: Tesorería es sistema aparte. Solo enviamos facturas validadas por Contador.
     """
+    # FASE 1: APROBACIÓN
     en_revision = "en_revision"
     aprobada = "aprobada"
-    rechazada = "rechazada"
     aprobada_auto = "aprobada_auto"
-    pagada = "pagada"
+    rechazada = "rechazada"
+
+    # FASE 2: VALIDACIÓN CONTABLE
+    validada_contabilidad = "validada_contabilidad"
+    devuelta_contabilidad = "devuelta_contabilidad"
 
 class EstadoAsignacion(enum.Enum):
     """

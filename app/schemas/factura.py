@@ -6,11 +6,15 @@ from enum import Enum
 
 
 class EstadoFactura(str, Enum):
-    pendiente = "pendiente"
+    # FASE 1: APROBACIÓN (Responsable)
     en_revision = "en_revision"
     aprobada = "aprobada"
-    rechazada = "rechazada"
     aprobada_auto = "aprobada_auto"
+    rechazada = "rechazada"
+
+    # FASE 2: VALIDACIÓN (Contador)
+    validada_contabilidad = "validada_contabilidad"
+    devuelta_contabilidad = "devuelta_contabilidad"
 
 
 # =====================================================
