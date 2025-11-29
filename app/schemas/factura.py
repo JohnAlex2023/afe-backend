@@ -1,4 +1,4 @@
-from pydantic import BaseModel, condecimal, model_validator
+from pydantic import BaseModel, condecimal, model_validator, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 from decimal import Decimal
@@ -98,7 +98,12 @@ class FacturaRead(FacturaBase):
     proveedor: Optional[ProveedorSimple] = None
 
     # Relación con responsable anidado (para ADMIN)
+    # NOTA: El modelo Factura usa 'usuario' como relación,
+    # pero el schema usa 'responsable' para compatibilidad con frontend
     responsable: Optional[ResponsableSimple] = None
+
+    # Campo usuario (alias de responsable para compatibilidad con modelo)
+    usuario: Optional[ResponsableSimple] = None
 
     # Campos calculados para compatibilidad con frontend
     nit_emisor: Optional[str] = None
@@ -134,6 +139,12 @@ class FacturaRead(FacturaBase):
     @model_validator(mode='after')
     def populate_calculated_fields(self):
         """Poblar campos calculados desde relaciones (NO incluye accion_por)"""
+        # IMPORTANTE: El modelo Factura usa 'usuario' como relación,
+        # pero el schema usa 'responsable' para mantener compatibilidad con frontend.
+        # Si responsable es None pero usuario está disponible, usar eso.
+        if not self.responsable and self.usuario:
+            self.responsable = self.usuario
+
         # Poblar NIT y nombre desde proveedor
         if self.proveedor:
             self.nit_emisor = self.proveedor.nit
