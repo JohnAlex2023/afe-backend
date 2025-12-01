@@ -10,7 +10,7 @@ Fecha: 2025-11-18
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 
 from app.db.session import get_db
@@ -316,11 +316,18 @@ async def devolver_factura(
                    f"Solo se pueden devolver facturas aprobadas."
         )
 
-    # Obtener workflow para saber quién aprobó
-    workflow = (
+    # Obtener TODOS los workflows de esta factura (soporte multi-responsable)
+    # Un NIT puede tener múltiples responsables asignados simultáneamente
+    workflows = (
         db.query(WorkflowAprobacionFactura)
+        .options(joinedload(WorkflowAprobacionFactura.usuario))
         .filter(WorkflowAprobacionFactura.factura_id == factura_id)
-        .first()
+        .all()  # Obtener TODOS, no solo el primero
+    )
+
+    logger.info(
+        f"Se encontraron {len(workflows)} workflow(s) para la factura {factura_id}",
+        extra={"factura_id": factura_id, "total_workflows": len(workflows)}
     )
 
     # ========================================================================
@@ -335,9 +342,7 @@ async def devolver_factura(
 
     # Formatear monto
     if factura.total_a_pagar:
-        monto_factura = f"${factura.total_a_pagar:,.2f} COP"
-    elif factura.total_calculado:
-        monto_factura = f"${factura.total_calculado:,.2f} COP"
+        monto_factura = f"${float(factura.total_a_pagar):,.2f} COP"
     else:
         monto_factura = "N/A"
 
@@ -347,12 +352,25 @@ async def devolver_factura(
     # Email del proveedor (si existe)
     email_proveedor = factura.proveedor.contacto_email if factura.proveedor else None
 
-    # Email del usuario que aprobó
-    email_responsable = None
-    nombre_responsable = "Usuario"
-    if workflow and workflow.responsable:
-        email_responsable = workflow.responsable.email
-        nombre_responsable = workflow.responsable.nombre or workflow.responsable.usuario
+    # Preparar lista de responsables (puede haber múltiples)
+    responsables_info = []
+    for workflow in workflows:
+        if workflow and workflow.usuario:
+            responsables_info.append({
+                'email': workflow.usuario.email,
+                'nombre': workflow.usuario.nombre or workflow.usuario.usuario,
+                'usuario_id': workflow.usuario.id
+            })
+            logger.info(
+                f"Responsable encontrado: {workflow.usuario.usuario} ({workflow.usuario.email})",
+                extra={"factura_id": factura_id, "usuario_id": workflow.usuario.id}
+            )
+
+    if not responsables_info:
+        logger.warning(
+            f"No se encontraron responsables con email válido para factura {factura_id}",
+            extra={"factura_id": factura_id, "total_workflows": len(workflows)}
+        )
 
     # ========================================================================
     # ENVIAR NOTIFICACIONES
@@ -404,45 +422,84 @@ async def devolver_factura(
             )
             # Continuar aunque falle el email al proveedor
 
-    # Enviar email al usuario (si usuario lo solicita)
-    if request.notificar_responsable and email_responsable:
-        try:
-            context = {
-                "nombre_responsable": nombre_responsable,
-                "numero_factura": numero_factura,
-                "nombre_proveedor": nombre_proveedor,
-                "nit_proveedor": nit_proveedor,
-                "monto_factura": monto_factura,
-                "fecha_devolucion": fecha_devolucion,
-                "devuelto_por": devuelto_por,
-                "observaciones_devolucion": request.observaciones
-            }
-
-            html_content = template_service.render_template(
-                "devolucion_factura_responsable.html",
-                context
-            )
-
-            email_service.send_email(
-                to_email=email_responsable,
-                subject=f"🔄 Factura {numero_factura} devuelta por contabilidad",
-                body_html=html_content
-            )
-
-            destinatarios_notificados.append(email_responsable)
-            notificaciones_exitosas += 1
-
-            logger.info(
-                f"Email de devolución enviado a responsable: {email_responsable}",
-                extra={"factura_id": factura_id, "responsable_email": email_responsable}
-            )
-
-        except Exception as e:
-            logger.error(
-                f"Error enviando email a responsable {email_responsable}: {str(e)}",
-                exc_info=True,
+    # Enviar email a TODOS los responsables (soporte multi-responsable)
+    if request.notificar_responsable:
+        if not responsables_info:
+            logger.warning(
+                f"No se puede enviar email: no hay responsables con email válido",
                 extra={"factura_id": factura_id}
             )
+        else:
+            logger.info(
+                f"Enviando notificación a {len(responsables_info)} responsable(s)",
+                extra={"factura_id": factura_id, "total_responsables": len(responsables_info)}
+            )
+
+            # Enviar email a cada responsable
+            for responsable in responsables_info:
+                email_responsable = responsable['email']
+                nombre_responsable = responsable['nombre']
+
+                if not email_responsable:
+                    logger.warning(
+                        f"Responsable {nombre_responsable} no tiene email configurado",
+                        extra={"factura_id": factura_id}
+                    )
+                    continue
+
+                logger.info(
+                    f"Intentando enviar email a responsable: {email_responsable}",
+                    extra={"factura_id": factura_id, "responsable_email": email_responsable}
+                )
+
+                try:
+                    context = {
+                        "nombre_responsable": nombre_responsable,
+                        "numero_factura": numero_factura,
+                        "nombre_proveedor": nombre_proveedor,
+                        "nit_proveedor": nit_proveedor,
+                        "monto_factura": monto_factura,
+                        "fecha_devolucion": fecha_devolucion,
+                        "devuelto_por": devuelto_por,
+                        "observaciones_devolucion": request.observaciones
+                    }
+
+                    html_content = template_service.render_template(
+                        "devolucion_factura_responsable.html",
+                        context
+                    )
+
+                    result = email_service.send_email(
+                        to_email=email_responsable,
+                        subject=f"🔄 Factura {numero_factura} devuelta por contabilidad",
+                        body_html=html_content
+                    )
+
+                    # Verificar si el email se envió correctamente
+                    if result.get('success'):
+                        destinatarios_notificados.append(email_responsable)
+                        notificaciones_exitosas += 1
+                        logger.info(
+                            f"✅ Email enviado exitosamente a {nombre_responsable} ({email_responsable})",
+                            extra={"factura_id": factura_id, "responsable_email": email_responsable}
+                        )
+                    else:
+                        logger.error(
+                            f"❌ Error enviando email a {nombre_responsable}. Error: {result.get('error', 'Sin detalles')}",
+                            extra={"factura_id": factura_id, "result": result}
+                        )
+
+                except Exception as e:
+                    logger.error(
+                        f"❌ Excepción enviando email a {nombre_responsable} ({email_responsable}): {str(e)}",
+                        exc_info=True,
+                        extra={"factura_id": factura_id}
+                    )
+    else:
+        logger.warning(
+            f"No se envió email a responsables. notificar_responsable={request.notificar_responsable}",
+            extra={"factura_id": factura_id}
+        )
 
     # ========================================================================
     # ACTUALIZAR ESTADO DE FACTURA
