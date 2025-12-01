@@ -158,7 +158,7 @@
 
         <p class="greeting">Estimado/a <strong>{{ nombre_responsable }}</strong>,</p>
 
-        <p>Le informamos que la factura <strong>{{ numero_factura }}</strong> que usted aprobó ha sido devuelta por el departamento de contabilidad debido a que requiere información adicional antes de ser procesada.</p>
+        <p>Le informamos que la factura <strong>{{ numero_factura }}</strong> que usted aprobó ha sido devuelta por el departamento de contabilidad durante el proceso de validación. Se han identificado observaciones que requieren atención.</p>
 
         <div class="info-section">
             <div class="info-row">
@@ -201,13 +201,14 @@
                 ℹ️ Información
             </div>
             <p style="margin: 0; color: #0d47a1;">
-                El proveedor ha sido notificado sobre la información faltante y debe enviar una factura corregida.
-                Una vez que el proveedor proporcione la información requerida, podrá revisar y aprobar nuevamente la factura si corresponde.
+                Se ha identificado que la factura requiere ajustes o correcciones durante el proceso de validación contable.
+                Por favor, revisar las observaciones detalladas arriba y coordinar con el proveedor para que envíe una factura corregida.
+                Una vez realizada la corrección, podrá reenviar la factura para su validación nuevamente.
             </p>
         </div>
 
         <div class="note-box">
-            <strong>Nota:</strong> Esta es una notificación informativa. No se requiere ninguna acción de su parte en este momento. El proveedor ha sido contactado directamente.
+            <strong>Próximo paso:</strong> Contacte al proveedor <strong>{{ nombre_proveedor }}</strong> para informar sobre las observaciones y solicitar que proporcione la información o ajustes requeridos según se detalla arriba.
         </div>
 
         <div class="footer">
