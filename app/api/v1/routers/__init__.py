@@ -15,6 +15,7 @@ from app.api.v1.routers import (
     email_health,  # Health check para servicios de email
     admin_sync,  # Admin: Sincronización de facturas
     accounting,  # Recepción y registro de facturas por contabilidad
+    dashboard,  # Dashboard optimizado con Progressive Disclosure
 )
 
 # Router principal con prefijo global
@@ -41,3 +42,4 @@ api_router.include_router(email_config.router, tags=["Email Configuration"])
 api_router.include_router(email_health.router, tags=["Email Health"])
 api_router.include_router(admin_sync.router, tags=["Admin Sync"])  # Admin: Sincronización
 api_router.include_router(accounting.router, prefix="/accounting", tags=["Contabilidad"])
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])

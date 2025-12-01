@@ -107,7 +107,7 @@ class DevolucionResponse(BaseModel):
                 "factura_id": 123,
                 "numero_factura": "CBOX566",
                 "estado_anterior": "aprobada",
-                "estado_nuevo": "devuelta",
+                "estado_nuevo": "devuelta_contabilidad",
                 "notificaciones_enviadas": 2,
                 "destinatarios": [
                     "proveedor@empresa.com",
